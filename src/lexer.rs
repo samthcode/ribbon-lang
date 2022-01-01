@@ -63,9 +63,9 @@ impl<'a> Lexer<'a> {
 
     /// This yields characters while they match a predicate
     /// Warning: Advances the internal iterator
-    fn take_while<F: Fn(char) -> bool>(&mut self, predicate: F) -> Vec<char> {
+    fn take_while<F: Fn(char) -> bool>(&mut self, predicate: F) -> String {
         // The resulting collected values
-        let mut res: Vec<char> = Vec::new();
+        let mut res = String::new();
 
         // We use peek() here so that the first value not matching the predicate is kept for lexical analysis later on
         // Without peek(), this would consume the first non-matching character which could screw up the lexing
