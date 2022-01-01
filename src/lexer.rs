@@ -29,7 +29,7 @@ impl<'a> Lexer<'a> {
     /// Advances the internal iterator and returns it's optional value
     /// This is also responsible for advancing the pos property appropriately
     /// (to be used in error handling)
-    pub fn next(&mut self) -> Option<char> {
+    fn next(&mut self) -> Option<char> {
         match self.chars.next() {
             Some(c) => {
                 match c {
@@ -44,12 +44,13 @@ impl<'a> Lexer<'a> {
 
     /// Peeks to the next character to be lexed
     /// This does not advance the iterator
-    pub fn peek(&mut self) -> Option<&char> {
+    fn peek(&mut self) -> Option<&char> {
         return self.chars.peek();
     }
 
     /// This yields characters while they match a predicate
-    pub fn take_while<F: Fn(char) -> bool>(&mut self, predicate: F) -> Vec<char> {
+    /// Warning: Advances the internal iterator
+    fn take_while<F: Fn(char) -> bool>(&mut self, predicate: F) -> Vec<char> {
         // The resulting collected values
         let mut res: Vec<char> = Vec::new();
 
@@ -64,5 +65,9 @@ impl<'a> Lexer<'a> {
             }
         }
         res
+    }
+
+    fn skip_excess_newlines(&mut self) {
+        let _ = self.take_while(|c| c == '\n');
     }
 }
