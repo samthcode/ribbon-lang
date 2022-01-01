@@ -1,3 +1,17 @@
+//! This module contains the structs used to define the positions of tokens and/or epxressions.
+//! 
+//! # Basic Usage
+//! 
+//! ```
+//! use ribbon::pos;
+//! 
+//! let mut pos1 = pos::Pos::new();
+//! let pos2 = pos::Pos::new();
+//! pos1.adv();
+//! 
+//! let span = pos::Span::new(pos1, Some(pos2));
+//! ```
+
 pub struct Pos {
     line: usize,
     col: usize,

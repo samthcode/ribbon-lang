@@ -1,3 +1,16 @@
+//! This module contains all of the necessary utilities for Lexical Analysis of a Ribbon (.rbn) file.
+//! 
+//! This module analyses Ribbon Source Code to create a Vector of Tokens while can then be passed to the Ribbon Parser.
+//! 
+//! # Usage
+//! 
+//! ```
+//! use ribbon::lexer::lexer;
+//! 
+//! let lexer = Lexer::new("\"Hello World\"");
+//! lexer.lex();
+//! ```
+
 pub mod token;
 
 use crate::pos::Pos;

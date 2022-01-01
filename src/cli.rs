@@ -1,3 +1,13 @@
+//! This module dicates the Command Line Argument Parser used to run the Ribbon REPL and to run Ribbon Files.
+//! 
+//! This was made using the clap crate on crates.io ([clap](https://crates.io/crates/clap))
+//! 
+//! # Usage
+//! 
+//! ```
+//! ribbon::cli::run();
+//! ```
+
 use clap::{AppSettings, Parser, Subcommand};
 
 /// A fictional versioning CLI
@@ -24,6 +34,7 @@ enum Commands {
     Repl
 }
 
+/// Runs the CLAP. This should only be done once in a program
 pub fn run() {
     let args = Cli::parse();
 
