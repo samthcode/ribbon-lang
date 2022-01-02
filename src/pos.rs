@@ -12,6 +12,9 @@
 //! let span = pos::Span::new(pos1, Some(pos2));
 //! ```
 
+use std::fmt;
+
+#[derive(Clone, Debug)]
 pub struct Pos {
     line: usize,
     col: usize,
@@ -19,7 +22,13 @@ pub struct Pos {
 
 impl Pos {
     pub fn new() -> Self {
-        Self { line: 1, col: 1 }
+        Self { line: 1, col: 0 }
+    }
+    pub fn with_values(line: usize, col: usize) -> Self {
+        Self {
+            line,
+            col
+        }
     }
     pub fn next_line(&mut self) {
         self.line += 1;
@@ -30,9 +39,17 @@ impl Pos {
     }
 }
 
+impl fmt::Display for Pos {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.line, self.col)
+    }
+}
+
 /// A Token's span from one position to another
 /// For example, with a file containing "abcd", an Identifier token would be created
 /// (Identifier("abcd")) with a span from line 1, col 1, to line 1, col 4
+
+#[derive(Debug)]
 pub struct Span {
     start: Pos,
     end: Option<Pos>,
@@ -41,5 +58,15 @@ pub struct Span {
 impl Span {
     pub fn new(start: Pos, end: Option<Pos>) -> Self {
         Self { start, end }
+    }
+}
+
+impl fmt::Display for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(end) = &self.end {
+            write!(f, "{}-{}", self.start, end)
+        } else {
+            write!(f, "{}", self.start)
+        }
     }
 }
