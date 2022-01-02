@@ -1,8 +1,9 @@
 use crate::pos::Span;
 
 /// The Token created by the Lexer and used by the Parser to generate an AST
-pub struct Token<'a> {
-    token: TokenKind<'a>,
+#[derive(Debug)]
+pub struct Token {
+    token: TokenKind,
     /// This field is necessary to denote the possible addition of the Binding Modifier Operator.
     /// This is the `$` operator and is used to boost the precedence / binding power of the token.
     /// 
@@ -13,23 +14,24 @@ pub struct Token<'a> {
     span: Span,
 }
 
-impl<'a> Token<'a> {
-    pub fn new(token: TokenKind<'a>, binding_modified: bool, span: Span) -> Self {
+impl Token {
+    pub fn new(token: TokenKind, binding_modified: bool, span: Span) -> Self {
         Self { token, binding_modified, span }
     }
 }
 
-pub enum TokenKind<'a> {
+#[derive(Debug)]
+pub enum TokenKind {
     /// A newline needs to be tokenised to delimit the end of an expression
     Newline,
 
     /// i.e. abcd, hello_there, TestingTesting123
-    Identifier(&'a str),
+    Identifier(String),
     /// i.e. while, for
     Keyword(KeywordKind),
 
     /// String, Number, Character, Boolean
-    Literal(LiteralKind<'a>),
+    Literal(LiteralKind),
 
     /// :
     Colon,
@@ -52,19 +54,22 @@ pub enum TokenKind<'a> {
     Equality(EqualityKind),
 }
 
-pub enum LiteralKind<'a> {
+#[derive(Debug)]
+pub enum LiteralKind {
     Numeric(i64),
-    String(&'a str),
+    String(String),
     Char(char),
     Bool(bool),
 }
 
+#[derive(Debug)]
 pub enum DelimKind {
     Parenthesis,
     SquareBracket,
     CurlyBracket,
 }
 
+#[derive(Debug)]
 pub enum KeywordKind {
     Function,
     While,
@@ -75,6 +80,7 @@ pub enum KeywordKind {
     Else,
 }
 
+#[derive(Debug)]
 pub enum BinOpKind {
     Add,
     Sub,
@@ -83,6 +89,7 @@ pub enum BinOpKind {
     Exp,
 }
 
+#[derive(Debug)]
 pub enum EqualityKind {
     LT,
     GT,
