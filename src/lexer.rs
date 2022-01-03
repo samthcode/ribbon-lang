@@ -108,7 +108,7 @@ impl<'a> Lexer<'a> {
 
         token::Token::new(
             token::TokenKind::Literal(token::LiteralKind::String(string)),
-            Span::new(start, Some(self.pos.clone()))
+            Span::new(start, Some(self.pos.clone())),
         )
     }
 
