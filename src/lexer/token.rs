@@ -6,20 +6,33 @@ pub struct Token {
     token: TokenKind,
     /// This field is necessary to denote the possible addition of the Binding Modifier Operator.
     /// This is the `$` operator and is used to boost the precedence / binding power of the token.
-    /// 
+    ///
     /// This allows for expressions such as `10 > 5 ? 10 : 20 +$ 30` to evealuate to 40 (whereas without the binding modifier, it would have evaluated to 10).
-    /// 
+    ///
     /// This cannot be applied / won't have an effect on certain tokens such as literals, newlines, identifiers or keywords.
     binding_modified: bool,
     span: Span,
 }
 
 impl Token {
-    pub fn new(token: TokenKind, binding_modified: bool, span: Span) -> Self {
-        Self { token, binding_modified, span }
+    pub fn new(token: TokenKind, span: Span) -> Self {
+        Self {
+            token,
+            binding_modified: false,
+            span,
+        }
+    }
+
+    pub fn with_binding(token: TokenKind, binding_modified: bool, span: Span) -> Self {
+        Self {
+            token,
+            binding_modified,
+            span,
+        }
     }
 }
 
+// TODO: Add the other tokens in
 #[derive(Debug)]
 pub enum TokenKind {
     /// A newline needs to be tokenised to delimit the end of an expression
@@ -69,7 +82,7 @@ pub enum DelimKind {
     CurlyBracket,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum KeywordKind {
     Function,
     While,
@@ -95,5 +108,5 @@ pub enum EqualityKind {
     GT,
     LTE,
     GTE,
-    EQ
+    EQ,
 }
