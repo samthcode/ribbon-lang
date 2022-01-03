@@ -15,7 +15,7 @@ pub mod token;
 
 use crate::pos::{Pos, Span};
 use core::iter::Peekable;
-use std::str::Chars;
+use std::{collections::HashMap, str::Chars};
 
 /// Turns a Ribbon file / &'a str into a Vec of tokens
 pub struct Lexer<'a> {
@@ -43,6 +43,8 @@ impl<'a> Lexer<'a> {
 
         while let Some(c) = self.next() {
             match c {
+                // Any type of whitespace
+                _ if c.is_whitespace() => (),
                 // String
                 '"' => tokens.push(self.construct_string()),
 
@@ -52,14 +54,13 @@ impl<'a> Lexer<'a> {
                     // TODO: This check will probably happen in a function called check_binding_modifier or something
                     tokens.push(token::Token::new(
                         token::TokenKind::Dot,
-                        false,
                         Span::new(self.pos.clone(), None),
                     ))
                 }
 
-                // Identifier
+                // Identifier or keyword
                 c if c.is_alphabetic() => {
-                    tokens.push(self.construct_identifier(c));
+                    tokens.push(self.construct_identifier_or_keyword(c));
                 }
 
                 // Newline
@@ -79,11 +80,7 @@ impl<'a> Lexer<'a> {
     /// Constructs a newline then skips excess newlines (this supports windows-style newlines (\r\n), although I don't yet know if it works...)
     fn construct_newline(&mut self, c: char) -> token::Token {
         // We need to tokenise one newline to check for EOS
-        let ret = token::Token::new(
-            token::TokenKind::Newline,
-            false,
-            Span::new(self.pos.clone(), None),
-        );
+        let ret = token::Token::new(token::TokenKind::Newline, Span::new(self.pos.clone(), None));
 
         let carriage_return = if c == '\n' {
             false
@@ -111,13 +108,12 @@ impl<'a> Lexer<'a> {
 
         token::Token::new(
             token::TokenKind::Literal(token::LiteralKind::String(string)),
-            false,
-            Span::new(start, Some(self.pos.clone())),
+            Span::new(start, Some(self.pos.clone()))
         )
     }
 
-    /// Constructs an identifier token
-    fn construct_identifier(&mut self, first: char) -> token::Token {
+    /// Constructs an identifier token or searches the keyword hashmap for the identifier and constructs that if it's there
+    fn construct_identifier_or_keyword(&mut self, first: char) -> token::Token {
         let start = self.pos.clone();
         let mut res = String::new();
 
@@ -125,11 +121,13 @@ impl<'a> Lexer<'a> {
 
         res.push_str(self.take_while(|ch| ch.is_alphanumeric()).as_str());
 
-        token::Token::new(
-            token::TokenKind::Identifier(res),
-            false,
-            Span::new(start, Some(self.pos.clone())),
-        )
+        let token_type = if let Some(typ) = keyword_map().get(&res) {
+            token::TokenKind::Keyword(*typ)
+        } else {
+            token::TokenKind::Identifier(res)
+        };
+
+        token::Token::new(token_type, Span::new(start, Some(self.pos.clone())))
     }
 
     fn expect(&mut self, expected_char: char) {
@@ -200,4 +198,10 @@ impl<'a> Lexer<'a> {
             }
         }
     }
+}
+
+fn keyword_map() -> HashMap<String, token::KeywordKind> {
+    use token::KeywordKind::*;
+    // TODO: Add the other keywords in
+    HashMap::from([("fn".to_string(), Function), ("if".to_string(), If)])
 }
