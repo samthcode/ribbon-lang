@@ -1,7 +1,7 @@
 use crate::pos::Span;
 
 /// The Token created by the Lexer and used by the Parser to generate an AST
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Token {
     token: TokenKind,
     /// This field is necessary to denote the possible addition of the Binding Modifier Operator.
@@ -33,7 +33,7 @@ impl Token {
 }
 
 // TODO: Add the other tokens in
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TokenKind {
     /// A newline needs to be tokenised to delimit the end of an expression
     Newline,
@@ -67,22 +67,23 @@ pub enum TokenKind {
     Equality(EqualityKind),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum LiteralKind {
-    Numeric(i64),
+    Integer(i64),
+    Float(f64),
     String(String),
     Char(char),
     Bool(bool),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum DelimKind {
     Parenthesis,
     SquareBracket,
     CurlyBracket,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum KeywordKind {
     Function,
     While,
@@ -93,7 +94,7 @@ pub enum KeywordKind {
     Else,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BinOpKind {
     Add,
     Sub,
@@ -102,7 +103,7 @@ pub enum BinOpKind {
     Exp,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum EqualityKind {
     LT,
     GT,

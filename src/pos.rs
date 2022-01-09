@@ -14,7 +14,7 @@
 
 use std::fmt;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Pos {
     line: usize,
     col: usize,
@@ -49,7 +49,7 @@ impl fmt::Display for Pos {
 /// For example, with a file containing "abcd", an Identifier token would be created
 /// (Identifier("abcd")) with a span from line 1, col 1, to line 1, col 4
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Span {
     start: Pos,
     end: Option<Pos>,

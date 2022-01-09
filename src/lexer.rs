@@ -5,9 +5,9 @@
 //! # Usage
 //!
 //! ```
-//! use ribbon::lexer::lexer;
+//! use ribbon::lexer::Lexer;
 //!
-//! let lexer = Lexer::new("\"Hello World\"");
+//! let mut lexer = Lexer::new("\"Hello World\"", "file_name");
 //! lexer.lex();
 //! ```
 
@@ -16,6 +16,8 @@ pub mod token;
 use crate::pos::{Pos, Span};
 use core::iter::Peekable;
 use std::{collections::HashMap, str::Chars};
+
+use self::token::{Token, TokenKind};
 
 /// Turns a Ribbon file / &'a str into a Vec of tokens
 pub struct Lexer<'a> {
@@ -38,28 +40,37 @@ impl<'a> Lexer<'a> {
     }
 
     /// Turns the source file into a Vec of Token's
-    pub fn lex(&mut self) -> Vec<token::Token> {
+    pub fn lex(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
 
         while let Some(c) = self.next() {
             match c {
                 // Any type of whitespace
                 _ if c.is_whitespace() => (),
+
                 // String
                 '"' => tokens.push(self.construct_string()),
 
                 // The dot '.' operator
                 '.' => {
-                    // TODO: Same with every other operator, add a check for a binding modifier
-                    // TODO: This check will probably happen in a function called check_binding_modifier or something
-                    tokens.push(token::Token::new(
-                        token::TokenKind::Dot,
-                        Span::new(self.pos.clone(), None),
-                    ))
+                    match self.peek() {
+                        // If it's the start of a float
+                        Some(c) if c.is_numeric() => tokens.push(self.construct_float()),
+                        // TODO: Same with every other operator, add a check for a binding modifier
+                        // TODO: This check will probably happen in a function called check_binding_modifier or something
+                        // If it's just your plain old average dot
+                        _ => tokens.push(Token::new(
+                            TokenKind::Dot,
+                            Span::new(self.pos.clone(), None),
+                        )),
+                    }
                 }
 
+                // Numbers!
+                c if c.is_numeric() => tokens.push(self.construct_number(c)),
+
                 // Identifier or keyword
-                c if c.is_alphabetic() => {
+                c if c.is_alphabetic() || c == '_' => {
                     tokens.push(self.construct_identifier_or_keyword(c));
                 }
 
@@ -77,10 +88,53 @@ impl<'a> Lexer<'a> {
         tokens
     }
 
+    /// Specifically constructs a float because you can do .1032032403 or whatever
+    fn construct_float(&mut self) -> Token {
+        let start = self.pos.clone();
+
+        Token::new(
+            TokenKind::Literal(token::LiteralKind::Float(
+                (String::from(".") + self.take_while(|ch| ch.is_numeric()).as_str())
+                    .parse()
+                    .unwrap(),
+            )),
+            Span::new(start, Some(self.pos.clone())),
+        )
+    }
+
+    /// Constructs a number
+    fn construct_number(&mut self, first: char) -> Token {
+        let start = self.pos.clone();
+
+        let mut result = String::new();
+
+        result.push(first);
+
+        result.push_str(self.take_while(|ch| ch.is_numeric()).as_str());
+
+        if let Some('.') = self.peek() {
+            self.next();
+
+            result.push('.');
+
+            result.push_str(self.take_while(|ch| ch.is_numeric()).as_str());
+
+            Token::new(
+                TokenKind::Literal(token::LiteralKind::Float(result.parse().unwrap())),
+                Span::new(start, Some(self.pos.clone())),
+            )
+        } else {
+            Token::new(
+                TokenKind::Literal(token::LiteralKind::Integer(result.parse().unwrap())),
+                Span::new(start, Some(self.pos.clone())),
+            )
+        }
+    }
+
     /// Constructs a newline then skips excess newlines (this supports windows-style newlines (\r\n), although I don't yet know if it works...)
-    fn construct_newline(&mut self, c: char) -> token::Token {
+    fn construct_newline(&mut self, c: char) -> Token {
         // We need to tokenise one newline to check for EOS
-        let ret = token::Token::new(token::TokenKind::Newline, Span::new(self.pos.clone(), None));
+        let ret = Token::new(TokenKind::Newline, Span::new(self.pos.clone(), None));
 
         let carriage_return = if c == '\n' {
             false
@@ -98,7 +152,7 @@ impl<'a> Lexer<'a> {
     /// Constructs a string token
     ///
     /// Currently, we just take characters while said character is not a '"', however this is obviously flawed as it does not support escape literals
-    fn construct_string(&mut self) -> token::Token {
+    fn construct_string(&mut self) -> Token {
         let start = self.pos.clone();
         let mut string = String::new();
 
@@ -106,28 +160,31 @@ impl<'a> Lexer<'a> {
         string.push_str(self.take_while(|char| char != '"').as_str());
         self.expect('"');
 
-        token::Token::new(
-            token::TokenKind::Literal(token::LiteralKind::String(string)),
+        Token::new(
+            TokenKind::Literal(token::LiteralKind::String(string)),
             Span::new(start, Some(self.pos.clone())),
         )
     }
 
     /// Constructs an identifier token or searches the keyword hashmap for the identifier and constructs that if it's there
-    fn construct_identifier_or_keyword(&mut self, first: char) -> token::Token {
+    fn construct_identifier_or_keyword(&mut self, first: char) -> Token {
         let start = self.pos.clone();
         let mut res = String::new();
 
         res.push(first);
 
-        res.push_str(self.take_while(|ch| ch.is_alphanumeric()).as_str());
+        res.push_str(
+            self.take_while(|ch| ch.is_alphanumeric() || ch == '_')
+                .as_str(),
+        );
 
         let token_type = if let Some(typ) = keyword_map().get(&res) {
-            token::TokenKind::Keyword(*typ)
+            TokenKind::Keyword(*typ)
         } else {
-            token::TokenKind::Identifier(res)
+            TokenKind::Identifier(res)
         };
 
-        token::Token::new(token_type, Span::new(start, Some(self.pos.clone())))
+        Token::new(token_type, Span::new(start, Some(self.pos.clone())))
     }
 
     fn expect(&mut self, expected_char: char) {
@@ -204,4 +261,42 @@ fn keyword_map() -> HashMap<String, token::KeywordKind> {
     use token::KeywordKind::*;
     // TODO: Add the other keywords in
     HashMap::from([("fn".to_string(), Function), ("if".to_string(), If)])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plain_string_test() {
+        assert_eq!(
+            Lexer::new("\"Hello World\"", "test").lex(),
+            vec![Token::new(
+                TokenKind::Literal(token::LiteralKind::String(String::from("Hello World"))),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 13)))
+            )]
+        )
+    }
+
+    #[test]
+    fn integer_test() {
+        assert_eq!(
+            Lexer::new("1234", "test").lex(),
+            vec![Token::new(
+                TokenKind::Literal(token::LiteralKind::Integer(1234)),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 4)))
+            )]
+        )
+    }
+
+    #[test]
+    fn long_integer_test() {
+        assert_eq!(
+            Lexer::new("1234453879834", "test").lex(),
+            vec![Token::new(
+                TokenKind::Literal(token::LiteralKind::Integer(1234453879834)),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 13)))
+            )]
+        )
+    }
 }

@@ -4,7 +4,7 @@
 //!
 //! # Usage
 //!
-//! ```
+//! ```ignore
 //! ribbon::cli::run();
 //! ```
 
