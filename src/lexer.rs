@@ -276,6 +276,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn hello_world() {
+        assert_eq!(
+            Lexer::new("\"Hello World!\".print", "test").lex(),
+            vec![Token::new(
+                TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 14)))
+            ), Token::new(
+                TokenKind::Dot,
+                Span::new(Pos::with_values(1, 15), None)
+            ), Token::new(
+                TokenKind::Identifier(String::from("print")),
+                Span::new(Pos::with_values(1, 16), Some(Pos::with_values(1, 20)))
+            )]
+        )
+    }
+
+    #[test]
     fn string_tests() {
         assert_eq!(
             Lexer::new("\"Hello World\"", "test").lex(),
