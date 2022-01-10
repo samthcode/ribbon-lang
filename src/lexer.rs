@@ -15,7 +15,7 @@ pub mod token;
 
 use crate::pos::{Pos, Span};
 use core::iter::Peekable;
-use std::{collections::HashMap, str::Chars};
+use std::str::Chars;
 
 use self::token::{Token, TokenKind};
 
@@ -51,18 +51,42 @@ impl<'a> Lexer<'a> {
                 // String
                 '"' => tokens.push(self.construct_string()),
 
-                // The dot '.' operator
-                '.' => {
+                // Single-character only operators
+                ch @ ('.' | '{' | '}' | '(' | ')') => {
                     match self.peek() {
-                        // If it's the start of a float
-                        Some(c) if c.is_numeric() => tokens.push(self.construct_float()),
+                        // If it's a dot and start of a float
+                        Some(c) if c.is_numeric() && ch == '.' => {
+                            tokens.push(self.construct_float())
+                        }
                         // TODO: Same with every other operator, add a check for a binding modifier
                         // TODO: This check will probably happen in a function called check_binding_modifier or something
-                        // If it's just your plain old average dot
-                        _ => tokens.push(Token::new(
-                            TokenKind::Dot,
-                            Span::new(self.pos.clone(), None),
-                        )),
+                        // If it's just your plain old average operator
+                        _ => tokens.push(Token::new(ch.into(), Span::new(self.pos.clone(), None))),
+                    }
+                }
+
+                // Colon or scope resolution operator
+                c if c == ':' => {
+                    match self.peek() {
+                        Some(ch) if *ch == ':' => {
+                            // It's a scope resolution operator
+
+                            let start = self.pos.clone();
+                            self.next();
+
+                            tokens.push(Token::new(
+                                TokenKind::ScopeResolutionOperator,
+                                Span::new(start, Some(self.pos.clone())),
+                            ));
+                        }
+                        _ => {
+                            // It's just a colon
+
+                            tokens.push(Token::new(
+                                TokenKind::Colon,
+                                Span::new(self.pos.clone(), None),
+                            ))
+                        }
                     }
                 }
 
@@ -178,13 +202,18 @@ impl<'a> Lexer<'a> {
                 .as_str(),
         );
 
-        let token_type = if let Some(typ) = keyword_map().get(&res) {
-            TokenKind::Keyword(*typ)
-        } else {
-            TokenKind::Identifier(res)
-        };
-
-        Token::new(token_type, Span::new(start, Some(self.pos.clone())))
+        Token::new(
+            if res == "true" {
+                TokenKind::Literal(token::LiteralKind::Bool(true))
+            } else if res == "false" {
+                TokenKind::Literal(token::LiteralKind::Bool(false))
+            } else if let Some(typ) = KEYWORD_MAP.get(&res) {
+                TokenKind::Keyword(*typ)
+            } else {
+                TokenKind::Identifier(res)
+            },
+            Span::new(start, Some(self.pos.clone())),
+        )
     }
 
     fn expect(&mut self, expected_char: char) {
@@ -250,45 +279,60 @@ impl<'a> Lexer<'a> {
                 self.next();
                 match self.next() {
                     Some('\n') => (),
-                    _ => panic!("{}: There wasn't a newline after the carriage return. WTF went wrong??? (Internal error, but also what OS are you using that a newline doesn't follow a carriage return???)", self.pos.clone())
+                    _ => panic!("(Ribbon Internal Error):{}: There wasn't a newline after the carriage return. WTF went wrong???", self.pos.clone())
                 };
             }
         }
     }
 }
 
-fn keyword_map() -> HashMap<String, token::KeywordKind> {
-    use token::KeywordKind::*;
-    // TODO: Add the other keywords in
-    HashMap::from([
-        ("fn".to_string(), Function),
-        ("if".to_string(), If),
-        ("else".to_string(), Else),
-        ("struct".to_string(), Struct),
-        ("while".to_string(), While),
-        ("ifp".to_string(), Ifp),
-        ("whilep".to_string(), Whilep)
-    ])
-}
+static KEYWORD_MAP: phf::Map<&'static str, token::KeywordKind> = phf::phf_map! {
+    "fn" => token::KeywordKind::Function,
+    "if" => token::KeywordKind::If,
+    "else" => token::KeywordKind::Else,
+    "struct" => token::KeywordKind::Struct,
+    "while" => token::KeywordKind::While,
+    "ifp" => token::KeywordKind::Ifp,
+    "whilep" => token::KeywordKind::Whilep,
+};
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn booleans() {
+        assert_eq!(
+            Lexer::new("true", "test").lex(),
+            vec![Token::new(
+                TokenKind::Literal(token::LiteralKind::Bool(true)),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 4)))
+            )]
+        );
+        assert_eq!(
+            Lexer::new("false", "test").lex(),
+            vec![Token::new(
+                TokenKind::Literal(token::LiteralKind::Bool(false)),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 5)))
+            )]
+        );
+    }
+
+    #[test]
     fn hello_world() {
         assert_eq!(
             Lexer::new("\"Hello World!\".print", "test").lex(),
-            vec![Token::new(
-                TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 14)))
-            ), Token::new(
-                TokenKind::Dot,
-                Span::new(Pos::with_values(1, 15), None)
-            ), Token::new(
-                TokenKind::Identifier(String::from("print")),
-                Span::new(Pos::with_values(1, 16), Some(Pos::with_values(1, 20)))
-            )]
+            vec![
+                Token::new(
+                    TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
+                    Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 14)))
+                ),
+                Token::new(TokenKind::Dot, Span::new(Pos::with_values(1, 15), None)),
+                Token::new(
+                    TokenKind::Identifier(String::from("print")),
+                    Span::new(Pos::with_values(1, 16), Some(Pos::with_values(1, 20)))
+                )
+            ]
         )
     }
 

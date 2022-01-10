@@ -48,6 +48,8 @@ pub enum TokenKind {
 
     /// :
     Colon,
+    /// ::
+    ScopeResolutionOperator,
     /// .
     Dot,
     /// =
@@ -60,11 +62,28 @@ pub enum TokenKind {
 
     /// i.e. +, -, *, /, ** (exponent)
     BinOp(BinOpKind),
-    /// i.e +=, -=, /=, *=
+    /// i.e +=, -=, /=, *=, **=
     BindOpEq(BinOpKind),
 
     /// i.e. <, >, <=, >=, ==
     Equality(EqualityKind),
+}
+
+impl From<char> for TokenKind {
+    fn from(ch: char) -> Self {
+        match ch {
+            '.' => Self::Dot,
+            '{' => Self::OpenDelim(DelimKind::CurlyBracket),
+            '}' => Self::ClosingDelim(DelimKind::CurlyBracket),
+            '(' => Self::OpenDelim(DelimKind::Parenthesis),
+            ')' => Self::OpenDelim(DelimKind::Parenthesis),
+
+            _ => panic!(
+                "(Ribbon Internal Error) Unimplemented character to TokenKind conversion ({}).",
+                ch
+            ),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -93,7 +112,7 @@ pub enum KeywordKind {
     If,
     Else,
     Ifp,
-    Whilep
+    Whilep,
 }
 
 #[derive(Debug, PartialEq)]
