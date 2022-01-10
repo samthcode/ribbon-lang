@@ -92,6 +92,8 @@ pub enum KeywordKind {
     Enum,
     If,
     Else,
+    Ifp,
+    Whilep
 }
 
 #[derive(Debug, PartialEq)]
