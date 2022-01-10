@@ -42,11 +42,19 @@ impl<'a> Lexer<'a> {
 
         while let Some(c) = self.next() {
             match c {
+                // Newline
+                '\n' | '\r' => {
+                    tokens.push(self.construct_newline(c));
+                }
+
                 // Any type of whitespace
                 _ if c.is_whitespace() => (),
 
                 // String
                 '"' => tokens.push(self.construct_string()),
+
+                // Character
+                '\'' => tokens.push(self.construct_character()),
 
                 // Single-character only operators
                 ch @ ('.' | '{' | '}' | '(' | ')') => {
@@ -95,18 +103,36 @@ impl<'a> Lexer<'a> {
                     tokens.push(self.construct_identifier_or_keyword(c));
                 }
 
-                // Newline
-                '\n' | '\r' => {
-                    tokens.push(self.construct_newline(c));
-                }
                 _ => {
-                    eprintln!("{}: Unexpected character '{}'", self.pos, c);
-                    std::process::exit(1);
+                    panic!("{}: Unexpected character '{}'", self.pos, c);
                 }
             }
         }
 
         tokens
+    }
+
+    /// Constructs a character literal
+    fn construct_character(&mut self) -> Token {
+        let start = self.pos.clone();
+
+        match self.next() {
+            Some(c) => {
+                if c == '\'' {
+                    panic!("{}: Empty character literal.", start);
+                } else {
+                    self.expect('\'');
+
+                    Token::new(
+                        TokenKind::Literal(token::LiteralKind::Char(c)),
+                        Span::new(start, Some(self.pos.clone())),
+                    )
+                }
+            }
+            None => {
+                panic!("{}: Unclosed character literal!", start);
+            }
+        }
     }
 
     /// Specifically constructs a float because you can do .1032032403 or whatever
@@ -215,15 +241,14 @@ impl<'a> Lexer<'a> {
 
     fn expect(&mut self, expected_char: char) {
         match self.next() {
-            Some(c) if c == expected_char => return,
+            Some(c) if c == expected_char => (),
             Some(c) => {
-                eprintln!("{}: Expected {}, found {}", self.pos, expected_char, c);
+                panic!("{}: Expected {}, found {}", self.pos, expected_char, c);
             }
             None => {
-                eprintln!("{}: Expected {}, found EOF", self.pos, expected_char);
+                panic!("{}: Expected {}, found EOF", self.pos, expected_char);
             }
         }
-        std::process::exit(1);
     }
 
     /// Advances the internal iterator and returns it's optional value
@@ -296,6 +321,40 @@ static KEYWORD_MAP: phf::Map<&'static str, token::KeywordKind> = phf::phf_map! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn with_newline() {
+        assert_eq!(
+            Lexer::new("\n").lex(),
+            vec![Token::new(
+                TokenKind::Newline,
+                Span::new(Pos::with_values(2, 1), None)
+            )]
+        )
+    }
+
+    #[test]
+    #[should_panic]
+    fn charcter_too_long() {
+        Lexer::new("'hello'").lex();
+    }
+
+    #[test]
+    fn character() {
+        assert_eq!(
+            Lexer::new("'a'").lex(),
+            vec![Token::new(
+                TokenKind::Literal(token::LiteralKind::Char('a')),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 3)))
+            )]
+        )
+    }
+
+    #[test]
+    #[should_panic]
+    fn unclosed_character_literal() {
+        Lexer::new("'").lex();
+    }
 
     #[test]
     fn booleans() {
