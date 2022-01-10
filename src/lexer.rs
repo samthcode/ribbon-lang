@@ -260,7 +260,15 @@ impl<'a> Lexer<'a> {
 fn keyword_map() -> HashMap<String, token::KeywordKind> {
     use token::KeywordKind::*;
     // TODO: Add the other keywords in
-    HashMap::from([("fn".to_string(), Function), ("if".to_string(), If), ("else".to_string(), Else), ("struct".to_string(), Struct)])
+    HashMap::from([
+        ("fn".to_string(), Function),
+        ("if".to_string(), If),
+        ("else".to_string(), Else),
+        ("struct".to_string(), Struct),
+        ("while".to_string(), While),
+        ("ifp".to_string(), Ifp),
+        ("whilep".to_string(), Whilep)
+    ])
 }
 
 #[cfg(test)]
@@ -279,35 +287,95 @@ mod tests {
     }
 
     #[test]
-    fn keyword_tests() {
+    fn fn_keyword() {
         assert_eq!(
-            Lexer::new("fn if else struct", "test").lex(),
+            Lexer::new("fn", "test").lex(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::Function),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 2)))
-            ), Token::new(
-                TokenKind::Keyword(token::KeywordKind::If),
-                Span::new(Pos::with_values(1, 4), Some(Pos::with_values(1, 5)))
-            ), Token::new(
-                TokenKind::Keyword(token::KeywordKind::Else),
-                Span::new(Pos::with_values(1, 7), Some(Pos::with_values(1, 10)))
-            ), Token::new(
-                TokenKind::Keyword(token::KeywordKind::Struct),
-                Span::new(Pos::with_values(1, 12), Some(Pos::with_values(1, 17)))
             )]
         )
     }
 
     #[test]
-    fn integer_tests() {
+    fn if_keyword() {
+        assert_eq!(
+            Lexer::new("if", "test").lex(),
+            vec![Token::new(
+                TokenKind::Keyword(token::KeywordKind::If),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 2)))
+            )]
+        )
+    }
+
+    #[test]
+    fn else_keyword() {
+        assert_eq!(
+            Lexer::new("else", "test").lex(),
+            vec![Token::new(
+                TokenKind::Keyword(token::KeywordKind::Else),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 4)))
+            )]
+        )
+    }
+
+    #[test]
+    fn struct_keyword() {
+        assert_eq!(
+            Lexer::new("struct", "test").lex(),
+            vec![Token::new(
+                TokenKind::Keyword(token::KeywordKind::Struct),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 6)))
+            )]
+        )
+    }
+
+    #[test]
+    fn while_keyword() {
+        assert_eq!(
+            Lexer::new("while", "test").lex(),
+            vec![Token::new(
+                TokenKind::Keyword(token::KeywordKind::While),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 5)))
+            )]
+        )
+    }
+
+    #[test]
+    fn whilep_keyword() {
+        assert_eq!(
+            Lexer::new("whilep", "test").lex(),
+            vec![Token::new(
+                TokenKind::Keyword(token::KeywordKind::Whilep),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 6)))
+            )]
+        )
+    }
+
+    #[test]
+    fn ifp_keyword() {
+        assert_eq!(
+            Lexer::new("ifp", "test").lex(),
+            vec![Token::new(
+                TokenKind::Keyword(token::KeywordKind::Ifp),
+                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 3)))
+            )]
+        )
+    }
+
+    #[test]
+    fn integer() {
         assert_eq!(
             Lexer::new("1234", "test").lex(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Integer(1234)),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 4)))
             )]
-        );
+        )
+    }
 
+    #[test]
+    fn long_integer() {
         assert_eq!(
             Lexer::new("1234453879834", "test").lex(),
             vec![Token::new(
