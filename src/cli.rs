@@ -54,8 +54,8 @@ pub fn run() {
             println!("So you want me to open the REPL eh?");
         }
         Commands::Line { line } => {
-            for i in crate::lexer::Lexer::new(line.as_str(), "single-line-mode").lex() {
-                println!("{:?}", i);
+            for i in crate::lexer::Lexer::new(format!("fn main {{{}}}", line).as_str()).lex() {
+                println!("{}", i);
             }
         }
     }

@@ -32,6 +32,12 @@ impl Token {
     }
 }
 
+impl std::fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {:?}", self.span, self.token)
+    }
+}
+
 // TODO: Add the other tokens in
 #[derive(Debug, PartialEq)]
 pub enum TokenKind {

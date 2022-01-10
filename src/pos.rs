@@ -1,14 +1,14 @@
 //! This module contains the structs used to define the positions of tokens and/or epxressions.
-//! 
+//!
 //! # Basic Usage
-//! 
+//!
 //! ```
 //! use ribbon::pos;
-//! 
+//!
 //! let mut pos1 = pos::Pos::new();
 //! let pos2 = pos::Pos::new();
 //! pos1.adv();
-//! 
+//!
 //! let span = pos::Span::new(pos1, Some(pos2));
 //! ```
 
@@ -25,10 +25,7 @@ impl Pos {
         Self { line: 1, col: 0 }
     }
     pub fn with_values(line: usize, col: usize) -> Self {
-        Self {
-            line,
-            col
-        }
+        Self { line, col }
     }
     pub fn next_line(&mut self) {
         self.line += 1;
@@ -63,10 +60,6 @@ impl Span {
 
 impl fmt::Display for Span {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(end) = &self.end {
-            write!(f, "{}-{}", self.start, end)
-        } else {
-            write!(f, "{}", self.start)
-        }
+        write!(f, "{}", self.start)
     }
 }
