@@ -124,11 +124,13 @@ impl<'a> Lexer<'a> {
         Ok(tokens)
     }
 
+    /// Pushes an error onto the error stack then calls recover
     fn push_error_and_recover(&mut self, error: RibbonError) {
         self.errors.push(error);
         self.recover_error();
     }
 
+    /// Allows the lexer to continue after an error has been found :)
     fn recover_error(&mut self) {
         // Just recover to the next line and collect some errors
         self.take_while(|ch| ch != '\n' || ch != '\r');
