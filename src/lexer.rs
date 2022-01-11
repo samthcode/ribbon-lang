@@ -8,12 +8,12 @@
 //! use ribbon::lexer::Lexer;
 //!
 //! let mut lexer = Lexer::new("\"Hello World\"");
-//! lexer.lex();
+//! lexer.lex().unwrap();
 //! ```
 
 pub mod token;
 
-use crate::pos::{Pos, Span};
+use crate::{error::RibbonError, pos::{Pos, Span}};
 use core::iter::Peekable;
 use std::str::Chars;
 
@@ -25,6 +25,8 @@ pub struct Lexer<'a> {
     chars: Peekable<Chars<'a>>,
     /// The current position of the Lexer, to be used in error handling
     pos: Pos,
+    /// The errors which will be handled by the Ribbon Interpreter
+    errors: Vec<RibbonError>
 }
 
 impl<'a> Lexer<'a> {
@@ -33,11 +35,12 @@ impl<'a> Lexer<'a> {
         Self {
             chars: source.chars().peekable(),
             pos: Pos::new(),
+            errors: Vec::new()
         }
     }
 
     /// Turns the source file into a Vec of Token's
-    pub fn lex(&mut self) -> Vec<Token> {
+    pub fn lex(&mut self) -> Result<Vec<Token>,Vec<RibbonError>> {
         let mut tokens = Vec::new();
 
         while let Some(c) = self.next() {
@@ -54,7 +57,12 @@ impl<'a> Lexer<'a> {
                 '"' => tokens.push(self.construct_string()),
 
                 // Character
-                '\'' => tokens.push(self.construct_character()),
+                '\'' => {
+                    match self.construct_character() {
+                        Ok(t) => tokens.push(t),
+                        Err(_) => ()
+                    }
+                },
 
                 // Single-character only operators
                 ch @ ('.' | '{' | '}' | '(' | ')') => {
@@ -103,34 +111,50 @@ impl<'a> Lexer<'a> {
                     tokens.push(self.construct_identifier_or_keyword(c));
                 }
 
-                _ => {
-                    panic!("{}: Unexpected character '{}'", self.pos, c);
+                c => {
+                    self.push_error_and_recover(RibbonError::new(Span::new(self.pos.clone(), None), format!("Unexpected character: {}", c)));
                 }
             }
         }
 
-        tokens
+        if !self.errors.is_empty() {
+            return Err(self.errors.clone())
+        }
+
+        Ok(tokens)
+    }
+
+    fn push_error_and_recover(&mut self, error: RibbonError) {
+        self.errors.push(error);
+        self.recover_error();
+    }
+
+    fn recover_error(&mut self) {
+        // Just recover to the next line and collect some errors
+        self.take_while(|ch| ch != '\n' || ch != '\r');
     }
 
     /// Constructs a character literal
-    fn construct_character(&mut self) -> Token {
+    fn construct_character(&mut self) -> Result<Token,()> {
         let start = self.pos.clone();
 
         match self.next() {
             Some(c) => {
                 if c == '\'' {
-                    panic!("{}: Empty character literal.", start);
+                    self.push_error_and_recover(RibbonError::new(Span::new(start, Some(self.pos.clone())), String::from("Empty character literal.")));
+                    Err(())
                 } else {
                     self.expect('\'');
 
-                    Token::new(
+                    Ok(Token::new(
                         TokenKind::Literal(token::LiteralKind::Char(c)),
                         Span::new(start, Some(self.pos.clone())),
-                    )
+                    ))
                 }
             }
             None => {
-                panic!("{}: Unclosed character literal!", start);
+                self.push_error_and_recover(RibbonError::new(Span::new(start, Some(self.pos.clone())), String::from("Unclosed charcter literal.")));
+                Err(())
             }
         }
     }
@@ -143,7 +167,7 @@ impl<'a> Lexer<'a> {
             TokenKind::Literal(token::LiteralKind::Float(
                 (String::from(".") + self.take_while(|ch| ch.is_numeric()).as_str())
                     .parse()
-                    .unwrap(),
+                    .unwrap_or_else(|_| {panic!("(Ribbon Internal Error):{}: Couldn't parse float.", self.pos.clone())}),
             )),
             Span::new(start, Some(self.pos.clone())),
         )
@@ -243,10 +267,10 @@ impl<'a> Lexer<'a> {
         match self.next() {
             Some(c) if c == expected_char => (),
             Some(c) => {
-                panic!("{}: Expected {}, found {}", self.pos, expected_char, c);
+                self.push_error_and_recover(RibbonError::new(Span::new(self.pos.clone(), None), format!("Expected {}, found {}", expected_char, c)));
             }
             None => {
-                panic!("{}: Expected {}, found EOF", self.pos, expected_char);
+                self.push_error_and_recover(RibbonError::new(Span::new(self.pos.clone(), None), format!("Expected {}, found EOF", expected_char)));
             }
         }
     }
@@ -325,7 +349,7 @@ mod tests {
     #[test]
     fn with_newline() {
         assert_eq!(
-            Lexer::new("\n").lex(),
+            Lexer::new("\n").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Newline,
                 Span::new(Pos::with_values(2, 1), None)
@@ -336,13 +360,13 @@ mod tests {
     #[test]
     #[should_panic]
     fn charcter_too_long() {
-        Lexer::new("'hello'").lex();
+        Lexer::new("'hello'").lex().unwrap();
     }
 
     #[test]
     fn character() {
         assert_eq!(
-            Lexer::new("'a'").lex(),
+            Lexer::new("'a'").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Char('a')),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 3)))
@@ -353,20 +377,20 @@ mod tests {
     #[test]
     #[should_panic]
     fn unclosed_character_literal() {
-        Lexer::new("'").lex();
+        Lexer::new("'").lex().unwrap();
     }
 
     #[test]
     fn booleans() {
         assert_eq!(
-            Lexer::new("true").lex(),
+            Lexer::new("true").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Bool(true)),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 4)))
             )]
         );
         assert_eq!(
-            Lexer::new("false").lex(),
+            Lexer::new("false").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Bool(false)),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 5)))
@@ -377,7 +401,7 @@ mod tests {
     #[test]
     fn hello_world() {
         assert_eq!(
-            Lexer::new("\"Hello World!\".print").lex(),
+            Lexer::new("\"Hello World!\".print").lex().unwrap(),
             vec![
                 Token::new(
                     TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
@@ -395,7 +419,7 @@ mod tests {
     #[test]
     fn string_tests() {
         assert_eq!(
-            Lexer::new("\"Hello World\"").lex(),
+            Lexer::new("\"Hello World\"").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::String(String::from("Hello World"))),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 13)))
@@ -406,7 +430,7 @@ mod tests {
     #[test]
     fn fn_keyword() {
         assert_eq!(
-            Lexer::new("fn").lex(),
+            Lexer::new("fn").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::Function),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 2)))
@@ -417,7 +441,7 @@ mod tests {
     #[test]
     fn if_keyword() {
         assert_eq!(
-            Lexer::new("if").lex(),
+            Lexer::new("if").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::If),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 2)))
@@ -428,7 +452,7 @@ mod tests {
     #[test]
     fn else_keyword() {
         assert_eq!(
-            Lexer::new("else").lex(),
+            Lexer::new("else").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::Else),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 4)))
@@ -439,7 +463,7 @@ mod tests {
     #[test]
     fn struct_keyword() {
         assert_eq!(
-            Lexer::new("struct").lex(),
+            Lexer::new("struct").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::Struct),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 6)))
@@ -450,7 +474,7 @@ mod tests {
     #[test]
     fn while_keyword() {
         assert_eq!(
-            Lexer::new("while").lex(),
+            Lexer::new("while").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::While),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 5)))
@@ -461,7 +485,7 @@ mod tests {
     #[test]
     fn whilep_keyword() {
         assert_eq!(
-            Lexer::new("whilep").lex(),
+            Lexer::new("whilep").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::Whilep),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 6)))
@@ -472,7 +496,7 @@ mod tests {
     #[test]
     fn ifp_keyword() {
         assert_eq!(
-            Lexer::new("ifp").lex(),
+            Lexer::new("ifp").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::Ifp),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 3)))
@@ -483,7 +507,7 @@ mod tests {
     #[test]
     fn integer() {
         assert_eq!(
-            Lexer::new("1234").lex(),
+            Lexer::new("1234").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Integer(1234)),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 4)))
@@ -494,7 +518,7 @@ mod tests {
     #[test]
     fn long_integer() {
         assert_eq!(
-            Lexer::new("1234453879834").lex(),
+            Lexer::new("1234453879834").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Integer(1234453879834)),
                 Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 13)))

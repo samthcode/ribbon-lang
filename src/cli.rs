@@ -51,10 +51,15 @@ pub fn run() {
             );
         }
         Commands::Repl => {
-            println!("So you want me to open the REPL eh?");
+            panic!("No REPL ATM, Sorry :(");
         }
         Commands::Line { line } => {
-            for i in crate::lexer::Lexer::new(format!("fn main {{{}}}", line).as_str()).lex() {
+            for i in crate::lexer::Lexer::new(format!("fn main {{{}}}", line).as_str()).lex().unwrap_or_else(|errs| {
+                for i in errs {
+                    println!("{}", i)
+                }
+                std::process::exit(1);
+            }) {
                 println!("{}", i);
             }
         }
