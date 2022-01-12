@@ -82,7 +82,7 @@ impl From<char> for TokenKind {
             '{' => Self::OpenDelim(DelimKind::CurlyBracket),
             '}' => Self::ClosingDelim(DelimKind::CurlyBracket),
             '(' => Self::OpenDelim(DelimKind::Parenthesis),
-            ')' => Self::OpenDelim(DelimKind::Parenthesis),
+            ')' => Self::ClosingDelim(DelimKind::Parenthesis),
 
             _ => panic!(
                 "(Ribbon Internal Error) Unimplemented character to TokenKind conversion ({}).",
