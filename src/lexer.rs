@@ -223,13 +223,8 @@ impl<'a> Lexer<'a> {
 
         let pos = self.pos.clone();
 
-        // The line number will be off by one since our next() method advances the line automatically, so we just subtract one to be accurate
-        let correct_pos = Pos::with_values(pos.line - 1, pos.col);
-
-        self.tokens.push(Token::new(
-            TokenKind::Newline,
-            Span::new(correct_pos, correct_pos),
-        ));
+        self.tokens
+            .push(Token::new(TokenKind::Newline, Span::new(pos, pos)));
 
         let carriage_return = if c == '\n' {
             false
@@ -237,6 +232,8 @@ impl<'a> Lexer<'a> {
             self.next();
             true
         };
+
+        self.pos.next_line_at_0();
 
         // The rest of the newlines can be skipped
         self.skip_excess_newlines(carriage_return);
@@ -307,16 +304,8 @@ impl<'a> Lexer<'a> {
     /// This is also responsible for advancing the pos property appropriately
     /// (to be used in error handling)
     fn next(&mut self) -> Option<char> {
-        match self.chars.next() {
-            Some(c) => {
-                match c {
-                    '\n' => self.pos.next_line(),
-                    _ => self.pos.adv(),
-                }
-                Some(c)
-            }
-            None => None,
-        }
+        self.pos.adv();
+        self.chars.next()
     }
 
     /// Peeks to the next character to be lexed
@@ -334,25 +323,29 @@ impl<'a> Lexer<'a> {
         // We use peek() here so that the first value not matching the predicate is kept for lexical analysis later on
         // Without peek(), this would consume the first non-matching character which could screw up the lexing
         while let Some(c) = self.peek() {
-            if predicate(*c) {
-                res.push(*c);
+            let c = *c;
+            if predicate(c) {
+                res.push(c);
                 self.next();
+                if c == '\n' {
+                    self.pos.next_line_at_0();
+                }
             } else {
                 break;
             }
         }
+        println!("{}", self.pos);
         res
     }
 
     fn skip_excess_newlines(&mut self, is_carriage_return: bool) {
         if !is_carriage_return {
             self.take_while(|c| c == '\n');
-            return;
         } else {
             while let Some('\r') = self.peek() {
                 self.next();
                 match self.next() {
-                    Some('\n') => (),
+                    Some('\n') => self.pos.next_line_at_0(),
                     _ => panic!("(Ribbon Internal Error):{}: There wasn't a newline after the carriage return. WTF went wrong???", self.pos.clone())
                 };
             }
@@ -380,8 +373,109 @@ mod tests {
             Lexer::new("\n").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Newline,
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1,1))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
             )]
+        )
+    }
+
+    #[test]
+    fn with_multiple_newlines() {
+        assert_eq!(
+            Lexer::new("\n\n\n\n").lex().unwrap(),
+            vec![Token::new(
+                TokenKind::Newline,
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
+            )]
+        )
+    }
+
+    #[test]
+    fn windows_newlines() {
+        assert_eq!(
+            Lexer::new("\r\n\r\n\r\n").lex().unwrap(),
+            vec![Token::new(
+                TokenKind::Newline,
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
+            )]
+        )
+    }
+
+    #[test]
+    fn newlines_surrounding_code() {
+        assert_eq!(
+            Lexer::new("\n\nprint\n").lex().unwrap(),
+            vec![
+                Token::new(
+                    TokenKind::Newline,
+                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
+                ),
+                Token::new(
+                    TokenKind::Identifier(String::from("print")),
+                    Span::new(Pos::with_values(3, 1), Pos::with_values(3, 5))
+                ),
+                Token::new(
+                    TokenKind::Newline,
+                    Span::new(Pos::with_values(3, 6), Pos::with_values(3, 6))
+                )
+            ]
+        )
+    }
+
+    #[test]
+    fn newlines_surrounding_more_code() {
+        assert_eq!(
+            Lexer::new("\n\n\"Hello World!\".print\n\"String\"\n").lex().unwrap(),
+            vec![
+                Token::new(
+                    TokenKind::Newline,
+                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
+                ),
+                Token::new(
+                    TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
+                    Span::new(Pos::with_values(3, 1), Pos::with_values(3, 14))
+                ),
+                Token::new(
+                    TokenKind::Dot,
+                    Span::new(Pos::with_values(3, 15), Pos::with_values(3, 15))
+                ),
+                Token::new(
+                    TokenKind::Identifier(String::from("print")),
+                    Span::new(Pos::with_values(3, 16), Pos::with_values(3, 20))
+                ),
+                Token::new(
+                    TokenKind::Newline,
+                    Span::new(Pos::with_values(3, 21), Pos::with_values(3, 21))
+                ),
+                Token::new(
+                    TokenKind::Literal(token::LiteralKind::String(String::from("String"))),
+                    Span::new(Pos::with_values(4, 1), Pos::with_values(4, 8))
+                ),
+                Token::new(
+                    TokenKind::Newline,
+                    Span::new(Pos::with_values(4, 9), Pos::with_values(4, 9))
+                )
+            ]
+        )
+    }
+
+    #[test]
+    fn windows_newlines_surrounding_code() {
+        assert_eq!(
+            Lexer::new("\r\n\r\nprint\r\n").lex().unwrap(),
+            vec![
+                Token::new(
+                    TokenKind::Newline,
+                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
+                ),
+                Token::new(
+                    TokenKind::Identifier(String::from("print")),
+                    Span::new(Pos::with_values(3, 1), Pos::with_values(3, 5))
+                ),
+                Token::new(
+                    TokenKind::Newline,
+                    Span::new(Pos::with_values(3, 6), Pos::with_values(3, 6))
+                )
+            ]
         )
     }
 
@@ -435,7 +529,10 @@ mod tests {
                     TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
                     Span::new(Pos::with_values(1, 1), Pos::with_values(1, 14))
                 ),
-                Token::new(TokenKind::Dot, Span::new(Pos::with_values(1, 15), Pos::with_values(1, 15))),
+                Token::new(
+                    TokenKind::Dot,
+                    Span::new(Pos::with_values(1, 15), Pos::with_values(1, 15))
+                ),
                 Token::new(
                     TokenKind::Identifier(String::from("print")),
                     Span::new(Pos::with_values(1, 16), Pos::with_values(1, 20))
@@ -445,12 +542,23 @@ mod tests {
     }
 
     #[test]
-    fn string_test() {
+    fn string() {
         assert_eq!(
             Lexer::new("\"Hello World\"").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::String(String::from("Hello World"))),
                 Span::new(Pos::with_values(1, 1), Pos::with_values(1, 13))
+            )]
+        )
+    }
+
+    #[test]
+    fn multiline_string() {
+        assert_eq!(
+            Lexer::new("\"Hello\nWorld\"").lex().unwrap(),
+            vec![Token::new(
+                TokenKind::Literal(token::LiteralKind::String(String::from("Hello\nWorld"))),
+                Span::new(Pos::with_values(1, 1), Pos::with_values(2, 6))
             )]
         )
     }
@@ -555,7 +663,7 @@ mod tests {
     }
 
     #[test]
-    fn float_test() {
+    fn float() {
         assert_eq!(
             Lexer::new("1234453879834.342345345").lex().unwrap(),
             vec![Token::new(
