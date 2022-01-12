@@ -16,8 +16,8 @@ use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Pos {
-    line: usize,
-    col: usize,
+    pub line: usize,
+    pub col: usize,
 }
 
 impl Pos {
@@ -49,11 +49,11 @@ impl fmt::Display for Pos {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Span {
     start: Pos,
-    end: Option<Pos>,
+    end: Pos,
 }
 
 impl Span {
-    pub fn new(start: Pos, end: Option<Pos>) -> Self {
+    pub fn new(start: Pos, end: Pos) -> Self {
         Self { start, end }
     }
 }

@@ -13,7 +13,10 @@
 
 pub mod token;
 
-use crate::{error::RibbonError, pos::{Pos, Span}};
+use crate::{
+    error::RibbonError,
+    pos::{Pos, Span},
+};
 use core::iter::Peekable;
 use std::str::Chars;
 
@@ -26,7 +29,9 @@ pub struct Lexer<'a> {
     /// The current position of the Lexer, to be used in error handling
     pos: Pos,
     /// The errors which will be handled by the Ribbon Interpreter
-    errors: Vec<RibbonError>
+    errors: Vec<RibbonError>,
+    /// The tokens which will eventually be given to the user at the end of Lexer.lex()
+    tokens: Vec<Token>,
 }
 
 impl<'a> Lexer<'a> {
@@ -35,46 +40,41 @@ impl<'a> Lexer<'a> {
         Self {
             chars: source.chars().peekable(),
             pos: Pos::new(),
-            errors: Vec::new()
+            errors: Vec::new(),
+            tokens: Vec::new(),
         }
     }
 
     /// Turns the source file into a Vec of Token's
-    pub fn lex(&mut self) -> Result<Vec<Token>,Vec<RibbonError>> {
-        let mut tokens = Vec::new();
-
+    pub fn lex(&mut self) -> Result<Vec<Token>, Vec<RibbonError>> {
         while let Some(c) = self.next() {
             match c {
                 // Newline
                 '\n' | '\r' => {
-                    tokens.push(self.construct_newline(c));
+                    self.construct_newline(c);
                 }
 
                 // Any type of whitespace
                 _ if c.is_whitespace() => (),
 
                 // String
-                '"' => tokens.push(self.construct_string()),
+                '"' => self.construct_string(),
 
                 // Character
-                '\'' => {
-                    match self.construct_character() {
-                        Ok(t) => tokens.push(t),
-                        Err(_) => ()
-                    }
-                },
+                '\'' => self.construct_character(),
 
                 // Single-character only operators
                 ch @ ('.' | '{' | '}' | '(' | ')') => {
                     match self.peek() {
                         // If it's a dot and start of a float
-                        Some(c) if c.is_numeric() && ch == '.' => {
-                            tokens.push(self.construct_float())
-                        }
+                        Some(c) if c.is_numeric() && ch == '.' => self.construct_float(),
                         // TODO: Same with every other operator, add a check for a binding modifier
                         // TODO: This check will probably happen in a function called check_binding_modifier or something
                         // If it's just your plain old average operator
-                        _ => tokens.push(Token::new(ch.into(), Span::new(self.pos.clone(), None))),
+                        _ => self.tokens.push(Token::new(
+                            ch.into(),
+                            Span::new(self.pos.clone(), self.pos.clone()),
+                        )),
                     }
                 }
 
@@ -87,41 +87,42 @@ impl<'a> Lexer<'a> {
                             let start = self.pos.clone();
                             self.next();
 
-                            tokens.push(Token::new(
+                            self.tokens.push(Token::new(
                                 TokenKind::ScopeResolutionOperator,
-                                Span::new(start, Some(self.pos.clone())),
+                                Span::new(start, self.pos.clone()),
                             ));
                         }
                         _ => {
                             // It's just a colon
 
-                            tokens.push(Token::new(
+                            self.tokens.push(Token::new(
                                 TokenKind::Colon,
-                                Span::new(self.pos.clone(), None),
+                                Span::new(self.pos.clone(), self.pos.clone()),
                             ))
                         }
                     }
                 }
 
                 // Numbers!
-                c if c.is_numeric() => tokens.push(self.construct_number(c)),
+                c if c.is_numeric() => self.construct_number(c),
 
                 // Identifier or keyword
-                c if c.is_alphabetic() || c == '_' => {
-                    tokens.push(self.construct_identifier_or_keyword(c));
-                }
+                c if c.is_alphabetic() || c == '_' => self.construct_identifier_or_keyword(c),
 
                 c => {
-                    self.push_error_and_recover(RibbonError::new(Span::new(self.pos.clone(), None), format!("Unexpected character: {}", c)));
+                    self.push_error_and_recover(RibbonError::new(
+                        Span::new(self.pos.clone(), self.pos.clone()),
+                        format!("Unexpected character: {}", c),
+                    ));
                 }
             }
         }
 
         if !self.errors.is_empty() {
-            return Err(self.errors.clone())
+            Err(self.errors.clone())
+        } else {
+            Ok(self.tokens.clone())
         }
-
-        Ok(tokens)
     }
 
     /// Pushes an error onto the error stack then calls recover
@@ -137,46 +138,58 @@ impl<'a> Lexer<'a> {
     }
 
     /// Constructs a character literal
-    fn construct_character(&mut self) -> Result<Token,()> {
+    fn construct_character(&mut self) {
         let start = self.pos.clone();
 
         match self.next() {
             Some(c) => {
                 if c == '\'' {
-                    self.push_error_and_recover(RibbonError::new(Span::new(start, Some(self.pos.clone())), String::from("Empty character literal.")));
-                    Err(())
+                    self.push_error_and_recover(RibbonError::new(
+                        Span::new(start, self.pos.clone()),
+                        String::from("Empty character literal."),
+                    ));
                 } else {
                     self.expect('\'');
 
-                    Ok(Token::new(
+                    self.tokens.push(Token::new(
                         TokenKind::Literal(token::LiteralKind::Char(c)),
-                        Span::new(start, Some(self.pos.clone())),
-                    ))
+                        Span::new(start, self.pos.clone()),
+                    ));
                 }
             }
             None => {
-                self.push_error_and_recover(RibbonError::new(Span::new(start, Some(self.pos.clone())), String::from("Unclosed charcter literal.")));
-                Err(())
+                self.push_error_and_recover(RibbonError::new(
+                    Span::new(start, self.pos.clone()),
+                    String::from("Unclosed charcter literal."),
+                ));
             }
         }
     }
 
     /// Specifically constructs a float because you can do .1032032403 or whatever
-    fn construct_float(&mut self) -> Token {
+    fn construct_float(&mut self) {
         let start = self.pos.clone();
 
-        Token::new(
+        let decimal_part = self.take_while(|ch| ch.is_numeric());
+
+        self.tokens.push(Token::new(
             TokenKind::Literal(token::LiteralKind::Float(
-                (String::from(".") + self.take_while(|ch| ch.is_numeric()).as_str())
+                (String::from("0.") + decimal_part.as_str())
                     .parse()
-                    .unwrap_or_else(|_| {panic!("(Ribbon Internal Error):{}: Couldn't parse float.", self.pos.clone())}),
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "(Ribbon Internal Error):{}: Couldn't parse float: '{}'",
+                            self.pos.clone(),
+                            decimal_part
+                        )
+                    }),
             )),
-            Span::new(start, Some(self.pos.clone())),
-        )
+            Span::new(start, self.pos.clone()),
+        ))
     }
 
     /// Constructs a number
-    fn construct_number(&mut self, first: char) -> Token {
+    fn construct_number(&mut self, first: char) {
         let start = self.pos.clone();
 
         let mut result = String::new();
@@ -192,22 +205,31 @@ impl<'a> Lexer<'a> {
 
             result.push_str(self.take_while(|ch| ch.is_numeric()).as_str());
 
-            Token::new(
+            self.tokens.push(Token::new(
                 TokenKind::Literal(token::LiteralKind::Float(result.parse().unwrap())),
-                Span::new(start, Some(self.pos.clone())),
-            )
+                Span::new(start, self.pos.clone()),
+            ));
         } else {
-            Token::new(
+            self.tokens.push(Token::new(
                 TokenKind::Literal(token::LiteralKind::Integer(result.parse().unwrap())),
-                Span::new(start, Some(self.pos.clone())),
-            )
+                Span::new(start, self.pos.clone()),
+            ))
         }
     }
 
     /// Constructs a newline then skips excess newlines (this supports windows-style newlines (\r\n), although I don't yet know if it works...)
-    fn construct_newline(&mut self, c: char) -> Token {
+    fn construct_newline(&mut self, c: char) {
         // We need to tokenise one newline to check for EOS
-        let ret = Token::new(TokenKind::Newline, Span::new(self.pos.clone(), None));
+
+        let pos = self.pos.clone();
+
+        // The line number will be off by one since our next() method advances the line automatically, so we just subtract one to be accurate
+        let correct_pos = Pos::with_values(pos.line - 1, pos.col);
+
+        self.tokens.push(Token::new(
+            TokenKind::Newline,
+            Span::new(correct_pos, correct_pos),
+        ));
 
         let carriage_return = if c == '\n' {
             false
@@ -218,14 +240,12 @@ impl<'a> Lexer<'a> {
 
         // The rest of the newlines can be skipped
         self.skip_excess_newlines(carriage_return);
-
-        ret
     }
 
     /// Constructs a string token
     ///
     /// Currently, we just take characters while said character is not a '"', however this is obviously flawed as it does not support escape literals
-    fn construct_string(&mut self) -> Token {
+    fn construct_string(&mut self) {
         let start = self.pos.clone();
         let mut string = String::new();
 
@@ -233,14 +253,14 @@ impl<'a> Lexer<'a> {
         string.push_str(self.take_while(|char| char != '"').as_str());
         self.expect('"');
 
-        Token::new(
+        self.tokens.push(Token::new(
             TokenKind::Literal(token::LiteralKind::String(string)),
-            Span::new(start, Some(self.pos.clone())),
-        )
+            Span::new(start, self.pos.clone()),
+        ));
     }
 
     /// Constructs an identifier token or searches the keyword hashmap for the identifier and constructs that if it's there
-    fn construct_identifier_or_keyword(&mut self, first: char) -> Token {
+    fn construct_identifier_or_keyword(&mut self, first: char) {
         let start = self.pos.clone();
         let mut res = String::new();
 
@@ -251,7 +271,7 @@ impl<'a> Lexer<'a> {
                 .as_str(),
         );
 
-        Token::new(
+        self.tokens.push(Token::new(
             if res == "true" {
                 TokenKind::Literal(token::LiteralKind::Bool(true))
             } else if res == "false" {
@@ -261,18 +281,24 @@ impl<'a> Lexer<'a> {
             } else {
                 TokenKind::Identifier(res)
             },
-            Span::new(start, Some(self.pos.clone())),
-        )
+            Span::new(start, self.pos.clone()),
+        ))
     }
 
     fn expect(&mut self, expected_char: char) {
         match self.next() {
             Some(c) if c == expected_char => (),
             Some(c) => {
-                self.push_error_and_recover(RibbonError::new(Span::new(self.pos.clone(), None), format!("Expected {}, found {}", expected_char, c)));
+                self.push_error_and_recover(RibbonError::new(
+                    Span::new(self.pos.clone(), self.pos.clone()),
+                    format!("Expected {}, found {}", expected_char, c),
+                ));
             }
             None => {
-                self.push_error_and_recover(RibbonError::new(Span::new(self.pos.clone(), None), format!("Expected {}, found EOF", expected_char)));
+                self.push_error_and_recover(RibbonError::new(
+                    Span::new(self.pos.clone(), self.pos.clone()),
+                    format!("Expected {}, found EOF", expected_char),
+                ));
             }
         }
     }
@@ -354,7 +380,7 @@ mod tests {
             Lexer::new("\n").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Newline,
-                Span::new(Pos::with_values(2, 1), None)
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1,1))
             )]
         )
     }
@@ -371,7 +397,7 @@ mod tests {
             Lexer::new("'a'").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Char('a')),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 3)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 3))
             )]
         )
     }
@@ -388,14 +414,14 @@ mod tests {
             Lexer::new("true").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Bool(true)),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 4)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 4))
             )]
         );
         assert_eq!(
             Lexer::new("false").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Bool(false)),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 5)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 5))
             )]
         );
     }
@@ -407,24 +433,24 @@ mod tests {
             vec![
                 Token::new(
                     TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
-                    Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 14)))
+                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 14))
                 ),
-                Token::new(TokenKind::Dot, Span::new(Pos::with_values(1, 15), None)),
+                Token::new(TokenKind::Dot, Span::new(Pos::with_values(1, 15), Pos::with_values(1, 15))),
                 Token::new(
                     TokenKind::Identifier(String::from("print")),
-                    Span::new(Pos::with_values(1, 16), Some(Pos::with_values(1, 20)))
+                    Span::new(Pos::with_values(1, 16), Pos::with_values(1, 20))
                 )
             ]
         )
     }
 
     #[test]
-    fn string_tests() {
+    fn string_test() {
         assert_eq!(
             Lexer::new("\"Hello World\"").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::String(String::from("Hello World"))),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 13)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 13))
             )]
         )
     }
@@ -435,7 +461,7 @@ mod tests {
             Lexer::new("fn").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::Function),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 2)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
             )]
         )
     }
@@ -446,7 +472,7 @@ mod tests {
             Lexer::new("if").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::If),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 2)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
             )]
         )
     }
@@ -457,7 +483,7 @@ mod tests {
             Lexer::new("else").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::Else),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 4)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 4))
             )]
         )
     }
@@ -468,7 +494,7 @@ mod tests {
             Lexer::new("struct").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::Struct),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 6)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 6))
             )]
         )
     }
@@ -479,7 +505,7 @@ mod tests {
             Lexer::new("while").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::While),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 5)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 5))
             )]
         )
     }
@@ -490,7 +516,7 @@ mod tests {
             Lexer::new("whilep").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::Whilep),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 6)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 6))
             )]
         )
     }
@@ -501,7 +527,7 @@ mod tests {
             Lexer::new("ifp").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword(token::KeywordKind::Ifp),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 3)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 3))
             )]
         )
     }
@@ -512,7 +538,7 @@ mod tests {
             Lexer::new("1234").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Integer(1234)),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 4)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 4))
             )]
         )
     }
@@ -523,7 +549,29 @@ mod tests {
             Lexer::new("1234453879834").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Integer(1234453879834)),
-                Span::new(Pos::with_values(1, 1), Some(Pos::with_values(1, 13)))
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 13))
+            )]
+        )
+    }
+
+    #[test]
+    fn float_test() {
+        assert_eq!(
+            Lexer::new("1234453879834.342345345").lex().unwrap(),
+            vec![Token::new(
+                TokenKind::Literal(token::LiteralKind::Float(1234453879834.342345345)),
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 23))
+            )]
+        )
+    }
+
+    #[test]
+    fn float_starting_with_dot() {
+        assert_eq!(
+            Lexer::new(".342345345").lex().unwrap(),
+            vec![Token::new(
+                TokenKind::Literal(token::LiteralKind::Float(0.342345345)),
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 10))
             )]
         )
     }
