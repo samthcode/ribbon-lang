@@ -368,6 +368,47 @@ mod tests {
     use super::*;
 
     #[test]
+    fn main_function_parenthesised() {
+        assert_eq!(
+            Lexer::new("fn main(){\n    \n}").lex().unwrap(),
+            vec![
+                Token::new(
+                    TokenKind::Keyword(token::KeywordKind::Function),
+                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+                ),
+                Token::new(
+                    TokenKind::Identifier(String::from("main")),
+                    Span::new(Pos::with_values(1, 4), Pos::with_values(1, 7))
+                ),
+                Token::new(
+                    TokenKind::OpenDelim(token::DelimKind::Parenthesis),
+                    Span::new(Pos::with_values(1, 8), Pos::with_values(1, 8))
+                ),
+                Token::new(
+                    TokenKind::ClosingDelim(token::DelimKind::Parenthesis),
+                    Span::new(Pos::with_values(1, 9), Pos::with_values(1, 9))
+                ),
+                Token::new(
+                    TokenKind::OpenDelim(token::DelimKind::CurlyBracket),
+                    Span::new(Pos::with_values(1, 10), Pos::with_values(1, 10))
+                ),
+                Token::new(
+                    TokenKind::Newline,
+                    Span::new(Pos::with_values(1, 11), Pos::with_values(1, 11))
+                ),
+                Token::new(
+                    TokenKind::Newline,
+                    Span::new(Pos::with_values(2, 5), Pos::with_values(2, 5))
+                ),
+                Token::new(
+                    TokenKind::ClosingDelim(token::DelimKind::CurlyBracket),
+                    Span::new(Pos::with_values(3, 1), Pos::with_values(3, 1))
+                )
+            ]
+        )
+    }
+
+    #[test]
     fn with_newline() {
         assert_eq!(
             Lexer::new("\n").lex().unwrap(),
@@ -424,7 +465,9 @@ mod tests {
     #[test]
     fn newlines_surrounding_more_code() {
         assert_eq!(
-            Lexer::new("\n\n\"Hello World!\".print\n\"String\"\n").lex().unwrap(),
+            Lexer::new("\n\n\"Hello World!\".print\n\"String\"\n")
+                .lex()
+                .unwrap(),
             vec![
                 Token::new(
                     TokenKind::Newline,
