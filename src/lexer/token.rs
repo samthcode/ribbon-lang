@@ -1,5 +1,17 @@
 use crate::pos::Span;
 
+pub static KEYWORD_MAP: phf::Map<&'static str, KeywordKind> = phf::phf_map! {
+    "fn" => KeywordKind::Function,
+    "if" => KeywordKind::If,
+    "else" => KeywordKind::Else,
+    "struct" => KeywordKind::Struct,
+    "while" => KeywordKind::While,
+    "ifp" => KeywordKind::Ifp,
+    "whilep" => KeywordKind::Whilep,
+};
+
+pub static OPERATOR_CHARACTERS: [char; 16] = ['=', '+', '-', '<', '>', '*', '/', ':', ';', '.', '(', ')', '{', '}', '[', ']'];
+
 /// The Token created by the Lexer and used by the Parser to generate an AST
 #[derive(Debug, PartialEq, Clone)]
 pub struct Token {
@@ -60,6 +72,8 @@ pub enum TokenKind {
     Dot,
     /// =
     Assignemnt,
+    /// ;
+    Semicolon,
 
     /// i.e. (, {, [
     OpenDelim(DelimKind),
@@ -69,25 +83,47 @@ pub enum TokenKind {
     /// i.e. +, -, *, /, ** (exponent)
     BinOp(BinOpKind),
     /// i.e +=, -=, /=, *=, **=
-    BindOpEq(BinOpKind),
+    BinOpEq(BinOpKind),
 
     /// i.e. <, >, <=, >=, ==
     Equality(EqualityKind),
 }
 
-impl From<char> for TokenKind {
-    fn from(ch: char) -> Self {
-        match ch {
-            '.' => Self::Dot,
-            '{' => Self::OpenDelim(DelimKind::CurlyBracket),
-            '}' => Self::ClosingDelim(DelimKind::CurlyBracket),
-            '(' => Self::OpenDelim(DelimKind::Parenthesis),
-            ')' => Self::ClosingDelim(DelimKind::Parenthesis),
-
-            _ => panic!(
-                "(Ribbon Internal Error) Unimplemented character to TokenKind conversion ({}).",
-                ch
-            ),
+impl TryFrom<String> for TokenKind {
+    type Error = ();
+    fn try_from(str: String) -> Result<Self, Self::Error> {
+        match &*str {
+            // Misc operators
+            "::" => Ok(Self::ScopeResolutionOperator),
+            ":" => Ok(Self::Colon),
+            "." => Ok(Self::Dot),
+            ";" => Ok(Self::Semicolon),
+            "=" => Ok(Self::Assignemnt),
+            // Delimeters
+            "(" => Ok(Self::OpenDelim(DelimKind::Parenthesis)),
+            ")" => Ok(Self::ClosingDelim(DelimKind::Parenthesis)),
+            "[" => Ok(Self::OpenDelim(DelimKind::SquareBracket)),
+            "]" => Ok(Self::ClosingDelim(DelimKind::SquareBracket)),
+            "{" => Ok(Self::OpenDelim(DelimKind::CurlyBracket)),
+            "}" => Ok(Self::ClosingDelim(DelimKind::CurlyBracket)),
+            // Equalities
+            "==" => Ok(Self::Equality(EqualityKind::EQ)),
+            "<" => Ok(Self::Equality(EqualityKind::LT)),
+            ">" => Ok(Self::Equality(EqualityKind::GT)),
+            "<=" => Ok(Self::Equality(EqualityKind::LTE)),
+            ">=" => Ok(Self::Equality(EqualityKind::GTE)),
+            // Binary Operators
+            "+" => Ok(Self::BinOp(BinOpKind::Add)),
+            "-" => Ok(Self::BinOp(BinOpKind::Sub)),
+            "*" => Ok(Self::BinOp(BinOpKind::Mul)),
+            "/" => Ok(Self::BinOp(BinOpKind::Div)),
+            "**" => Ok(Self::BinOp(BinOpKind::Exp)),
+            // Binary-Equals Operators
+            "+=" => Ok(Self::BinOpEq(BinOpKind::Add)),
+            "-=" => Ok(Self::BinOpEq(BinOpKind::Sub)),
+            "*=" => Ok(Self::BinOpEq(BinOpKind::Mul)),
+            "/=" => Ok(Self::BinOpEq(BinOpKind::Div)),
+            _ => Err(())
         }
     }
 }

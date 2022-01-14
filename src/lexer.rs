@@ -63,44 +63,15 @@ impl<'a> Lexer<'a> {
                 // Character
                 '\'' => self.construct_character(),
 
-                // Single-character only operators
-                ch @ ('.' | '{' | '}' | '(' | ')') => {
-                    match self.peek() {
-                        // If it's a dot and start of a float
-                        Some(c) if c.is_numeric() && ch == '.' => self.construct_float(),
-                        // TODO: Same with every other operator, add a check for a binding modifier
-                        // TODO: This check will probably happen in a function called check_binding_modifier or something
-                        // If it's just your plain old average operator
-                        _ => self.tokens.push(Token::new(
-                            ch.into(),
-                            Span::new(self.pos.clone(), self.pos.clone()),
-                        )),
-                    }
-                }
-
-                // Colon or scope resolution operator
-                c if c == ':' => {
-                    match self.peek() {
-                        Some(ch) if *ch == ':' => {
-                            // It's a scope resolution operator
-
-                            let start = self.pos.clone();
-                            self.next();
-
-                            self.tokens.push(Token::new(
-                                TokenKind::ScopeResolutionOperator,
-                                Span::new(start, self.pos.clone()),
-                            ));
-                        }
-                        _ => {
-                            // It's just a colon
-
-                            self.tokens.push(Token::new(
-                                TokenKind::Colon,
-                                Span::new(self.pos.clone(), self.pos.clone()),
-                            ))
-                        }
-                    }
+                // Operators
+                c if token::OPERATOR_CHARACTERS.contains(&c) => {
+                    let start = self.pos.clone();
+                    let mut clump = String::from(c);
+                    clump.push_str(
+                        self.take_while(|c| token::OPERATOR_CHARACTERS.contains(&c))
+                            .as_str(),
+                    );
+                    self.make_operators(clump, start);
                 }
 
                 // Numbers!
@@ -122,6 +93,41 @@ impl<'a> Lexer<'a> {
             Err(self.errors.clone())
         } else {
             Ok(self.tokens.clone())
+        }
+    }
+
+    /// Takes a clump of characters which can be included in operators, and appends any tokens it needs to
+    fn make_operators(&mut self, clump: String, start: Pos) {
+        let mut clump = clump;
+        let mut start = start;
+
+        while !clump.is_empty() {
+            // Two-character operators
+            if clump.len() > 1 {
+                if let Ok(token_kind) =
+                    TokenKind::try_from(clump.chars().take(2).collect::<String>())
+                {
+                    clump = clump.chars().skip(2).collect();
+                    let end = Pos::with_values(start.line, start.col + 1);
+                    self.tokens
+                        .push(Token::new(token_kind, Span::new(start, end)));
+                    start = Pos::with_values(end.line, end.col + 1);
+
+                    continue
+                }
+            }
+            // One character operator
+            if let Ok(token_kind) = TokenKind::try_from(clump.chars().take(1).collect::<String>()) {
+                clump = clump.chars().skip(1).collect();
+                self.tokens
+                    .push(Token::new(token_kind, Span::new(start, start)));
+                start = Pos::with_values(start.line, start.col + 1);
+            } else {
+                panic!(
+                    "(Ribbon Internal Error) make_operators(), operator clump: '{}'",
+                    clump
+                )
+            }
         }
     }
 
@@ -166,28 +172,6 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// Specifically constructs a float because you can do .1032032403 or whatever
-    fn construct_float(&mut self) {
-        let start = self.pos.clone();
-
-        let decimal_part = self.take_while(|ch| ch.is_numeric());
-
-        self.tokens.push(Token::new(
-            TokenKind::Literal(token::LiteralKind::Float(
-                (String::from("0.") + decimal_part.as_str())
-                    .parse()
-                    .unwrap_or_else(|_| {
-                        panic!(
-                            "(Ribbon Internal Error):{}: Couldn't parse float: '{}'",
-                            self.pos.clone(),
-                            decimal_part
-                        )
-                    }),
-            )),
-            Span::new(start, self.pos.clone()),
-        ))
-    }
-
     /// Constructs a number
     fn construct_number(&mut self, first: char) {
         let start = self.pos.clone();
@@ -206,12 +190,28 @@ impl<'a> Lexer<'a> {
             result.push_str(self.take_while(|ch| ch.is_numeric()).as_str());
 
             self.tokens.push(Token::new(
-                TokenKind::Literal(token::LiteralKind::Float(result.parse().unwrap())),
+                TokenKind::Literal(token::LiteralKind::Float(result.parse().unwrap_or_else(
+                    |_| {
+                        panic!(
+                            "(Ribbon Internal Error):{}: Couldn't parse float: '{}'",
+                            self.pos.clone(),
+                            result
+                        )
+                    },
+                ))),
                 Span::new(start, self.pos.clone()),
             ));
         } else {
             self.tokens.push(Token::new(
-                TokenKind::Literal(token::LiteralKind::Integer(result.parse().unwrap())),
+                TokenKind::Literal(token::LiteralKind::Integer(result.parse().unwrap_or_else(
+                    |_| {
+                        panic!(
+                            "(Ribbon Internal Error):{}: Couldn't parse integer: '{}'",
+                            self.pos.clone(),
+                            result
+                        )
+                    },
+                ))),
                 Span::new(start, self.pos.clone()),
             ))
         }
@@ -273,7 +273,7 @@ impl<'a> Lexer<'a> {
                 TokenKind::Literal(token::LiteralKind::Bool(true))
             } else if res == "false" {
                 TokenKind::Literal(token::LiteralKind::Bool(false))
-            } else if let Some(typ) = KEYWORD_MAP.get(&res) {
+            } else if let Some(typ) = token::KEYWORD_MAP.get(&res) {
                 TokenKind::Keyword(*typ)
             } else {
                 TokenKind::Identifier(res)
@@ -334,7 +334,6 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
-        println!("{}", self.pos);
         res
     }
 
@@ -352,16 +351,6 @@ impl<'a> Lexer<'a> {
         }
     }
 }
-
-static KEYWORD_MAP: phf::Map<&'static str, token::KeywordKind> = phf::phf_map! {
-    "fn" => token::KeywordKind::Function,
-    "if" => token::KeywordKind::If,
-    "else" => token::KeywordKind::Else,
-    "struct" => token::KeywordKind::Struct,
-    "while" => token::KeywordKind::While,
-    "ifp" => token::KeywordKind::Ifp,
-    "whilep" => token::KeywordKind::Whilep,
-};
 
 #[cfg(test)]
 mod tests {
@@ -712,17 +701,6 @@ mod tests {
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Float(1234453879834.342345345)),
                 Span::new(Pos::with_values(1, 1), Pos::with_values(1, 23))
-            )]
-        )
-    }
-
-    #[test]
-    fn float_starting_with_dot() {
-        assert_eq!(
-            Lexer::new(".342345345").lex().unwrap(),
-            vec![Token::new(
-                TokenKind::Literal(token::LiteralKind::Float(0.342345345)),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 10))
             )]
         )
     }
