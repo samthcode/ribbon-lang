@@ -233,7 +233,7 @@ impl<'a> Lexer<'a> {
             true
         };
 
-        self.pos.next_line_at_0();
+        self.pos.next_line();
 
         // The rest of the newlines can be skipped
         self.skip_excess_newlines(carriage_return);
@@ -328,7 +328,7 @@ impl<'a> Lexer<'a> {
                 res.push(c);
                 self.next();
                 if c == '\n' {
-                    self.pos.next_line_at_0();
+                    self.pos.next_line();
                 }
             } else {
                 break;
@@ -345,7 +345,7 @@ impl<'a> Lexer<'a> {
             while let Some('\r') = self.peek() {
                 self.next();
                 match self.next() {
-                    Some('\n') => self.pos.next_line_at_0(),
+                    Some('\n') => self.pos.next_line(),
                     _ => panic!("(Ribbon Internal Error):{}: There wasn't a newline after the carriage return. WTF went wrong???", self.pos.clone())
                 };
             }

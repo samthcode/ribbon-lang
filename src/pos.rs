@@ -29,10 +29,6 @@ impl Pos {
     }
     pub fn next_line(&mut self) {
         self.line += 1;
-        self.col = 1;
-    }
-    pub fn next_line_at_0(&mut self) {
-        self.line += 1;
         self.col = 0;
     }
     pub fn adv(&mut self) {
