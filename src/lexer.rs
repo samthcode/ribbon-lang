@@ -54,6 +54,14 @@ impl<'a> Lexer<'a> {
                     self.construct_newline(c);
                 }
 
+                '/' if matches!(self.peek(), Some('/')) => {
+                    // Consume the second /
+                    self.next();
+
+                    // Consume up to next line
+                    self.take_while(|ch| ch != '\n' && ch != '\r');
+                }
+
                 // Any type of whitespace
                 _ if c.is_whitespace() => (),
 
