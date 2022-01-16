@@ -63,35 +63,17 @@ impl<'a> Lexer<'a> {
                     self.take_while(|ch| ch != '\n' && ch != '\r');
                 }
 
-                // Doesn't work with operator clumping since something like 10 +/*Hello World*/ 20 would make a '+', '/', and a '*' token
-                // Will probably leave these out of the language unless I can be bothered to fix them
+                // Multiline comments / Embedded comments
+                // I would prefer these to be /* {comment} */ but that wouldn't work in certain situations
+                // due to operator clumping (10 +/*Hello There*/ 20 making a '+', '/' and a '*' token)
+                '#' => {
+                    // Comsume the #
+                    self.next();
 
-                // // Multiline comments / Embedded comments
-                // '/' if matches!(self.peek(), Some('*')) => {
-                //     // Comsume the *
-                //     self.next();
+                    self.take_while(|ch| ch != '#');
 
-                //     loop {
-                //         self.take_while(|ch| ch != '*');
-
-                //         // Consumes the * or errors at EOF
-                //         if let None = self.next() {
-                //             self.errors.push(RibbonError::new(
-                //                 Span::new(self.pos.clone(), self.pos.clone()),
-                //                 String::from("EOF while parsing multiline comment"),
-                //             ))
-                //         }
-
-                //         match self.next() {
-                //             Some('/') => break,
-                //             None => self.errors.push(RibbonError::new(
-                //                 Span::new(self.pos.clone(), self.pos.clone()),
-                //                 String::from("EOF while parsing multiline comment"),
-                //             )),
-                //             _ => (),
-                //         }
-                //     }
-                // }
+                    self.expect('#');
+                }
 
                 // Any type of whitespace
                 _ if c.is_whitespace() => (),
@@ -129,7 +111,7 @@ impl<'a> Lexer<'a> {
         }
 
         // I can't be bothered to change all of the tests
-        
+
         // self.tokens.push(Token::new(
         //     TokenKind::EOF,
         //     Span::new(self.pos.clone(), self.pos.clone()),
