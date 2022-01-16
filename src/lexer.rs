@@ -102,9 +102,9 @@ impl<'a> Lexer<'a> {
                 c if c.is_alphabetic() || c == '_' => self.construct_identifier_or_keyword(c),
 
                 c => {
-                    self.push_error_and_recover(RibbonError::new(
+                    self.raise_error_and_recover(RibbonError::new(
                         Span::new(self.pos.clone(), self.pos.clone()),
-                        format!("Unexpected character: {}", c),
+                        format!("Unexpected character: '{}'", c),
                     ));
                 }
             }
@@ -130,37 +130,129 @@ impl<'a> Lexer<'a> {
         let mut start = start;
 
         while !clump.is_empty() {
-            // Two-character operators
-            if clump.len() > 1 {
-                if let Ok(token_kind) =
-                    TokenKind::try_from(clump.chars().take(2).collect::<String>())
-                {
-                    clump = clump.chars().skip(2).collect();
-                    let end = Pos::with_values(start.line, start.col + 1);
-                    self.tokens
-                        .push(Token::new(token_kind, Span::new(start, end)));
-                    start = Pos::with_values(end.line, end.col + 1);
+            match clump.chars().take(2).collect::<String>() {
+                op if matches!(op.chars().nth(1), Some('$')) => {
+                    // Here we can assume that there will either be an operator in nth(0) or an invalid operator, in which case we can error
+                    // This is for the case of a single-character with a binding modifier
 
-                    continue;
+                    if let Ok(token_kind) =
+                        TokenKind::try_from(op.chars().nth(0).unwrap().to_string())
+                    {
+                        // Consume the 2 characters from the clump, the operator and the binding modifier
+                        clump = clump.chars().skip(2).collect();
+
+                        let end = Pos::with_values(start.line, start.col + 1);
+                        self.tokens.push(Token::with_binding(
+                            token_kind,
+                            true,
+                            Span::new(start, end),
+                        ));
+                        start = Pos::with_values(end.line, end.col + 1);
+                    } else {
+                        self.raise_error_and_recover(RibbonError::new(
+                            Span::new(start, start),
+                            format!("Invalid operator: '{}'", op.chars().nth(0).unwrap()),
+                        ));
+                        return;
+                    }
+                }
+                op if op.len() == 2 => {
+                    // Checking for a two-character operator, and then for a binding modifier for a binding modifier afterwards
+                    if let Ok(token_kind) = TokenKind::try_from(op.clone()) {
+                        // Update the clump, consuming the two-character operator
+                        clump = clump.chars().skip(2).collect();
+
+                        match clump.chars().next() {
+                            Some('$') => {
+                                clump = clump.chars().skip(1).collect();
+
+                                let end = Pos::with_values(start.line, start.col + 2);
+                                self.tokens.push(Token::with_binding(
+                                    token_kind,
+                                    true,
+                                    Span::new(start, end),
+                                ));
+                                start = Pos::with_values(end.line, end.col + 1);
+                            }
+                            _ => {
+                                let end = Pos::with_values(start.line, start.col + 1);
+                                self.tokens
+                                    .push(Token::new(token_kind, Span::new(start, end)));
+                                start = Pos::with_values(end.line, end.col + 1);
+                            }
+                        }
+
+                        continue;
+                    // One character operator
+                    } else if let Ok(token_kind) =
+                        TokenKind::try_from(op.chars().nth(0).unwrap().to_string())
+                    {
+                        // Consume the operator from the clump
+                        clump = clump.chars().skip(1).collect();
+
+                        self.tokens
+                            .push(Token::new(token_kind, Span::new(start, start)));
+                        start = Pos::with_values(start.line, start.col + 1);
+                    } else {
+                        self.raise_error_and_recover(RibbonError::new(
+                            Span::new(start, Pos::with_values(start.line, start.col + 1)),
+                            format!("Invalid operator: '{}'", op),
+                        ));
+                        return;
+                    }
+                }
+                // One character operator & the last of the clump
+                op => {
+                    assert_eq!(op.len(), 1);
+
+                    if let Ok(token_kind) = TokenKind::try_from(op.clone()) {
+                        // Consume the operator from the clump
+                        clump = clump.chars().skip(1).collect();
+
+                        self.tokens
+                            .push(Token::new(token_kind, Span::new(start, start)));
+                        start = Pos::with_values(start.line, start.col + 1);
+                    } else {
+                        self.raise_error_and_recover(RibbonError::new(
+                            Span::new(start, Pos::with_values(start.line, start.col + 1)),
+                            format!("Unexpected character: '{}'", op),
+                        ));
+                        return;
+                    }
                 }
             }
-            // One character operator
-            if let Ok(token_kind) = TokenKind::try_from(clump.chars().take(1).collect::<String>()) {
-                clump = clump.chars().skip(1).collect();
-                self.tokens
-                    .push(Token::new(token_kind, Span::new(start, start)));
-                start = Pos::with_values(start.line, start.col + 1);
-            } else {
-                panic!(
-                    "(Ribbon Internal Error) make_operators(), operator clump: '{}'",
-                    clump
-                )
-            }
+            // // Two-character operators
+            // if clump.len() > 1 {
+            //     // Length 2
+            //     if let Ok(token_kind) =
+            //         TokenKind::try_from(clump.chars().take(2).collect::<String>())
+            //     {
+            //         clump = clump.chars().skip(2).collect();
+            //         let end = Pos::with_values(start.line, start.col + 1);
+            //         self.tokens
+            //             .push(Token::new(token_kind, Span::new(start, end)));
+            //         start = Pos::with_values(end.line, end.col + 1);
+
+            //         continue;
+            //     }
+            // }
+            // // One character operator
+            // if let Ok(token_kind) = TokenKind::try_from(clump.chars().take(1).collect::<String>()) {
+            //     clump = clump.chars().skip(1).collect();
+            //     self.tokens
+            //         .push(Token::new(token_kind, Span::new(start, start)));
+            //     start = Pos::with_values(start.line, start.col + 1);
+            // } else {
+            //     panic!(
+            //         "(Ribbon Internal Error) make_operators(), operator clump: '{}'",
+            //         clump
+            //     )
+            // }
         }
     }
 
     /// Pushes an error onto the error stack then calls recover
-    fn push_error_and_recover(&mut self, error: RibbonError) {
+    fn raise_error_and_recover(&mut self, error: RibbonError) {
         self.errors.push(error);
         self.recover_error();
     }
@@ -178,7 +270,7 @@ impl<'a> Lexer<'a> {
         match self.next() {
             Some(c) => {
                 if c == '\'' {
-                    self.push_error_and_recover(RibbonError::new(
+                    self.raise_error_and_recover(RibbonError::new(
                         Span::new(start, self.pos.clone()),
                         String::from("Empty character literal."),
                     ));
@@ -192,7 +284,7 @@ impl<'a> Lexer<'a> {
                 }
             }
             None => {
-                self.push_error_and_recover(RibbonError::new(
+                self.raise_error_and_recover(RibbonError::new(
                     Span::new(start, self.pos.clone()),
                     String::from("Unclosed charcter literal."),
                 ));
@@ -314,13 +406,13 @@ impl<'a> Lexer<'a> {
         match self.next() {
             Some(c) if c == expected_char => (),
             Some(c) => {
-                self.push_error_and_recover(RibbonError::new(
+                self.raise_error_and_recover(RibbonError::new(
                     Span::new(self.pos.clone(), self.pos.clone()),
                     format!("Expected {}, found {}", expected_char, c),
                 ));
             }
             None => {
-                self.push_error_and_recover(RibbonError::new(
+                self.raise_error_and_recover(RibbonError::new(
                     Span::new(self.pos.clone(), self.pos.clone()),
                     format!("Expected {}, found EOF", expected_char),
                 ));
@@ -388,6 +480,71 @@ impl<'a> Lexer<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn operators() {
+        assert_eq!(
+            Lexer::new(":: : + - / * += -= *= /=").lex().unwrap(),
+            vec![
+                Token::new(
+                    TokenKind::ScopeResolutionOperator,
+                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+                ),
+                Token::new(
+                    TokenKind::Colon,
+                    Span::new(Pos::with_values(1, 4), Pos::with_values(1, 4))
+                ),
+                Token::new(
+                    TokenKind::BinOp(token::BinOpKind::Add),
+                    Span::new(Pos::with_values(1, 6), Pos::with_values(1, 6))
+                ),
+                Token::new(
+                    TokenKind::BinOp(token::BinOpKind::Sub),
+                    Span::new(Pos::with_values(1, 8), Pos::with_values(1, 8))
+                ),
+                Token::new(
+                    TokenKind::BinOp(token::BinOpKind::Div),
+                    Span::new(Pos::with_values(1, 10), Pos::with_values(1, 10))
+                ),
+                Token::new(
+                    TokenKind::BinOp(token::BinOpKind::Mul),
+                    Span::new(Pos::with_values(1, 12), Pos::with_values(1, 12))
+                ),
+                Token::new(
+                    TokenKind::BinOpEq(token::BinOpKind::Add),
+                    Span::new(Pos::with_values(1, 14), Pos::with_values(1, 15))
+                ),
+                Token::new(
+                    TokenKind::BinOpEq(token::BinOpKind::Sub),
+                    Span::new(Pos::with_values(1, 17), Pos::with_values(1, 18))
+                ),
+                Token::new(
+                    TokenKind::BinOpEq(token::BinOpKind::Mul),
+                    Span::new(Pos::with_values(1, 20), Pos::with_values(1, 21))
+                ),
+                Token::new(
+                    TokenKind::BinOpEq(token::BinOpKind::Div),
+                    Span::new(Pos::with_values(1, 23), Pos::with_values(1, 24))
+                ),
+            ]
+        )
+    }
+
+    #[test]
+    fn binding_midifier() {
+        assert_eq!(
+            Lexer::new(":$ +$").lex().unwrap(),
+            vec![Token::with_binding(
+                TokenKind::Colon,
+                true,
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+            ),Token::with_binding(
+                TokenKind::BinOp(token::BinOpKind::Add),
+                true,
+                Span::new(Pos::with_values(1, 4), Pos::with_values(1, 5))
+            )]
+        )
+    }
 
     #[test]
     fn main_function_parenthesised() {
@@ -615,6 +772,12 @@ mod tests {
                 Span::new(Pos::with_values(1, 1), Pos::with_values(1, 13))
             )]
         )
+    }
+
+    #[test]
+    #[should_panic]
+    fn unclosed_string_literal() {
+        Lexer::new("\"Hello World").lex().unwrap();
     }
 
     #[test]
