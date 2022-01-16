@@ -87,6 +87,9 @@ pub enum TokenKind {
 
     /// i.e. <, >, <=, >=, ==
     Equality(EqualityKind),
+
+    /// End of file
+    EOF
 }
 
 impl TryFrom<String> for TokenKind {

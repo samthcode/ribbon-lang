@@ -89,6 +89,8 @@ impl<'a> Lexer<'a> {
             }
         }
 
+        self.tokens.push(Token::new(TokenKind::EOF, Span::new(self.pos.clone(), self.pos.clone())));
+
         if !self.errors.is_empty() {
             Err(self.errors.clone())
         } else {
