@@ -221,33 +221,6 @@ impl<'a> Lexer<'a> {
                     }
                 }
             }
-            // // Two-character operators
-            // if clump.len() > 1 {
-            //     // Length 2
-            //     if let Ok(token_kind) =
-            //         TokenKind::try_from(clump.chars().take(2).collect::<String>())
-            //     {
-            //         clump = clump.chars().skip(2).collect();
-            //         let end = Pos::with_values(start.line, start.col + 1);
-            //         self.tokens
-            //             .push(Token::new(token_kind, Span::new(start, end)));
-            //         start = Pos::with_values(end.line, end.col + 1);
-
-            //         continue;
-            //     }
-            // }
-            // // One character operator
-            // if let Ok(token_kind) = TokenKind::try_from(clump.chars().take(1).collect::<String>()) {
-            //     clump = clump.chars().skip(1).collect();
-            //     self.tokens
-            //         .push(Token::new(token_kind, Span::new(start, start)));
-            //     start = Pos::with_values(start.line, start.col + 1);
-            // } else {
-            //     panic!(
-            //         "(Ribbon Internal Error) make_operators(), operator clump: '{}'",
-            //         clump
-            //     )
-            // }
         }
     }
 
