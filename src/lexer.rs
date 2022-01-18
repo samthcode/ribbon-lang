@@ -14,7 +14,7 @@
 pub mod token;
 
 use crate::{
-    error::RibbonError,
+    error::Error,
     pos::{Pos, Span},
 };
 use core::iter::Peekable;
@@ -29,7 +29,7 @@ pub struct Lexer<'a> {
     /// The current position of the Lexer, to be used in error handling
     pos: Pos,
     /// The errors which will be handled by the Ribbon Interpreter
-    errors: Vec<RibbonError>,
+    errors: Vec<Error>,
     /// The tokens which will eventually be given to the user at the end of Lexer.lex()
     tokens: Vec<Token>,
 }
@@ -46,7 +46,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Turns the source file into a Vec of Token's
-    pub fn lex(&mut self) -> Result<Vec<Token>, Vec<RibbonError>> {
+    pub fn lex(&mut self) -> Result<Vec<Token>, Vec<Error>> {
         while let Some(c) = self.next() {
             match c {
                 // Newline
@@ -67,9 +67,6 @@ impl<'a> Lexer<'a> {
                 // I would prefer these to be /* {comment} */ but that wouldn't work in certain situations
                 // due to operator clumping (10 +/*Hello There*/ 20 making a '+', '/' and a '*' token)
                 '#' => {
-                    // Comsume the #
-                    self.next();
-
                     self.take_while(|ch| ch != '#');
 
                     self.expect('#');
@@ -86,7 +83,7 @@ impl<'a> Lexer<'a> {
 
                 // Operators
                 c if token::OPERATOR_CHARACTERS.contains(&c) => {
-                    let start = self.pos.clone();
+                    let start = self.pos;
                     let mut clump = String::from(c);
                     clump.push_str(
                         self.take_while(|c| token::OPERATOR_CHARACTERS.contains(&c))
@@ -102,8 +99,8 @@ impl<'a> Lexer<'a> {
                 c if c.is_alphabetic() || c == '_' => self.construct_identifier_or_keyword(c),
 
                 c => {
-                    self.raise_error_and_recover(RibbonError::new(
-                        Span::new(self.pos.clone(), self.pos.clone()),
+                    self.raise_error_and_recover(Error::new(
+                        Span::new(self.pos, self.pos),
                         format!("Unexpected character: '{}'", c),
                     ));
                 }
@@ -136,7 +133,7 @@ impl<'a> Lexer<'a> {
                     // This is for the case of a single-character with a binding modifier
 
                     if let Ok(token_kind) =
-                        TokenKind::try_from(op.chars().nth(0).unwrap().to_string())
+                        TokenKind::try_from(op.chars().next().unwrap().to_string())
                     {
                         // Consume the 2 characters from the clump, the operator and the binding modifier
                         clump = clump.chars().skip(2).collect();
@@ -149,9 +146,9 @@ impl<'a> Lexer<'a> {
                         ));
                         start = Pos::with_values(end.line, end.col + 1);
                     } else {
-                        self.raise_error_and_recover(RibbonError::new(
+                        self.raise_error_and_recover(Error::new(
                             Span::new(start, start),
-                            format!("Invalid operator: '{}'", op.chars().nth(0).unwrap()),
+                            format!("Invalid operator: '{}'", op.chars().next().unwrap()),
                         ));
                         return;
                     }
@@ -185,7 +182,7 @@ impl<'a> Lexer<'a> {
                         continue;
                     // One character operator
                     } else if let Ok(token_kind) =
-                        TokenKind::try_from(op.chars().nth(0).unwrap().to_string())
+                        TokenKind::try_from(op.chars().next().unwrap().to_string())
                     {
                         // Consume the operator from the clump
                         clump = clump.chars().skip(1).collect();
@@ -194,7 +191,7 @@ impl<'a> Lexer<'a> {
                             .push(Token::new(token_kind, Span::new(start, start)));
                         start = Pos::with_values(start.line, start.col + 1);
                     } else {
-                        self.raise_error_and_recover(RibbonError::new(
+                        self.raise_error_and_recover(Error::new(
                             Span::new(start, Pos::with_values(start.line, start.col + 1)),
                             format!("Invalid operator: '{}'", op),
                         ));
@@ -213,7 +210,7 @@ impl<'a> Lexer<'a> {
                             .push(Token::new(token_kind, Span::new(start, start)));
                         start = Pos::with_values(start.line, start.col + 1);
                     } else {
-                        self.raise_error_and_recover(RibbonError::new(
+                        self.raise_error_and_recover(Error::new(
                             Span::new(start, Pos::with_values(start.line, start.col + 1)),
                             format!("Unexpected character: '{}'", op),
                         ));
@@ -225,7 +222,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Pushes an error onto the error stack then calls recover
-    fn raise_error_and_recover(&mut self, error: RibbonError) {
+    fn raise_error_and_recover(&mut self, error: Error) {
         self.errors.push(error);
         self.recover_error();
     }
@@ -238,13 +235,13 @@ impl<'a> Lexer<'a> {
 
     /// Constructs a character literal
     fn construct_character(&mut self) {
-        let start = self.pos.clone();
+        let start = self.pos;
 
         match self.next() {
             Some(c) => {
                 if c == '\'' {
-                    self.raise_error_and_recover(RibbonError::new(
-                        Span::new(start, self.pos.clone()),
+                    self.raise_error_and_recover(Error::new(
+                        Span::new(start, self.pos),
                         String::from("Empty character literal."),
                     ));
                 } else {
@@ -252,14 +249,14 @@ impl<'a> Lexer<'a> {
 
                     self.tokens.push(Token::new(
                         TokenKind::Literal(token::LiteralKind::Char(c)),
-                        Span::new(start, self.pos.clone()),
+                        Span::new(start, self.pos),
                     ));
                 }
             }
             None => {
-                self.raise_error_and_recover(RibbonError::new(
-                    Span::new(start, self.pos.clone()),
-                    String::from("Unclosed charcter literal."),
+                self.raise_error_and_recover(Error::new(
+                    Span::new(start, self.pos),
+                    String::from("EOF while parsing character literal."),
                 ));
             }
         }
@@ -267,7 +264,7 @@ impl<'a> Lexer<'a> {
 
     /// Constructs a number
     fn construct_number(&mut self, first: char) {
-        let start = self.pos.clone();
+        let start = self.pos;
 
         let mut result = String::new();
 
@@ -292,7 +289,7 @@ impl<'a> Lexer<'a> {
                         )
                     },
                 ))),
-                Span::new(start, self.pos.clone()),
+                Span::new(start, self.pos),
             ));
         } else {
             self.tokens.push(Token::new(
@@ -305,7 +302,7 @@ impl<'a> Lexer<'a> {
                         )
                     },
                 ))),
-                Span::new(start, self.pos.clone()),
+                Span::new(start, self.pos),
             ))
         }
     }
@@ -314,7 +311,7 @@ impl<'a> Lexer<'a> {
     fn construct_newline(&mut self, c: char) {
         // We need to tokenise one newline to check for EOS
 
-        let pos = self.pos.clone();
+        let pos = self.pos;
 
         self.tokens
             .push(Token::new(TokenKind::Newline, Span::new(pos, pos)));
@@ -336,7 +333,7 @@ impl<'a> Lexer<'a> {
     ///
     /// Currently, we just take characters while said character is not a '"', however this is obviously flawed as it does not support escape literals
     fn construct_string(&mut self) {
-        let start = self.pos.clone();
+        let start = self.pos;
         let mut string = String::new();
 
         // TODO: This does not currenly support escape literals. Please make it do so!
@@ -345,13 +342,13 @@ impl<'a> Lexer<'a> {
 
         self.tokens.push(Token::new(
             TokenKind::Literal(token::LiteralKind::String(string)),
-            Span::new(start, self.pos.clone()),
+            Span::new(start, self.pos),
         ));
     }
 
     /// Constructs an identifier token or searches the keyword hashmap for the identifier and constructs that if it's there
     fn construct_identifier_or_keyword(&mut self, first: char) {
-        let start = self.pos.clone();
+        let start = self.pos;
         let mut res = String::new();
 
         res.push(first);
@@ -371,7 +368,7 @@ impl<'a> Lexer<'a> {
             } else {
                 TokenKind::Identifier(res)
             },
-            Span::new(start, self.pos.clone()),
+            Span::new(start, self.pos),
         ))
     }
 
@@ -379,15 +376,15 @@ impl<'a> Lexer<'a> {
         match self.next() {
             Some(c) if c == expected_char => (),
             Some(c) => {
-                self.raise_error_and_recover(RibbonError::new(
-                    Span::new(self.pos.clone(), self.pos.clone()),
-                    format!("Expected {}, found {}", expected_char, c),
+                self.raise_error_and_recover(Error::new(
+                    Span::new(self.pos, self.pos),
+                    format!("Expected '{expected_char}', found '{c}'"),
                 ));
             }
             None => {
-                self.raise_error_and_recover(RibbonError::new(
-                    Span::new(self.pos.clone(), self.pos.clone()),
-                    format!("Expected {}, found EOF", expected_char),
+                self.raise_error_and_recover(Error::new(
+                    Span::new(self.pos, self.pos),
+                    format!("Expected '{expected_char}', found EOF"),
                 ));
             }
         }
@@ -397,19 +394,14 @@ impl<'a> Lexer<'a> {
     /// This is also responsible for advancing the pos property appropriately
     /// (to be used in error handling)
     fn next(&mut self) -> Option<char> {
-        match self.chars.next() {
-            a @ Some(_) => {
-                self.pos.adv();
-                a
-            }
-            None => None,
-        }
+        self.pos.adv();
+        self.chars.next()
     }
 
     /// Peeks to the next character to be lexed
     /// This does not advance the iterator
     fn peek(&mut self) -> Option<&char> {
-        return self.chars.peek();
+        self.chars.peek()
     }
 
     /// This yields characters while they match a predicate
@@ -453,6 +445,51 @@ impl<'a> Lexer<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn comments() {
+        assert_eq!(Lexer::new("// Hello there").lex().unwrap(), vec![]);
+        assert_eq!(Lexer::new("# Hello there #").lex().unwrap(), vec![]);
+
+        assert_eq!(
+            Lexer::new("\"Hello World!\".print // prints \"Hello World!\"")
+                .lex()
+                .unwrap(),
+            vec![
+                Token::new(
+                    TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
+                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 14))
+                ),
+                Token::new(
+                    TokenKind::Dot,
+                    Span::new(Pos::with_values(1, 15), Pos::with_values(1, 15))
+                ),
+                Token::new(
+                    TokenKind::Identifier(String::from("print")),
+                    Span::new(Pos::with_values(1, 16), Pos::with_values(1, 20))
+                )
+            ]
+        );
+        assert_eq!(
+            Lexer::new("\"Hello World!\".# Hello #print")
+                .lex()
+                .unwrap(),
+            vec![
+                Token::new(
+                    TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
+                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 14))
+                ),
+                Token::new(
+                    TokenKind::Dot,
+                    Span::new(Pos::with_values(1, 15), Pos::with_values(1, 15))
+                ),
+                Token::new(
+                    TokenKind::Identifier(String::from("print")),
+                    Span::new(Pos::with_values(1, 25), Pos::with_values(1, 29))
+                )
+            ]
+        );
+    }
 
     #[test]
     fn operators() {
@@ -507,15 +544,18 @@ mod tests {
     fn binding_midifier() {
         assert_eq!(
             Lexer::new(":$ +$").lex().unwrap(),
-            vec![Token::with_binding(
-                TokenKind::Colon,
-                true,
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
-            ),Token::with_binding(
-                TokenKind::BinOp(token::BinOpKind::Add),
-                true,
-                Span::new(Pos::with_values(1, 4), Pos::with_values(1, 5))
-            )]
+            vec![
+                Token::with_binding(
+                    TokenKind::Colon,
+                    true,
+                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+                ),
+                Token::with_binding(
+                    TokenKind::BinOp(token::BinOpKind::Add),
+                    true,
+                    Span::new(Pos::with_values(1, 4), Pos::with_values(1, 5))
+                )
+            ]
         )
     }
 
@@ -675,9 +715,16 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn charcter_too_long() {
-        Lexer::new("'hello'").lex().unwrap();
+        if let Err(errs) = Lexer::new("'hello'").lex() {
+            assert_eq!(errs.len(), 1);
+            assert_eq!(
+                errs.get(0).unwrap().span,
+                Span::new(Pos::with_values(1, 3), Pos::with_values(1, 3))
+            );
+        } else {
+            panic!()
+        }
     }
 
     #[test]
@@ -692,9 +739,16 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn unclosed_character_literal() {
-        Lexer::new("'").lex().unwrap();
+        if let Err(errs) = Lexer::new("'").lex() {
+            assert_eq!(errs.len(), 1);
+            assert_eq!(
+                errs.get(0).unwrap().span,
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+            );
+        } else {
+            panic!()
+        }
     }
 
     #[test]
@@ -748,9 +802,16 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn unclosed_string_literal() {
-        Lexer::new("\"Hello World").lex().unwrap();
+        if let Err(errs) = Lexer::new("\"Hello World").lex() {
+            assert_eq!(errs.len(), 1);
+            assert_eq!(
+                errs.get(0).unwrap().span,
+                Span::new(Pos::with_values(1, 13), Pos::with_values(1, 13))
+            );
+        } else {
+            panic!()
+        }
     }
 
     #[test]
@@ -866,10 +927,10 @@ mod tests {
     #[test]
     fn float() {
         assert_eq!(
-            Lexer::new("1234453879834.342345345").lex().unwrap(),
+            Lexer::new("1234453879834.342").lex().unwrap(),
             vec![Token::new(
-                TokenKind::Literal(token::LiteralKind::Float(1234453879834.342345345)),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 23))
+                TokenKind::Literal(token::LiteralKind::Float(1234453879834.342)),
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 17))
             )]
         )
     }
