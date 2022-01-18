@@ -55,9 +55,7 @@ pub fn run() {
         }
         Commands::Line { line } => {
             for i in crate::lexer::Lexer::new(line).lex().unwrap_or_else(|errs| {
-                for i in errs {
-                    println!("{}", i)
-                }
+                crate::error::eprint_error_message(errs, "line_mode", line.clone());
                 std::process::exit(1);
             }) {
                 println!("{}", i);
