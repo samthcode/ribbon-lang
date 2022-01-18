@@ -375,6 +375,15 @@ impl<'a> Lexer<'a> {
     fn expect(&mut self, expected_char: char) {
         match self.next() {
             Some(c) if c == expected_char => (),
+            Some(c) if c == '\n' => {
+                // Avoids 'error: Unexpeted character: '
+                // '
+                self.errors.push(Error::new(
+                    Span::new(self.pos, self.pos),
+                    format!("Expected '{expected_char}', found newline"),
+                ));
+                self.pos.next_line();
+            }
             Some(c) => {
                 self.raise_error_and_recover(Error::new(
                     Span::new(self.pos, self.pos),
