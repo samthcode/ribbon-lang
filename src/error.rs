@@ -1,22 +1,19 @@
 use crate::pos::Span;
 
-#[derive(Debug, Clone)]
-pub struct RibbonError {
-    span: Span,
-    message: String
+#[derive(Debug, Clone, PartialEq)]
+pub struct Error {
+    pub span: Span,
+    pub message: String,
 }
 
-impl RibbonError {
+impl Error {
     pub fn new(span: Span, message: String) -> Self {
-        Self {
-            span,
-            message
-        }
+        Self { span, message }
     }
 }
 
-impl std::fmt::Display for RibbonError {
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.span, self.message)
+        write!(f, "ERROR: {}: {}", self.span, self.message)
     }
 }
