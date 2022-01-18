@@ -36,6 +36,12 @@ impl Pos {
     }
 }
 
+impl Default for Pos {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl fmt::Display for Pos {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.line, self.col)
@@ -48,8 +54,8 @@ impl fmt::Display for Pos {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Span {
-    start: Pos,
-    end: Pos,
+    pub start: Pos,
+    pub end: Pos,
 }
 
 impl Span {
@@ -61,5 +67,24 @@ impl Span {
 impl fmt::Display for Span {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}-{}", self.start, self.end)
+    }
+}
+
+impl From<(usize, usize, usize, usize)> for Span {
+    fn from(item: (usize, usize, usize, usize)) -> Self {
+        Self {
+            start: Pos::with_values(item.0, item.1),
+            end: Pos::with_values(item.2, item.3)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn span_from_tuple() {
+        assert_eq!(Span::from((1, 2, 1, 2)), Span::new(Pos::with_values(1, 2), Pos::with_values(1, 2)));
     }
 }
