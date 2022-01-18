@@ -10,7 +10,10 @@ pub static KEYWORD_MAP: phf::Map<&'static str, KeywordKind> = phf::phf_map! {
     "whilep" => KeywordKind::Whilep,
 };
 
-pub static OPERATOR_CHARACTERS: [char; 17] = ['=', '+', '-', '<', '>', '*', '/', ':', ';', '.', '(', ')', '{', '}', '[', ']', /*Binding modifier*/ '$'];
+pub static OPERATOR_CHARACTERS: [char; 17] = [
+    '=', '+', '-', '<', '>', '*', '/', ':', ';', '.', '(', ')', '{', '}', '[', ']',
+    /*Binding modifier*/ '$',
+];
 
 /// The Token created by the Lexer and used by the Parser to generate an AST
 #[derive(Debug, PartialEq, Clone)]
@@ -46,7 +49,17 @@ impl Token {
 
 impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {:?}{}", self.span, self.token, if self.binding_modified {" (Binding modified)"} else {""})
+        write!(
+            f,
+            "{}: {:?}{}",
+            self.span,
+            self.token,
+            if self.binding_modified {
+                " (Binding modified)"
+            } else {
+                ""
+            }
+        )
     }
 }
 
@@ -87,7 +100,6 @@ pub enum TokenKind {
 
     /// i.e. <, >, <=, >=, ==
     Equality(EqualityKind),
-
     // /// End of file
     // EOF
 }
@@ -126,7 +138,7 @@ impl TryFrom<String> for TokenKind {
             "-=" => Ok(Self::BinOpEq(BinOpKind::Sub)),
             "*=" => Ok(Self::BinOpEq(BinOpKind::Mul)),
             "/=" => Ok(Self::BinOpEq(BinOpKind::Div)),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
