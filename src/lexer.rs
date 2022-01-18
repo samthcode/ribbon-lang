@@ -480,9 +480,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            Lexer::new("\"Hello World!\".# Hello #print")
-                .lex()
-                .unwrap(),
+            Lexer::new("\"Hello World!\".# Hello #print").lex().unwrap(),
             vec![
                 Token::new(
                     TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
