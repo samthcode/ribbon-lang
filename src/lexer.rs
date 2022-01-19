@@ -14,7 +14,7 @@
 pub mod token;
 
 use crate::{
-    error::Error,
+    error::{Error, ErrorKind},
     pos::{Pos, Span},
 };
 use core::iter::Peekable;
@@ -101,7 +101,7 @@ impl<'a> Lexer<'a> {
                 c => {
                     self.raise_error_and_recover(Error::new(
                         Span::new(self.pos, self.pos),
-                        format!("Unexpected character: '{}'", c),
+                        ErrorKind::UnexpectedCharacter(c),
                     ));
                 }
             }
@@ -148,7 +148,7 @@ impl<'a> Lexer<'a> {
                     } else {
                         self.raise_error_and_recover(Error::new(
                             Span::new(start, start),
-                            format!("Invalid operator: '{}'", op.chars().next().unwrap()),
+                            ErrorKind::InvalidOperator(op.chars().next().unwrap().into()),
                         ));
                         return;
                     }
@@ -193,7 +193,7 @@ impl<'a> Lexer<'a> {
                     } else {
                         self.raise_error_and_recover(Error::new(
                             Span::new(start, Pos::with_values(start.line, start.col + 1)),
-                            format!("Invalid operator: '{}'", op),
+                            ErrorKind::InvalidOperator(op),
                         ));
                         return;
                     }
@@ -212,7 +212,7 @@ impl<'a> Lexer<'a> {
                     } else {
                         self.raise_error_and_recover(Error::new(
                             Span::new(start, Pos::with_values(start.line, start.col + 1)),
-                            format!("Unexpected character: '{}'", op),
+                            ErrorKind::InvalidOperator(op),
                         ));
                         return;
                     }
@@ -242,7 +242,7 @@ impl<'a> Lexer<'a> {
                 if c == '\'' {
                     self.raise_error_and_recover(Error::new(
                         Span::new(start, self.pos),
-                        String::from("Empty character literal."),
+                        ErrorKind::EmptyLiteral(String::from("character")),
                     ));
                 } else {
                     self.expect('\'');
@@ -256,7 +256,7 @@ impl<'a> Lexer<'a> {
             None => {
                 self.raise_error_and_recover(Error::new(
                     Span::new(start, self.pos),
-                    String::from("EOF while parsing character literal."),
+                    ErrorKind::EOFWhileParsingLiteral(String::from("character")),
                 ));
             }
         }
@@ -380,20 +380,20 @@ impl<'a> Lexer<'a> {
                 // '
                 self.errors.push(Error::new(
                     Span::new(self.pos, self.pos),
-                    format!("Expected '{expected_char}', found newline"),
+                    ErrorKind::ExpectedXFoundY(expected_char, '\n'),
                 ));
                 self.pos.next_line();
             }
             Some(c) => {
                 self.raise_error_and_recover(Error::new(
                     Span::new(self.pos, self.pos),
-                    format!("Expected '{expected_char}', found '{c}'"),
+                    ErrorKind::ExpectedXFoundY(expected_char, c),
                 ));
             }
             None => {
                 self.raise_error_and_recover(Error::new(
                     Span::new(self.pos, self.pos),
-                    format!("Expected '{expected_char}', found EOF"),
+                    ErrorKind::ExpectedXFoundEOF(expected_char),
                 ));
             }
         }

@@ -61,8 +61,7 @@ pub fn run() {
         Commands::Line { line, tokens } => {
             // TODO: Add mode to the Interpreter and Evaluator to allow continuous feeding of expressions into the program
             // TODO: So that it doesn't have to be cheesed like this
-            let line_in_main = format!("fn main {{\n{}\n}}", line);
-            crate::Interpreter::with_options(line_in_main.as_str(), "line_mode", *tokens, false)
+            crate::Interpreter::with_options(line.as_str(), "line_mode", *tokens, false)
                 .interpret();
         }
     }
