@@ -512,35 +512,35 @@ mod tests {
                     Span::new(Pos::with_values(1, 4), Pos::with_values(1, 4))
                 ),
                 Token::new(
-                    TokenKind::BinOp(token::BinOpKind::Add),
+                    TokenKind::ArithmeticOp(token::ArithmeticOpKind::Add),
                     Span::new(Pos::with_values(1, 6), Pos::with_values(1, 6))
                 ),
                 Token::new(
-                    TokenKind::BinOp(token::BinOpKind::Sub),
+                    TokenKind::ArithmeticOp(token::ArithmeticOpKind::Sub),
                     Span::new(Pos::with_values(1, 8), Pos::with_values(1, 8))
                 ),
                 Token::new(
-                    TokenKind::BinOp(token::BinOpKind::Div),
+                    TokenKind::ArithmeticOp(token::ArithmeticOpKind::Div),
                     Span::new(Pos::with_values(1, 10), Pos::with_values(1, 10))
                 ),
                 Token::new(
-                    TokenKind::BinOp(token::BinOpKind::Mul),
+                    TokenKind::ArithmeticOp(token::ArithmeticOpKind::Mul),
                     Span::new(Pos::with_values(1, 12), Pos::with_values(1, 12))
                 ),
                 Token::new(
-                    TokenKind::BinOpEq(token::BinOpKind::Add),
+                    TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Add),
                     Span::new(Pos::with_values(1, 14), Pos::with_values(1, 15))
                 ),
                 Token::new(
-                    TokenKind::BinOpEq(token::BinOpKind::Sub),
+                    TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Sub),
                     Span::new(Pos::with_values(1, 17), Pos::with_values(1, 18))
                 ),
                 Token::new(
-                    TokenKind::BinOpEq(token::BinOpKind::Mul),
+                    TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Mul),
                     Span::new(Pos::with_values(1, 20), Pos::with_values(1, 21))
                 ),
                 Token::new(
-                    TokenKind::BinOpEq(token::BinOpKind::Div),
+                    TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Div),
                     Span::new(Pos::with_values(1, 23), Pos::with_values(1, 24))
                 ),
             ]
@@ -558,7 +558,7 @@ mod tests {
                     Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
                 ),
                 Token::with_binding(
-                    TokenKind::BinOp(token::BinOpKind::Add),
+                    TokenKind::ArithmeticOp(token::ArithmeticOpKind::Add),
                     true,
                     Span::new(Pos::with_values(1, 4), Pos::with_values(1, 5))
                 )
