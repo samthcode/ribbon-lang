@@ -51,7 +51,7 @@ pub enum ErrorKind {
     ExpectedXFoundEOF(char),
     UnexpectedCharacter(char),
     InvalidOperator(String),
-    EmptyLiteral(String),
+    InvalidLiteral(String),
     EOFWhileParsingLiteral(String),
 }
 
@@ -66,7 +66,7 @@ impl std::fmt::Display for ErrorKind {
                 Self::ExpectedXFoundEOF(expected) => format!(r#"Expected '{expected}', found EOF"#),
                 Self::UnexpectedCharacter(ch) => format!(r#"Unexpected character '{ch}'"#),
                 Self::InvalidOperator(op) => format!(r#"Invalid operator '{op}'"#),
-                Self::EmptyLiteral(literal_type) => format!(r#"Empty {literal_type} literal"#),
+                Self::InvalidLiteral(literal_type) => format!(r#"Invalid {literal_type} literal"#),
                 Self::EOFWhileParsingLiteral(literal_type) =>
                     format!(r#"EOF while parsing {literal_type} literal"#),
                 _ => String::new(),

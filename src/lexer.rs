@@ -242,7 +242,7 @@ impl<'a> Lexer<'a> {
                 if c == '\'' {
                     self.raise_error_and_recover(Error::new(
                         Span::new(start, self.pos),
-                        ErrorKind::EmptyLiteral(String::from("character")),
+                        ErrorKind::InvalidLiteral(String::from("character")),
                     ));
                 } else {
                     self.expect('\'');
@@ -722,12 +722,12 @@ mod tests {
     }
 
     #[test]
-    fn charcter_too_long() {
+    fn error_charcter_too_long() {
         if let Err(errs) = Lexer::new("'hello'").lex() {
             assert_eq!(errs.len(), 1);
             assert_eq!(
-                errs.get(0).unwrap().span,
-                Span::new(Pos::with_values(1, 3), Pos::with_values(1, 3))
+                *errs.get(0).unwrap(),
+                Error::new(Span::new(Pos::with_values(1, 3), Pos::with_values(1, 3)), ErrorKind::ExpectedXFoundY('\'', 'e'))
             );
         } else {
             panic!()
