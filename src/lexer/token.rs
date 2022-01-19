@@ -10,9 +10,9 @@ pub static KEYWORD_MAP: phf::Map<&'static str, KeywordKind> = phf::phf_map! {
     "whilep" => KeywordKind::Whilep,
 };
 
-pub static OPERATOR_CHARACTERS: [char; 17] = [
+pub static OPERATOR_CHARACTERS: [char; 20] = [
     '=', '+', '-', '<', '>', '*', '/', ':', ';', '.', '(', ')', '{', '}', '[', ']',
-    /*Binding modifier*/ '$',
+    /*Binding modifier*/ '$', '&', '|', '!',
 ];
 
 /// The Token created by the Lexer and used by the Parser to generate an AST
@@ -87,6 +87,8 @@ pub enum TokenKind {
     Assignemnt,
     /// ;
     Semicolon,
+    /// |
+    Pipe,
 
     /// i.e. (, {, [
     OpenDelim(DelimKind),
@@ -94,14 +96,15 @@ pub enum TokenKind {
     ClosingDelim(DelimKind),
 
     /// i.e. +, -, *, /, ** (exponent)
-    BinOp(BinOpKind),
+    ArithmeticOp(ArithmeticOpKind),
     /// i.e +=, -=, /=, *=, **=
-    BinOpEq(BinOpKind),
+    ArithmeticOpEq(ArithmeticOpKind),
 
     /// i.e. <, >, <=, >=, ==
-    Equality(EqualityKind),
-    // /// End of file
-    // EOF
+    ComparativeOp(ComparativeOpKind),
+
+    // && etc
+    LogicalOp(LogicalOpKind),
 }
 
 impl TryFrom<String> for TokenKind {
@@ -114,6 +117,7 @@ impl TryFrom<String> for TokenKind {
             "." => Ok(Self::Dot),
             ";" => Ok(Self::Semicolon),
             "=" => Ok(Self::Assignemnt),
+            "|" => Ok(Self::Pipe),
             // Delimeters
             "(" => Ok(Self::OpenDelim(DelimKind::Parenthesis)),
             ")" => Ok(Self::ClosingDelim(DelimKind::Parenthesis)),
@@ -122,22 +126,26 @@ impl TryFrom<String> for TokenKind {
             "{" => Ok(Self::OpenDelim(DelimKind::CurlyBracket)),
             "}" => Ok(Self::ClosingDelim(DelimKind::CurlyBracket)),
             // Equalities
-            "==" => Ok(Self::Equality(EqualityKind::EQ)),
-            "<" => Ok(Self::Equality(EqualityKind::LT)),
-            ">" => Ok(Self::Equality(EqualityKind::GT)),
-            "<=" => Ok(Self::Equality(EqualityKind::LTE)),
-            ">=" => Ok(Self::Equality(EqualityKind::GTE)),
-            // Binary Operators
-            "+" => Ok(Self::BinOp(BinOpKind::Add)),
-            "-" => Ok(Self::BinOp(BinOpKind::Sub)),
-            "*" => Ok(Self::BinOp(BinOpKind::Mul)),
-            "/" => Ok(Self::BinOp(BinOpKind::Div)),
-            "**" => Ok(Self::BinOp(BinOpKind::Exp)),
-            // Binary-Equals Operators
-            "+=" => Ok(Self::BinOpEq(BinOpKind::Add)),
-            "-=" => Ok(Self::BinOpEq(BinOpKind::Sub)),
-            "*=" => Ok(Self::BinOpEq(BinOpKind::Mul)),
-            "/=" => Ok(Self::BinOpEq(BinOpKind::Div)),
+            "==" => Ok(Self::ComparativeOp(ComparativeOpKind::EQ)),
+            "<" => Ok(Self::ComparativeOp(ComparativeOpKind::LT)),
+            ">" => Ok(Self::ComparativeOp(ComparativeOpKind::GT)),
+            "<=" => Ok(Self::ComparativeOp(ComparativeOpKind::LTE)),
+            ">=" => Ok(Self::ComparativeOp(ComparativeOpKind::GTE)),
+            // Arithmetic Operators
+            "+" => Ok(Self::ArithmeticOp(ArithmeticOpKind::Add)),
+            "-" => Ok(Self::ArithmeticOp(ArithmeticOpKind::Sub)),
+            "*" => Ok(Self::ArithmeticOp(ArithmeticOpKind::Mul)),
+            "/" => Ok(Self::ArithmeticOp(ArithmeticOpKind::Div)),
+            "**" => Ok(Self::ArithmeticOp(ArithmeticOpKind::Exp)),
+            // Arithmetic-Equals Operators
+            "+=" => Ok(Self::ArithmeticOpEq(ArithmeticOpKind::Add)),
+            "-=" => Ok(Self::ArithmeticOpEq(ArithmeticOpKind::Sub)),
+            "*=" => Ok(Self::ArithmeticOpEq(ArithmeticOpKind::Mul)),
+            "/=" => Ok(Self::ArithmeticOpEq(ArithmeticOpKind::Div)),
+            // Logical Operators
+            "&&" => Ok(Self::LogicalOp(LogicalOpKind::And)),
+            "||" => Ok(Self::LogicalOp(LogicalOpKind::Or)),
+            "!" => Ok(Self::LogicalOp(LogicalOpKind::Not)),
             _ => Err(()),
         }
     }
@@ -173,7 +181,7 @@ pub enum KeywordKind {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum BinOpKind {
+pub enum ArithmeticOpKind {
     Add,
     Sub,
     Div,
@@ -182,10 +190,19 @@ pub enum BinOpKind {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum EqualityKind {
+pub enum ComparativeOpKind {
     LT,
     GT,
     LTE,
     GTE,
     EQ,
+    NEQ,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+
+pub enum LogicalOpKind {
+    And,
+    Or,
+    Not,
 }
