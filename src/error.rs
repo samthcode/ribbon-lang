@@ -53,7 +53,7 @@ pub enum ErrorKind {
     InvalidOperator(String),
     InvalidLiteral(String),
     EOFWhileLexingLiteral(String),
-    UnexpectedEscapeCharacter(char, String),
+    InvalidEscapeCharacter(char, String),
 }
 
 impl std::fmt::Display for ErrorKind {
@@ -70,8 +70,8 @@ impl std::fmt::Display for ErrorKind {
                 Self::InvalidLiteral(literal_type) => format!(r#"Invalid {literal_type} literal"#),
                 Self::EOFWhileLexingLiteral(literal_type) =>
                     format!(r#"EOF while lexing {literal_type} literal"#),
-                Self::UnexpectedEscapeCharacter(ch, literal) =>
-                    format!(r#"Unexpected escape character '\{ch}' in {literal} literal"#),
+                Self::InvalidEscapeCharacter(ch, literal) =>
+                    format!(r#"Invalid escape character '\{ch}' in {literal} literal"#),
                 _ => String::new(),
             }
         )

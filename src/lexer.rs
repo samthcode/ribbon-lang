@@ -265,7 +265,7 @@ impl<'a> Lexer<'a> {
                                 } else {
                                     self.raise_error_and_recover(Error::new(
                                         Span::new(start, self.pos),
-                                        ErrorKind::UnexpectedEscapeCharacter(
+                                        ErrorKind::InvalidEscapeCharacter(
                                             c,
                                             "character".to_string(),
                                         ),
@@ -394,7 +394,7 @@ impl<'a> Lexer<'a> {
                     } else {
                         self.raise_error_and_recover(Error::new(
                             Span::new(self.pos.clone(), self.pos),
-                            ErrorKind::UnexpectedEscapeCharacter(c, "string".to_string()),
+                            ErrorKind::InvalidEscapeCharacter(c, "string".to_string()),
                         ));
                         return;
                     }
