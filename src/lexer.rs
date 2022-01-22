@@ -245,6 +245,35 @@ impl<'a> Lexer<'a> {
                         ErrorKind::InvalidLiteral(String::from("character")),
                     ));
                 } else {
+                    if c == '\\' {
+                        match self.next() {
+                            None => {
+                                self.errors.push(Error::new(
+                                    Span::new(start, self.pos),
+                                    ErrorKind::EOFWhileLexingLiteral("character".to_string()),
+                                ));
+                                return;
+                            }
+                            Some(c) => {
+                                if let Ok(escape) = self.make_escape_character(c) {
+                                    self.expect('\'');
+                                    self.tokens.push(Token::new(
+                                        TokenKind::Literal(token::LiteralKind::Char(escape)),
+                                        Span::new(start, self.pos),
+                                    ));
+                                    return
+                                } else {
+                                    self.raise_error_and_recover(Error::new(
+                                        Span::new(start, self.pos),
+                                        ErrorKind::UnexpectedEscapeCharacter(
+                                            c,
+                                            "character".to_string(),
+                                        ),
+                                    ))
+                                }
+                            }
+                        }
+                    }
                     self.expect('\'');
 
                     self.tokens.push(Token::new(
@@ -256,7 +285,7 @@ impl<'a> Lexer<'a> {
             None => {
                 self.raise_error_and_recover(Error::new(
                     Span::new(start, self.pos),
-                    ErrorKind::EOFWhileParsingLiteral(String::from("character")),
+                    ErrorKind::EOFWhileLexingLiteral(String::from("character")),
                 ));
             }
         }
@@ -336,14 +365,61 @@ impl<'a> Lexer<'a> {
         let start = self.pos;
         let mut string = String::new();
 
-        // TODO: This does not currenly support escape literals. Please make it do so!
-        string.push_str(self.take_while(|char| char != '"').as_str());
-        self.expect('"');
+        let mut is_escape_sequence = false;
+        while let Some(c) = self.next() {
+            match c {
+                '"' if !is_escape_sequence => {
+                    self.tokens.push(Token::new(
+                        TokenKind::Literal(token::LiteralKind::String(string)),
+                        Span::new(start, self.pos),
+                    ));
+                    return;
+                }
+                '\n' => {
+                    string.push('\n');
+                    self.pos.next_line()
+                }
+                '\\' => {
+                    if is_escape_sequence {
+                        string.push('\\');
+                        is_escape_sequence = false;
+                    } else {
+                        is_escape_sequence = true;
+                    }
+                }
+                c if is_escape_sequence => {
+                    if let Ok(escape) = self.make_escape_character(c) {
+                        string.push(escape);
+                        is_escape_sequence = false
+                    } else {
+                        self.raise_error_and_recover(Error::new(
+                            Span::new(self.pos.clone(), self.pos),
+                            ErrorKind::UnexpectedEscapeCharacter(c, "string".to_string()),
+                        ));
+                        return;
+                    }
+                }
+                c => string.push(c),
+            }
+        }
 
-        self.tokens.push(Token::new(
-            TokenKind::Literal(token::LiteralKind::String(string)),
-            Span::new(start, self.pos),
-        ));
+        // No need to recover since it's EOF
+        self.errors.push(Error::new(
+            Span::new(self.pos, self.pos),
+            ErrorKind::EOFWhileLexingLiteral("string".to_string()),
+        ))
+    }
+
+    fn make_escape_character(&self, c: char) -> Result<char, ()> {
+        match c {
+            'n' => Ok('\n'),
+            't' => Ok('\t'),
+            'r' => Ok('\r'),
+            '"' => Ok('"'),
+            '\'' => Ok('\''),
+            '\\' => Ok('\\'),
+            _ => Err(()),
+        }
     }
 
     /// Constructs an identifier token or searches the keyword hashmap for the identifier and constructs that if it's there
@@ -727,7 +803,10 @@ mod tests {
             assert_eq!(errs.len(), 1);
             assert_eq!(
                 *errs.get(0).unwrap(),
-                Error::new(Span::new(Pos::with_values(1, 3), Pos::with_values(1, 3)), ErrorKind::ExpectedXFoundY('\'', 'e'))
+                Error::new(
+                    Span::new(Pos::with_values(1, 3), Pos::with_values(1, 3)),
+                    ErrorKind::ExpectedXFoundY('\'', 'e')
+                )
             );
         } else {
             panic!()

@@ -18,7 +18,7 @@ pub static OPERATOR_CHARACTERS: [char; 20] = [
 /// The Token created by the Lexer and used by the Parser to generate an AST
 #[derive(Debug, PartialEq, Clone)]
 pub struct Token {
-    token: TokenKind,
+    pub kind: TokenKind,
     /// This field is necessary to denote the possible addition of the Binding Modifier Operator.
     /// This is the `$` operator and is used to boost the precedence / binding power of the token.
     ///
@@ -30,17 +30,17 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(token: TokenKind, span: Span) -> Self {
+    pub fn new(kind: TokenKind, span: Span) -> Self {
         Self {
-            token,
+            kind,
             binding_modified: false,
             span,
         }
     }
 
-    pub fn with_binding(token: TokenKind, binding_modified: bool, span: Span) -> Self {
+    pub fn with_binding(kind: TokenKind, binding_modified: bool, span: Span) -> Self {
         Self {
-            token,
+            kind,
             binding_modified,
             span,
         }
@@ -53,7 +53,7 @@ impl std::fmt::Display for Token {
             f,
             "{}: {:?}{}",
             self.span,
-            self.token,
+            self.kind,
             if self.binding_modified {
                 " (Binding modified)"
             } else {
