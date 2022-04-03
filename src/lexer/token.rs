@@ -142,6 +142,7 @@ impl TryFrom<String> for TokenKind {
             "-=" => Ok(Self::ArithmeticOpEq(ArithmeticOpKind::Sub)),
             "*=" => Ok(Self::ArithmeticOpEq(ArithmeticOpKind::Mul)),
             "/=" => Ok(Self::ArithmeticOpEq(ArithmeticOpKind::Div)),
+            "**=" => Ok(Self::ArithmeticOpEq(ArithmeticOpKind::Exp)),
             // Logical Operators
             "&&" => Ok(Self::LogicalOp(LogicalOpKind::And)),
             "||" => Ok(Self::LogicalOp(LogicalOpKind::Or)),

@@ -123,100 +123,28 @@ impl<'a> Lexer<'a> {
 
     /// Takes a clump of characters which can be included in operators, and appends any tokens it needs to
     fn make_operators(&mut self, clump: String, start: Pos) {
-        let mut clump = clump;
-        let mut start = start;
+        if clump.is_empty() {
+            return;
+        }
+        for i in (0..=clump.len()).rev() {
+            let mut maybe_op: String = clump.chars().take(i).collect();
 
-        while !clump.is_empty() {
-            match clump.chars().take(2).collect::<String>() {
-                op if matches!(op.chars().nth(1), Some('$')) => {
-                    // Here we can assume that there will either be an operator in nth(0) or an invalid operator, in which case we can error
-                    // This is for the case of a single-character with a binding modifier
+            let mut binding_modified = false;
+            if maybe_op.ends_with('$') {
+                maybe_op = maybe_op.chars().take(i-1).collect();
+                binding_modified = true;
+            }
 
-                    if let Ok(token_kind) =
-                        TokenKind::try_from(op.chars().next().unwrap().to_string())
-                    {
-                        // Consume the 2 characters from the clump, the operator and the binding modifier
-                        clump = clump.chars().skip(2).collect();
-
-                        let end = Pos::with_values(start.line, start.col + 1);
-                        self.tokens.push(Token::with_binding(
-                            token_kind,
-                            true,
-                            Span::new(start, end),
-                        ));
-                        start = Pos::with_values(end.line, end.col + 1);
-                    } else {
-                        self.raise_error_and_recover(Error::new(
-                            Span::new(start, start),
-                            ErrorKind::InvalidOperator(op.chars().next().unwrap().into()),
-                        ));
-                        return;
-                    }
-                }
-                op if op.len() == 2 => {
-                    // Checking for a two-character operator, and then for a binding modifier for a binding modifier afterwards
-                    if let Ok(token_kind) = TokenKind::try_from(op.clone()) {
-                        // Update the clump, consuming the two-character operator
-                        clump = clump.chars().skip(2).collect();
-
-                        match clump.chars().next() {
-                            Some('$') => {
-                                clump = clump.chars().skip(1).collect();
-
-                                let end = Pos::with_values(start.line, start.col + 2);
-                                self.tokens.push(Token::with_binding(
-                                    token_kind,
-                                    true,
-                                    Span::new(start, end),
-                                ));
-                                start = Pos::with_values(end.line, end.col + 1);
-                            }
-                            _ => {
-                                let end = Pos::with_values(start.line, start.col + 1);
-                                self.tokens
-                                    .push(Token::new(token_kind, Span::new(start, end)));
-                                start = Pos::with_values(end.line, end.col + 1);
-                            }
-                        }
-
-                        continue;
-                    // One character operator
-                    } else if let Ok(token_kind) =
-                        TokenKind::try_from(op.chars().next().unwrap().to_string())
-                    {
-                        // Consume the operator from the clump
-                        clump = clump.chars().skip(1).collect();
-
-                        self.tokens
-                            .push(Token::new(token_kind, Span::new(start, start)));
-                        start = Pos::with_values(start.line, start.col + 1);
-                    } else {
-                        self.raise_error_and_recover(Error::new(
-                            Span::new(start, Pos::with_values(start.line, start.col + 1)),
-                            ErrorKind::InvalidOperator(op),
-                        ));
-                        return;
-                    }
-                }
-                // One character operator & the last of the clump
-                op => {
-                    assert_eq!(op.len(), 1);
-
-                    if let Ok(token_kind) = TokenKind::try_from(op.clone()) {
-                        // Consume the operator from the clump
-                        clump = clump.chars().skip(1).collect();
-
-                        self.tokens
-                            .push(Token::new(token_kind, Span::new(start, start)));
-                        start = Pos::with_values(start.line, start.col + 1);
-                    } else {
-                        self.raise_error_and_recover(Error::new(
-                            Span::new(start, Pos::with_values(start.line, start.col + 1)),
-                            ErrorKind::InvalidOperator(op),
-                        ));
-                        return;
-                    }
-                }
+            if let Ok(op_kind) = TokenKind::try_from(maybe_op) {
+                let mut end = Pos::with_values(start.line, start.col + i - 1);
+                self.tokens.push(Token::with_binding(
+                    op_kind,
+                    binding_modified,
+                    Span::new(start, end),
+                ));
+                end.adv();
+                self.make_operators(clump.chars().skip(i).collect(), end);
+                break;
             }
         }
     }
@@ -261,7 +189,7 @@ impl<'a> Lexer<'a> {
                                         TokenKind::Literal(token::LiteralKind::Char(escape)),
                                         Span::new(start, self.pos),
                                     ));
-                                    return
+                                    return;
                                 } else {
                                     self.raise_error_and_recover(Error::new(
                                         Span::new(start, self.pos),
@@ -620,11 +548,60 @@ mod tests {
                     Span::new(Pos::with_values(1, 23), Pos::with_values(1, 24))
                 ),
             ]
+        );
+        assert_eq!(
+            Lexer::new(":::+-/*+=-=*=/=**=").lex().unwrap(),
+            vec![
+                Token::new(
+                    TokenKind::ScopeResolutionOperator,
+                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+                ),
+                Token::new(
+                    TokenKind::Colon,
+                    Span::new(Pos::with_values(1, 3), Pos::with_values(1, 3))
+                ),
+                Token::new(
+                    TokenKind::ArithmeticOp(token::ArithmeticOpKind::Add),
+                    Span::new(Pos::with_values(1, 4), Pos::with_values(1, 4))
+                ),
+                Token::new(
+                    TokenKind::ArithmeticOp(token::ArithmeticOpKind::Sub),
+                    Span::new(Pos::with_values(1, 5), Pos::with_values(1, 5))
+                ),
+                Token::new(
+                    TokenKind::ArithmeticOp(token::ArithmeticOpKind::Div),
+                    Span::new(Pos::with_values(1, 6), Pos::with_values(1, 6))
+                ),
+                Token::new(
+                    TokenKind::ArithmeticOp(token::ArithmeticOpKind::Mul),
+                    Span::new(Pos::with_values(1, 7), Pos::with_values(1, 7))
+                ),
+                Token::new(
+                    TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Add),
+                    Span::new(Pos::with_values(1, 8), Pos::with_values(1, 9))
+                ),
+                Token::new(
+                    TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Sub),
+                    Span::new(Pos::with_values(1, 10), Pos::with_values(1, 11))
+                ),
+                Token::new(
+                    TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Mul),
+                    Span::new(Pos::with_values(1, 12), Pos::with_values(1, 13))
+                ),
+                Token::new(
+                    TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Div),
+                    Span::new(Pos::with_values(1, 14), Pos::with_values(1, 15))
+                ),
+                Token::new(
+                    TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Exp),
+                    Span::new(Pos::with_values(1, 16), Pos::with_values(1, 18))
+                ),
+            ]
         )
     }
 
     #[test]
-    fn binding_midifier() {
+    fn binding_modifier() {
         assert_eq!(
             Lexer::new(":$ +$").lex().unwrap(),
             vec![
