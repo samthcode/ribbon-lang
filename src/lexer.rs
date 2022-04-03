@@ -393,7 +393,7 @@ impl<'a> Lexer<'a> {
                         is_escape_sequence = false
                     } else {
                         self.raise_error_and_recover(Error::new(
-                            Span::new(self.pos.clone(), self.pos),
+                            Span::new(self.pos, self.pos),
                             ErrorKind::InvalidEscapeCharacter(c, "string".to_string()),
                         ));
                         return;

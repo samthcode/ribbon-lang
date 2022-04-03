@@ -72,7 +72,6 @@ impl std::fmt::Display for ErrorKind {
                     format!(r#"EOF while lexing {literal_type} literal"#),
                 Self::InvalidEscapeCharacter(ch, literal) =>
                     format!(r#"Invalid escape character '\{ch}' in {literal} literal"#),
-                _ => String::new(),
             }
         )
     }
