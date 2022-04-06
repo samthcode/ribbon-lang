@@ -89,7 +89,7 @@ impl<'a> Lexer<'a> {
                         self.take_while(|c| token::OPERATOR_CHARACTERS.contains(&c))
                             .as_str(),
                     );
-                    self.make_operators(clump.as_str(), start);
+                    self.make_operators(clump, start);
                 }
 
                 // Numbers!
@@ -122,7 +122,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Takes a clump of characters which can be included in operators, and appends any tokens it needs to
-    fn make_operators(&mut self, clump: &str, start: Pos) {
+    fn make_operators(&mut self, clump: String, start: Pos) {
         if clump.is_empty() {
             return;
         }
@@ -143,10 +143,15 @@ impl<'a> Lexer<'a> {
                     Span::new(start, end),
                 ));
                 end.adv();
-                self.make_operators(&clump[i..], end);
-                break;
+                self.make_operators(clump.chars().skip(i).collect(), end);
+                return;
             }
         }
+
+        self.raise_error_and_recover(Error::new(
+            Span::new(start, Pos::with_values(start.line, start.col + clump.len() - 1)),
+            ErrorKind::InvalidOperator(clump),
+        ))
     }
 
     /// Pushes an error onto the error stack then calls recover

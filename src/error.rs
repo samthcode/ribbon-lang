@@ -50,7 +50,7 @@ pub enum ErrorKind<'a> {
     ExpectedXFoundY(char, char),
     ExpectedXFoundEOF(char),
     UnexpectedCharacter(char),
-    InvalidOperator(&'a str),
+    InvalidOperator(String),
     InvalidLiteral(LiteralKind),
     EOFWhileLexingLiteral(LiteralKind),
     InvalidEscapeCharacter(char, &'a str),
