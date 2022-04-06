@@ -20,7 +20,7 @@ use crate::{
 use core::iter::Peekable;
 use std::str::Chars;
 
-use self::token::{Token, TokenKind};
+use self::token::{LiteralKind, Token, TokenKind};
 
 /// Turns a Ribbon file / &'a str into a Vec of tokens
 pub struct Lexer<'a> {
@@ -29,7 +29,7 @@ pub struct Lexer<'a> {
     /// The current position of the Lexer, to be used in error handling
     pos: Pos,
     /// The errors which will be handled by the Ribbon Interpreter
-    errors: Vec<Error>,
+    errors: Vec<Error<'a>>,
     /// The tokens which will eventually be given to the user at the end of Lexer.lex()
     tokens: Vec<Token>,
 }
@@ -89,7 +89,7 @@ impl<'a> Lexer<'a> {
                         self.take_while(|c| token::OPERATOR_CHARACTERS.contains(&c))
                             .as_str(),
                     );
-                    self.make_operators(clump, start);
+                    self.make_operators(clump.as_str(), start);
                 }
 
                 // Numbers!
@@ -122,7 +122,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Takes a clump of characters which can be included in operators, and appends any tokens it needs to
-    fn make_operators(&mut self, clump: String, start: Pos) {
+    fn make_operators(&mut self, clump: &str, start: Pos) {
         if clump.is_empty() {
             return;
         }
@@ -131,7 +131,7 @@ impl<'a> Lexer<'a> {
 
             let mut binding_modified = false;
             if maybe_op.ends_with('$') {
-                maybe_op = maybe_op.chars().take(i-1).collect();
+                maybe_op = maybe_op.chars().take(i - 1).collect();
                 binding_modified = true;
             }
 
@@ -143,14 +143,14 @@ impl<'a> Lexer<'a> {
                     Span::new(start, end),
                 ));
                 end.adv();
-                self.make_operators(clump.chars().skip(i).collect(), end);
+                self.make_operators(&clump[i..], end);
                 break;
             }
         }
     }
 
     /// Pushes an error onto the error stack then calls recover
-    fn raise_error_and_recover(&mut self, error: Error) {
+    fn raise_error_and_recover(&mut self, error: Error<'a>) {
         self.errors.push(error);
         self.recover_error();
     }
@@ -170,7 +170,7 @@ impl<'a> Lexer<'a> {
                 if c == '\'' {
                     self.raise_error_and_recover(Error::new(
                         Span::new(start, self.pos),
-                        ErrorKind::InvalidLiteral(String::from("character")),
+                        ErrorKind::InvalidLiteral(token::LiteralKind::Char(' ')),
                     ));
                 } else {
                     if c == '\\' {
@@ -178,7 +178,7 @@ impl<'a> Lexer<'a> {
                             None => {
                                 self.errors.push(Error::new(
                                     Span::new(start, self.pos),
-                                    ErrorKind::EOFWhileLexingLiteral("character".to_string()),
+                                    ErrorKind::EOFWhileLexingLiteral(LiteralKind::Char(' ')),
                                 ));
                                 return;
                             }
@@ -193,10 +193,7 @@ impl<'a> Lexer<'a> {
                                 } else {
                                     self.raise_error_and_recover(Error::new(
                                         Span::new(start, self.pos),
-                                        ErrorKind::InvalidEscapeCharacter(
-                                            c,
-                                            "character".to_string(),
-                                        ),
+                                        ErrorKind::InvalidEscapeCharacter(c, "character"),
                                     ))
                                 }
                             }
@@ -213,7 +210,7 @@ impl<'a> Lexer<'a> {
             None => {
                 self.raise_error_and_recover(Error::new(
                     Span::new(start, self.pos),
-                    ErrorKind::EOFWhileLexingLiteral(String::from("character")),
+                    ErrorKind::EOFWhileLexingLiteral(LiteralKind::Char(' ')),
                 ));
             }
         }
@@ -241,8 +238,7 @@ impl<'a> Lexer<'a> {
                     |_| {
                         panic!(
                             "(Ribbon Internal Error):{}: Couldn't parse float: '{}'",
-                            self.pos.clone(),
-                            result
+                            self.pos, result
                         )
                     },
                 ))),
@@ -254,8 +250,7 @@ impl<'a> Lexer<'a> {
                     |_| {
                         panic!(
                             "(Ribbon Internal Error):{}: Couldn't parse integer: '{}'",
-                            self.pos.clone(),
-                            result
+                            self.pos, result
                         )
                     },
                 ))),
@@ -322,7 +317,7 @@ impl<'a> Lexer<'a> {
                     } else {
                         self.raise_error_and_recover(Error::new(
                             Span::new(self.pos, self.pos),
-                            ErrorKind::InvalidEscapeCharacter(c, "string".to_string()),
+                            ErrorKind::InvalidEscapeCharacter(c, "string"),
                         ));
                         return;
                     }
@@ -334,7 +329,7 @@ impl<'a> Lexer<'a> {
         // No need to recover since it's EOF
         self.errors.push(Error::new(
             Span::new(self.pos, self.pos),
-            ErrorKind::EOFWhileLexingLiteral("string".to_string()),
+            ErrorKind::EOFWhileLexingLiteral(LiteralKind::String(String::from(""))),
         ))
     }
 

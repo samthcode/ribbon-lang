@@ -1,13 +1,13 @@
-use crate::pos::Span;
+use crate::{lexer::token::LiteralKind, pos::Span};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Error {
+pub struct Error<'a> {
     pub span: Span,
-    pub kind: ErrorKind,
+    pub kind: ErrorKind<'a>,
 }
 
-impl Error {
-    pub fn new(span: Span, kind: ErrorKind) -> Self {
+impl<'a> Error<'a> {
+    pub fn new(span: Span, kind: ErrorKind<'a>) -> Self {
         Self { span, kind }
     }
 }
@@ -46,17 +46,17 @@ pub fn eprint_error_message(errors: Vec<Error>, file_name: &str, source: String)
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ErrorKind {
+pub enum ErrorKind<'a> {
     ExpectedXFoundY(char, char),
     ExpectedXFoundEOF(char),
     UnexpectedCharacter(char),
-    InvalidOperator(String),
-    InvalidLiteral(String),
-    EOFWhileLexingLiteral(String),
-    InvalidEscapeCharacter(char, String),
+    InvalidOperator(&'a str),
+    InvalidLiteral(LiteralKind),
+    EOFWhileLexingLiteral(LiteralKind),
+    InvalidEscapeCharacter(char, &'a str),
 }
 
-impl std::fmt::Display for ErrorKind {
+impl<'a> std::fmt::Display for ErrorKind<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -67,12 +67,26 @@ impl std::fmt::Display for ErrorKind {
                 Self::ExpectedXFoundEOF(expected) => format!(r#"Expected '{expected}', found EOF"#),
                 Self::UnexpectedCharacter(ch) => format!(r#"Unexpected character '{ch}'"#),
                 Self::InvalidOperator(op) => format!(r#"Invalid operator '{op}'"#),
-                Self::InvalidLiteral(literal_type) => format!(r#"Invalid {literal_type} literal"#),
-                Self::EOFWhileLexingLiteral(literal_type) =>
-                    format!(r#"EOF while lexing {literal_type} literal"#),
+                Self::InvalidLiteral(literal_type) => format!(
+                    r#"Invalid{} literal"#,
+                    literal_kind_to_string(literal_type.clone())
+                ),
+                Self::EOFWhileLexingLiteral(literal_type) => format!(
+                    r#"EOF while lexing {} literal"#,
+                    literal_kind_to_string(literal_type.clone())
+                ),
                 Self::InvalidEscapeCharacter(ch, literal) =>
                     format!(r#"Invalid escape character '\{ch}' in {literal} literal"#),
             }
         )
+    }
+}
+
+fn literal_kind_to_string<'a>(literal_kind: LiteralKind) -> &'a str {
+    match literal_kind {
+        LiteralKind::String(_) => " string",
+        LiteralKind::Char(_) => " character",
+        LiteralKind::Float(_) => " float",
+        _ => "",
     }
 }
