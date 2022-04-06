@@ -121,7 +121,8 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// Takes a clump of characters which can be included in operators, and appends any tokens it needs to
+    /// This takes a clump of characters (characters which csn be used within operatrs) and makes every token it needs to via recursion
+    /// More specifically, this is acheived by finding the largest possible operator in the clump, appending it, then passing the remaining operators to this function again
     fn make_operators(&mut self, clump: String, start: Pos) {
         if clump.is_empty() {
             return;
@@ -149,7 +150,10 @@ impl<'a> Lexer<'a> {
         }
 
         self.raise_error_and_recover(Error::new(
-            Span::new(start, Pos::with_values(start.line, start.col + clump.len() - 1)),
+            Span::new(
+                start,
+                Pos::with_values(start.line, start.col + clump.len() - 1),
+            ),
             ErrorKind::InvalidOperator(clump),
         ))
     }
