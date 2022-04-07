@@ -202,7 +202,10 @@ impl<'a> Lexer<'a> {
                                 } else {
                                     self.raise_error_and_recover(Error::new(
                                         Span::new(start, self.pos),
-                                        ErrorKind::InvalidEscapeCharacter(c, LiteralKind::Char(' ')),
+                                        ErrorKind::InvalidEscapeCharacter(
+                                            c,
+                                            LiteralKind::Char(' '),
+                                        ),
                                     ))
                                 }
                             }
@@ -326,7 +329,10 @@ impl<'a> Lexer<'a> {
                     } else {
                         self.raise_error_and_recover(Error::new(
                             Span::new(self.pos, self.pos),
-                            ErrorKind::InvalidEscapeCharacter(c, LiteralKind::String("".to_string())),
+                            ErrorKind::InvalidEscapeCharacter(
+                                c,
+                                LiteralKind::String("".to_string()),
+                            ),
                         ));
                         return;
                     }
@@ -462,11 +468,25 @@ impl<'a> Lexer<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn comments() {
         assert_eq!(Lexer::new("// Hello there").lex().unwrap(), vec![]);
         assert_eq!(Lexer::new("# Hello there #").lex().unwrap(), vec![]);
+        assert_eq!(Lexer::new("#\nHello there\n#").lex().unwrap(), vec![]);
+        assert_eq!(
+            Lexer::new(
+                "#
+                Hello There
+                This a multiline comment
+                Lorem ipsum dolor sit amet
+            #"
+            )
+            .lex()
+            .unwrap(),
+            vec![]
+        );
 
         assert_eq!(
             Lexer::new("\"Hello World!\".print // prints \"Hello World!\"")
@@ -509,7 +529,7 @@ mod tests {
     #[test]
     fn operators() {
         assert_eq!(
-            Lexer::new(":: : + - / * += -= *= /=").lex().unwrap(),
+            Lexer::new(":: : + - / * += -= *= /=()").lex().unwrap(),
             vec![
                 Token::new(
                     TokenKind::ScopeResolutionOperator,
@@ -551,6 +571,14 @@ mod tests {
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Div),
                     Span::new(Pos::with_values(1, 23), Pos::with_values(1, 24))
                 ),
+                Token::new(
+                    TokenKind::try_from("(").unwrap(),
+                    Span::from((1, 25, 1, 25))
+                ),
+                Token::new(
+                    TokenKind::try_from(")").unwrap(),
+                    Span::from((1, 26, 1, 26))
+                )
             ]
         );
         assert_eq!(
@@ -624,7 +652,7 @@ mod tests {
     }
 
     #[test]
-    fn main_function_parenthesised() {
+    fn function_parenthesised() {
         assert_eq!(
             Lexer::new("fn main(){\n    \n}").lex().unwrap(),
             vec![
@@ -715,11 +743,7 @@ mod tests {
                     Span::new(Pos::with_values(3, 6), Pos::with_values(3, 6))
                 )
             ]
-        )
-    }
-
-    #[test]
-    fn newlines_surrounding_more_code() {
+        );
         assert_eq!(
             Lexer::new("\n\n\"Hello World!\".print\n\"String\"\n")
                 .lex()
