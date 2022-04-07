@@ -10,7 +10,6 @@
 
 use clap::{AppSettings, Parser, Subcommand};
 
-/// A fictional versioning CLI
 #[derive(Parser)]
 #[clap(name = "ribbon")]
 #[clap(about = "A programming language designed to be fast to write and heavily inspired by Rust.")]
