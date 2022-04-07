@@ -152,6 +152,13 @@ impl TryFrom<String> for TokenKind {
     }
 }
 
+impl TryFrom<&str> for TokenKind {
+    type Error = ();
+    fn try_from(str: &str) -> Result<Self, Self::Error> {
+        TokenKind::try_from(str.to_string())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum LiteralKind {
     Integer(i64),
