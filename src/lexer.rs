@@ -29,7 +29,7 @@ pub struct Lexer<'a> {
     /// The current position of the Lexer, to be used in error handling
     pos: Pos,
     /// The errors which will be handled by the Ribbon Interpreter
-    errors: Vec<Error<'a>>,
+    errors: Vec<Error>,
     /// The tokens which will eventually be given to the user at the end of Lexer.lex()
     tokens: Vec<Token>,
 }
@@ -159,7 +159,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Pushes an error onto the error stack then calls recover
-    fn raise_error_and_recover(&mut self, error: Error<'a>) {
+    fn raise_error_and_recover(&mut self, error: Error) {
         self.errors.push(error);
         self.recover_error();
     }
@@ -202,7 +202,7 @@ impl<'a> Lexer<'a> {
                                 } else {
                                     self.raise_error_and_recover(Error::new(
                                         Span::new(start, self.pos),
-                                        ErrorKind::InvalidEscapeCharacter(c, "character"),
+                                        ErrorKind::InvalidEscapeCharacter(c, LiteralKind::Char(' ')),
                                     ))
                                 }
                             }
@@ -326,7 +326,7 @@ impl<'a> Lexer<'a> {
                     } else {
                         self.raise_error_and_recover(Error::new(
                             Span::new(self.pos, self.pos),
-                            ErrorKind::InvalidEscapeCharacter(c, "string"),
+                            ErrorKind::InvalidEscapeCharacter(c, LiteralKind::String("".to_string())),
                         ));
                         return;
                     }

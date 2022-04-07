@@ -1,13 +1,13 @@
 use crate::{lexer::token::LiteralKind, pos::Span};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Error<'a> {
+pub struct Error {
     pub span: Span,
-    pub kind: ErrorKind<'a>,
+    pub kind: ErrorKind,
 }
 
-impl<'a> Error<'a> {
-    pub fn new(span: Span, kind: ErrorKind<'a>) -> Self {
+impl Error {
+    pub fn new(span: Span, kind: ErrorKind) -> Self {
         Self { span, kind }
     }
 }
@@ -46,17 +46,17 @@ pub fn eprint_error_message(errors: Vec<Error>, file_name: &str, source: String)
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ErrorKind<'a> {
+pub enum ErrorKind {
     ExpectedXFoundY(char, char),
     ExpectedXFoundEOF(char),
     UnexpectedCharacter(char),
     InvalidOperator(String),
     InvalidLiteral(LiteralKind),
     EOFWhileLexingLiteral(LiteralKind),
-    InvalidEscapeCharacter(char, &'a str),
+    InvalidEscapeCharacter(char, LiteralKind),
 }
 
-impl<'a> std::fmt::Display for ErrorKind<'a> {
+impl std::fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -76,7 +76,7 @@ impl<'a> std::fmt::Display for ErrorKind<'a> {
                     literal_kind_to_string(literal_type.clone())
                 ),
                 Self::InvalidEscapeCharacter(ch, literal) =>
-                    format!(r#"Invalid escape character '\{ch}' in {literal} literal"#),
+                    format!(r#"Invalid escape character '\{ch}' in {} literal"#, literal_kind_to_string(literal.clone())),
             }
         )
     }
