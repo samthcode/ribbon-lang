@@ -582,7 +582,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            Lexer::new(":::+-/*+=-=*=/=**=").lex().unwrap(),
+            Lexer::new(":::+-/*+=-=*=/=**=()").lex().unwrap(),
             vec![
                 Token::new(
                     TokenKind::ScopeResolutionOperator,
@@ -627,6 +627,14 @@ mod tests {
                 Token::new(
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Exp),
                     Span::new(Pos::with_values(1, 16), Pos::with_values(1, 18))
+                ),
+                Token::new(
+                    TokenKind::try_from("(").unwrap(),
+                    Span::from((1, 19, 1, 19))
+                ),
+                Token::new(
+                    TokenKind::try_from(")").unwrap(),
+                    Span::from((1, 20, 1, 20))
                 ),
             ]
         )
@@ -693,7 +701,7 @@ mod tests {
     }
 
     #[test]
-    fn with_newline() {
+    fn single_newline() {
         assert_eq!(
             Lexer::new("\n").lex().unwrap(),
             vec![Token::new(
@@ -704,7 +712,7 @@ mod tests {
     }
 
     #[test]
-    fn with_multiple_newlines() {
+    fn multiple_newlines() {
         assert_eq!(
             Lexer::new("\n\n\n\n").lex().unwrap(),
             vec![Token::new(
@@ -888,6 +896,17 @@ mod tests {
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::String(String::from("Hello World"))),
                 Span::new(Pos::with_values(1, 1), Pos::with_values(1, 13))
+            )]
+        )
+    }
+
+    #[test]
+    fn string_with_escape_characters() {
+        assert_eq!(
+            Lexer::new("\"Hello\\nWorld\\r\\t\"").lex().unwrap(),
+            vec![Token::new(
+                token::TokenKind::Literal(LiteralKind::String(String::from("Hello\nWorld\r\t"))),
+                Span::from((1, 1, 1, 18))
             )]
         )
     }
