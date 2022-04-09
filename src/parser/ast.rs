@@ -1,3 +1,5 @@
+//! This contains the necessary conctructs to represent the Abstract Syntax Tree of a Ribbon File
+
 use crate::lexer::token::LiteralKind;
 
 /// The abstract representation of Ribbon code before it is evaluated
