@@ -1,4 +1,4 @@
-//! This module dicates the Command Line Argument Parser used to run the Ribbon REPL and to run Ribbon Files.
+//! This module dicates the Command Line Argument Parser used to run the Ribbon REPL and to run Ribbon files.
 //!
 //! This was made using the clap crate on crates.io ([clap](https://crates.io/crates/clap))
 //!

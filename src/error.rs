@@ -1,3 +1,7 @@
+//! This module contains the necessary objects to define Ribbon errors.
+//!
+//! For example, an invalid operator (an opertor which is not defined in Ribbon, eg ^) would be assigned to the enum variant [InvalidOperator](ErrorKind::InvalidOperator)
+
 use crate::{lexer::token::LiteralKind, pos::Span};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -75,8 +79,10 @@ impl std::fmt::Display for ErrorKind {
                     r#"EOF while lexing {} literal"#,
                     literal_kind_to_string(literal_type.clone())
                 ),
-                Self::InvalidEscapeCharacter(ch, literal) =>
-                    format!(r#"Invalid escape character '\{ch}' in {} literal"#, literal_kind_to_string(literal.clone())),
+                Self::InvalidEscapeCharacter(ch, literal) => format!(
+                    r#"Invalid escape character '\{ch}' in {} literal"#,
+                    literal_kind_to_string(literal.clone())
+                ),
             }
         )
     }
