@@ -9,12 +9,17 @@ use crate::lexer::token::LiteralKind;
 /// # Examples
 ///
 /// ```rust
+/// use ribbon::parser::ast::AstNodeKind;
+/// use ribbon::lexer::token::LiteralKind;
+/// 
+/// # fn main() {
 /// vec![AstNodeKind::Call(
 ///    Box::new(AstNodeKind::Ident("print")),
 ///    vec![AstNodeKind::Literal(LiteralKind::String(String::from(
 ///        "Hello World",
 ///    )))],
 /// )];
+/// # }
 /// ```
 pub enum AstNodeKind<'a> {
     /// A literal, such as a string or character
