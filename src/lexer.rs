@@ -20,7 +20,7 @@ use crate::{
 use core::iter::Peekable;
 use std::str::Chars;
 
-use self::token::{LiteralKind, Token, TokenKind};
+use self::token::{LiteralKind, Token, TokenKind, KEYWORDS};
 
 /// Turns a Ribbon file / &'a str into a Vec of tokens
 pub struct Lexer<'a> {
@@ -377,8 +377,8 @@ impl<'a> Lexer<'a> {
                 TokenKind::Literal(token::LiteralKind::Bool(true))
             } else if res == "false" {
                 TokenKind::Literal(token::LiteralKind::Bool(false))
-            } else if let Some(typ) = token::KEYWORD_MAP.get(&res) {
-                TokenKind::Keyword(*typ)
+            } else if KEYWORDS.contains(&&*res) {
+                TokenKind::Keyword(res)
             } else {
                 TokenKind::Identifier(res)
             },
@@ -467,8 +467,9 @@ impl<'a> Lexer<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{token::DelimKind, *};
     use pretty_assertions::assert_eq;
+    use token::TokenKind::*;
 
     #[test]
     fn comments() {
@@ -660,42 +661,24 @@ mod tests {
     }
 
     #[test]
-    fn function_parenthesised() {
+    fn function() {
         assert_eq!(
-            Lexer::new("fn main(){\n    \n}").lex().unwrap(),
+            Lexer::new("main := () => {}").lex().unwrap(),
             vec![
+                Token::new(Identifier("main".to_string()), Span::from((1, 1, 1, 4))),
+                Token::new(Colon, Span::from((1, 6, 1, 6))),
+                Token::new(Assignment, Span::from((1,7,1,7))),
+                Token::new(OpenDelim(DelimKind::Parenthesis), Span::from((1, 9, 1, 9))),
                 Token::new(
-                    TokenKind::Keyword(token::KeywordKind::Function),
-                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+                    ClosingDelim(DelimKind::Parenthesis),
+                    Span::from((1, 10, 1, 10))
                 ),
+                Token::new(FatArrow, Span::from((1, 12, 1, 13))),
+                Token::new(OpenDelim(DelimKind::CurlyBracket), Span::from((1, 15, 1, 15))),
                 Token::new(
-                    TokenKind::Identifier(String::from("main")),
-                    Span::new(Pos::with_values(1, 4), Pos::with_values(1, 7))
+                    ClosingDelim(DelimKind::CurlyBracket),
+                    Span::from((1, 16, 1, 16))
                 ),
-                Token::new(
-                    TokenKind::OpenDelim(token::DelimKind::Parenthesis),
-                    Span::new(Pos::with_values(1, 8), Pos::with_values(1, 8))
-                ),
-                Token::new(
-                    TokenKind::ClosingDelim(token::DelimKind::Parenthesis),
-                    Span::new(Pos::with_values(1, 9), Pos::with_values(1, 9))
-                ),
-                Token::new(
-                    TokenKind::OpenDelim(token::DelimKind::CurlyBracket),
-                    Span::new(Pos::with_values(1, 10), Pos::with_values(1, 10))
-                ),
-                Token::new(
-                    TokenKind::Newline,
-                    Span::new(Pos::with_values(1, 11), Pos::with_values(1, 11))
-                ),
-                Token::new(
-                    TokenKind::Newline,
-                    Span::new(Pos::with_values(2, 5), Pos::with_values(2, 5))
-                ),
-                Token::new(
-                    TokenKind::ClosingDelim(token::DelimKind::CurlyBracket),
-                    Span::new(Pos::with_values(3, 1), Pos::with_values(3, 1))
-                )
             ]
         )
     }
@@ -936,12 +919,12 @@ mod tests {
     }
 
     #[test]
-    fn fn_keyword() {
+    fn mut_keyword() {
         assert_eq!(
-            Lexer::new("fn").lex().unwrap(),
+            Lexer::new("mut").lex().unwrap(),
             vec![Token::new(
-                TokenKind::Keyword(token::KeywordKind::Function),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+                TokenKind::Keyword("mut".to_string()),
+                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 3))
             )]
         )
     }
@@ -951,7 +934,7 @@ mod tests {
         assert_eq!(
             Lexer::new("if").lex().unwrap(),
             vec![Token::new(
-                TokenKind::Keyword(token::KeywordKind::If),
+                TokenKind::Keyword("if".to_string()),
                 Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
             )]
         )
@@ -962,19 +945,8 @@ mod tests {
         assert_eq!(
             Lexer::new("else").lex().unwrap(),
             vec![Token::new(
-                TokenKind::Keyword(token::KeywordKind::Else),
+                TokenKind::Keyword("else".to_string()),
                 Span::new(Pos::with_values(1, 1), Pos::with_values(1, 4))
-            )]
-        )
-    }
-
-    #[test]
-    fn struct_keyword() {
-        assert_eq!(
-            Lexer::new("struct").lex().unwrap(),
-            vec![Token::new(
-                TokenKind::Keyword(token::KeywordKind::Struct),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 6))
             )]
         )
     }
@@ -984,30 +956,8 @@ mod tests {
         assert_eq!(
             Lexer::new("while").lex().unwrap(),
             vec![Token::new(
-                TokenKind::Keyword(token::KeywordKind::While),
+                TokenKind::Keyword("while".to_string()),
                 Span::new(Pos::with_values(1, 1), Pos::with_values(1, 5))
-            )]
-        )
-    }
-
-    #[test]
-    fn whilep_keyword() {
-        assert_eq!(
-            Lexer::new("whilep").lex().unwrap(),
-            vec![Token::new(
-                TokenKind::Keyword(token::KeywordKind::Whilep),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 6))
-            )]
-        )
-    }
-
-    #[test]
-    fn ifp_keyword() {
-        assert_eq!(
-            Lexer::new("ifp").lex().unwrap(),
-            vec![Token::new(
-                TokenKind::Keyword(token::KeywordKind::Ifp),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 3))
             )]
         )
     }

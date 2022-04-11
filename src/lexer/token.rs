@@ -1,16 +1,8 @@
 use crate::pos::Span;
 
-pub static KEYWORD_MAP: phf::Map<&'static str, KeywordKind> = phf::phf_map! {
-    "fn" => KeywordKind::Function,
-    "if" => KeywordKind::If,
-    "else" => KeywordKind::Else,
-    "struct" => KeywordKind::Struct,
-    "while" => KeywordKind::While,
-    "ifp" => KeywordKind::Ifp,
-    "whilep" => KeywordKind::Whilep,
-};
+pub static KEYWORDS: &[&str; 6] = &["mut", "if", "else", "while", "for", "type"];
 
-pub static OPERATOR_CHARACTERS: [char; 20] = [
+pub static OPERATOR_CHARACTERS: &[char; 20] = &[
     '=', '+', '-', '<', '>', '*', '/', ':', ';', '.', '(', ')', '{', '}', '[', ']',
     /*Binding modifier*/ '$', '&', '|', '!',
 ];
@@ -72,7 +64,7 @@ pub enum TokenKind {
     /// i.e. abcd, hello_there, TestingTesting123
     Identifier(String),
     /// i.e. while, for
-    Keyword(KeywordKind),
+    Keyword(String),
 
     /// String, Number, Character, Boolean
     Literal(LiteralKind),
@@ -84,11 +76,19 @@ pub enum TokenKind {
     /// .
     Dot,
     /// =
-    Assignemnt,
+    Assignment,
     /// ;
     Semicolon,
     /// |
     Pipe,
+    /// =>
+    FatArrow,
+    /// ?
+    QuestionMark,
+    /// ++,
+    Increment,
+    /// --,
+    Decrement,
 
     /// i.e. (, {, [
     OpenDelim(DelimKind),
@@ -113,11 +113,15 @@ impl TryFrom<String> for TokenKind {
         match &*str {
             // Misc operators
             "::" => Ok(Self::ScopeResolutionOperator),
+            "?" => Ok(Self::QuestionMark),
             ":" => Ok(Self::Colon),
             "." => Ok(Self::Dot),
             ";" => Ok(Self::Semicolon),
-            "=" => Ok(Self::Assignemnt),
+            "=" => Ok(Self::Assignment),
             "|" => Ok(Self::Pipe),
+            "=>" => Ok(Self::FatArrow),
+            "++" => Ok(Self::Increment),
+            "--" => Ok(Self::Decrement),
             // Delimeters
             "(" => Ok(Self::OpenDelim(DelimKind::Parenthesis)),
             ")" => Ok(Self::ClosingDelim(DelimKind::Parenthesis)),
