@@ -36,12 +36,6 @@ impl AstNode {
 /// One part of the abstract representation of Ribbon code before it is evaluated.
 ///
 /// This enum holds every possible Ribbon construct. This is used in [AstNode](`AstNode`) along with a [Span](`ribbon::pos::Span`) to represent the AST
-///
-/// # Examples
-///
-/// ```rust
-/// use ribbon::parser::ast::AstNodeKind;
-/// use ribbon::lexer::token::LiteralKind;
 #[derive(Debug, Clone, PartialEq)]
 pub enum AstNodeKind {
     /// A literal, such as a string or character
