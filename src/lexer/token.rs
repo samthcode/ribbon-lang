@@ -13,15 +13,6 @@ pub static OPERATOR_CHARACTERS: &[char; 20] = &[
     /*Binding modifier*/ '$', '&', '|', '!',
 ];
 
-macro_rules! ok_or_error_node {
-    ($e: expr, $loc: expr) => {
-        match $e {
-            Ok(t) => t,
-            Err(_) => return AstNode::new(AstNodeKind::ErrorFiller, $loc),
-        }
-    };
-}
-
 /// The Token created by the Lexer and used by the Parser to generate an AST
 #[derive(Debug, PartialEq, Clone)]
 pub struct Token {
@@ -65,7 +56,7 @@ impl Token {
             }
             TokenKind::OpenDelim(DelimKind::Parenthesis) => {
                 let res = p.parse_bp(self.bp().1).unwrap();
-                p.expect(TokenKind::ClosingDelim(DelimKind::Parenthesis));
+                let _ = p.expect(TokenKind::ClosingDelim(DelimKind::Parenthesis));
                 res
             }
             _ => todo!(),
@@ -75,10 +66,11 @@ impl Token {
     pub fn led(&self, p: &mut Parser, left: AstNode) -> AstNode {
         match &self.kind {
             TokenKind::Dot => {
-                let name = ok_or_error_node!(
-                    p.token_or_error(TokenKind::Identifier("".to_string()), self.span),
-                    self.span
-                );
+                let name = match p.expect(TokenKind::Identifier("".to_string())) {
+                    Ok(t) => t,
+                    Err(_) => return AstNode::new(AstNodeKind::ErrorFiller, self.span),
+                };
+
                 // TODO: Check for parens (so we can tell if it's a function)
                 // TODO: If there are no parens, this needs to be AstNodeKind::CallOrPropertyAccess
                 AstNode::new(
