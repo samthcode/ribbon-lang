@@ -2,7 +2,10 @@
 //!
 //! For example, an invalid operator (an opertor which is not defined in Ribbon, eg ^) would be assigned to the enum variant [InvalidOperator](ErrorKind::InvalidOperator)
 
-use crate::{lexer::token::LiteralKind, pos::Span};
+use crate::{
+    lexer::token::{LiteralKind, TokenKind},
+    pos::Span,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Error {
@@ -16,7 +19,7 @@ impl Error {
     }
 }
 
-pub fn eprint_error_message(errors: Vec<Error>, file_name: &str, source: String) {
+pub fn eprint_error_message(errors: Vec<Error>, file_name: &str, source: &str) {
     eprintln!(
         "File {file_name} failed to compile with {} error{}:",
         errors.len(),
@@ -52,37 +55,51 @@ pub fn eprint_error_message(errors: Vec<Error>, file_name: &str, source: String)
 #[derive(Debug, Clone, PartialEq)]
 pub enum ErrorKind {
     ExpectedXFoundY(char, char),
-    ExpectedXFoundEOF(char),
+    ExpectedXFoundEof(char),
     UnexpectedCharacter(char),
     InvalidOperator(String),
     InvalidLiteral(LiteralKind),
-    EOFWhileLexingLiteral(LiteralKind),
+    EofWhileLexingLiteral(LiteralKind),
     InvalidEscapeCharacter(char, LiteralKind),
+    EofWhileParsing,
+    ExpectedEndOfExpressionFoundX(TokenKind),
+    ExpectedTokenFoundOther(TokenKind, Option<TokenKind>),
 }
 
 impl std::fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use ErrorKind::*;
         write!(
             f,
             "{}",
             match self {
-                Self::ExpectedXFoundY(expected, found) =>
+                ExpectedXFoundY(expected, found) =>
                     format!(r#"Expected '{expected}', found '{found}'"#),
-                Self::ExpectedXFoundEOF(expected) => format!(r#"Expected '{expected}', found EOF"#),
-                Self::UnexpectedCharacter(ch) => format!(r#"Unexpected character '{ch}'"#),
-                Self::InvalidOperator(op) => format!(r#"Invalid operator '{op}'"#),
-                Self::InvalidLiteral(literal_type) => format!(
+                ExpectedXFoundEof(expected) => format!(r#"Expected '{expected}', found EOF"#),
+                UnexpectedCharacter(ch) => format!(r#"Unexpected character '{ch}'"#),
+                InvalidOperator(op) => format!(r#"Invalid operator '{op}'"#),
+                InvalidLiteral(literal_type) => format!(
                     r#"Invalid{} literal"#,
                     literal_kind_to_string(literal_type.clone())
                 ),
-                Self::EOFWhileLexingLiteral(literal_type) => format!(
+                EofWhileLexingLiteral(literal_type) => format!(
                     r#"EOF while lexing {} literal"#,
                     literal_kind_to_string(literal_type.clone())
                 ),
-                Self::InvalidEscapeCharacter(ch, literal) => format!(
+                InvalidEscapeCharacter(ch, literal) => format!(
                     r#"Invalid escape character '\{ch}' in {} literal"#,
                     literal_kind_to_string(literal.clone())
                 ),
+                EofWhileParsing => String::from("EOF While parsing"),
+                ExpectedEndOfExpressionFoundX(n) =>
+                    format!(r#"Expected end of expression, found: {:?}"#, n),
+                ExpectedTokenFoundOther(t, o) => {
+                    if o.is_none() {
+                        format!(r#"Expected {t:?} found EOF"#)
+                    } else {
+                        format!(r#"Expected {t:?} found {:?}"#, o.clone().unwrap())
+                    }
+                }
             }
         )
     }

@@ -187,7 +187,7 @@ impl<'a> Lexer<'a> {
                             None => {
                                 self.errors.push(Error::new(
                                     Span::new(start, self.pos),
-                                    ErrorKind::EOFWhileLexingLiteral(LiteralKind::Char(' ')),
+                                    ErrorKind::EofWhileLexingLiteral(LiteralKind::Char(' ')),
                                 ));
                                 return;
                             }
@@ -222,7 +222,7 @@ impl<'a> Lexer<'a> {
             None => {
                 self.raise_error_and_recover(Error::new(
                     Span::new(start, self.pos),
-                    ErrorKind::EOFWhileLexingLiteral(LiteralKind::Char(' ')),
+                    ErrorKind::EofWhileLexingLiteral(LiteralKind::Char(' ')),
                 ));
             }
         }
@@ -344,7 +344,7 @@ impl<'a> Lexer<'a> {
         // No need to recover since it's EOF
         self.errors.push(Error::new(
             Span::new(self.pos, self.pos),
-            ErrorKind::EOFWhileLexingLiteral(LiteralKind::String(String::from(""))),
+            ErrorKind::EofWhileLexingLiteral(LiteralKind::String(String::from(""))),
         ))
     }
 
@@ -407,7 +407,7 @@ impl<'a> Lexer<'a> {
             None => {
                 self.raise_error_and_recover(Error::new(
                     Span::new(self.pos, self.pos),
-                    ErrorKind::ExpectedXFoundEOF(expected_char),
+                    ErrorKind::ExpectedXFoundEof(expected_char),
                 ));
             }
         }

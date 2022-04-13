@@ -32,16 +32,28 @@ impl<'a> Interpreter<'a> {
     }
 
     pub fn interpret(&mut self) {
-        let toks = crate::lexer::Lexer::new(self.source)
-            .lex()
-            .unwrap_or_else(|errs| {
-                crate::error::eprint_error_message(errs, self.file_name, self.source.to_string());
-                std::process::exit(1);
-            });
+        let toks = match crate::lexer::Lexer::new(self.source).lex() {
+            Ok(toks) => toks,
+            Err(e) => {
+                crate::error::eprint_error_message(e, self.file_name, self.source);
+                return;
+            }
+        };
         if self.tokens {
-            for i in toks {
+            for i in &toks {
                 println!("{}", i)
             }
+        }
+
+        let ast = match crate::parser::Parser::new(&*toks).parse() {
+            Ok(ast) => ast,
+            Err(e) => {
+                crate::error::eprint_error_message(e, self.file_name, self.source);
+                return;
+            }
+        };
+        if self.ast {
+            println!("{ast:#?}");
         }
     }
 }
