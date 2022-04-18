@@ -42,8 +42,10 @@ pub enum AstNodeKind {
     Literal(LiteralKind),
     /// Identifier, such as 'foo', 'bar', 'baz'
     Ident(String),
-    /// Call to a function. The 'callee' will be the first parameter if the function is called on an object.
+    /// Call to a function. The syntactic sugar `object.function(args?)` will use this too
     Call(Box<AstNode>, Vec<AstNode>),
+    /// Call to a function as the `object.function` syntactic sugar without parenthesis OR object accessor
+    CallOrPropertyAccess(Box<AstNode>, Box<AstNode>),
     PropertyAccessor(Box<AstNode>, Box<AstNode>),
     VarDecl(Box<AstNode>, Box<AstNode>),
 }
