@@ -1,3 +1,7 @@
+/// The Ribbon Parser
+/// 
+/// This turns a list of tokens into an Abstract Syntax Tree
+
 use self::ast::{AstNode, RootAstNode};
 use crate::{
     error::{Error, ErrorKind},
