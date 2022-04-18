@@ -46,5 +46,4 @@ pub enum AstNodeKind {
     Call(Box<AstNode>, Vec<AstNode>),
     PropertyAccessor(Box<AstNode>, Box<AstNode>),
     VarDecl(Box<AstNode>, Box<AstNode>),
-    ErrorFiller
 }

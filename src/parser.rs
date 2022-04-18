@@ -27,8 +27,9 @@ impl Parser {
 
     pub fn parse(&mut self) -> Result<RootAstNode, Vec<Error>> {
         while self.peek().is_some() {
-            if let Ok(n) = self.parse_bp(0) {
-                self.root.push(n);
+            match self.parse_bp(0) {
+                Ok(n) => self.root.push(n),
+                Err(e) => self.error_and_recover(e),
             }
             self.skip_end_of_expr();
         }
@@ -39,7 +40,7 @@ impl Parser {
     }
 
     #[allow(clippy::result_unit_err)]
-    pub fn parse_bp(&mut self, rbp: u8) -> Result<AstNode, ()> {
+    pub fn parse_bp(&mut self, rbp: u8) -> Result<AstNode, Error> {
         let mut lhs = match self.advance() {
             Some(t) => t.clone(),
             None => {
@@ -47,14 +48,13 @@ impl Parser {
                     Some(t) => t.span.end,
                     None => Pos::with_values(1, 1),
                 };
-                self.error_and_recover(Error::new(
+                return Err(Error::new(
                     Span::new(prev_loc, prev_loc),
                     ErrorKind::EofWhileParsing,
                 ));
-                return Err(());
             }
         }
-        .nud(self);
+        .nud(self)?;
 
         while let Some(t) = self.peek() {
             // Here, we break if the original binding power exceeds the binding power of the next operator.

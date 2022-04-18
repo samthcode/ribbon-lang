@@ -3,7 +3,7 @@ use crate::{
         ast::{AstNode, AstNodeKind},
         Parser,
     },
-    pos::Span,
+    pos::Span, error::Error,
 };
 
 pub static KEYWORDS: &[&str; 6] = &["mut", "if", "else", "while", "for", "type"];
@@ -44,39 +44,36 @@ impl Token {
         }
     }
 
-    pub fn nud(&self, p: &mut Parser) -> AstNode {
+    pub fn nud(&self, p: &mut Parser) -> Result<AstNode, Error> {
         match &self.kind {
-            TokenKind::Literal(LiteralKind::String(str)) => AstNode::new(
+            TokenKind::Literal(LiteralKind::String(str)) => Ok(AstNode::new(
                 AstNodeKind::Literal(LiteralKind::String(str.clone())),
                 self.span,
-            ),
+            )),
             TokenKind::Identifier(name) => {
                 // TODO: Check for call
-                AstNode::new(AstNodeKind::Ident(name.clone()), self.span)
+                Ok(AstNode::new(AstNodeKind::Ident(name.clone()), self.span))
             }
             TokenKind::OpenDelim(DelimKind::Parenthesis) => {
-                let res = p.parse_bp(self.bp().1).unwrap();
+                let res = p.parse_bp(self.bp().1)?;
                 let _ = p.expect(TokenKind::ClosingDelim(DelimKind::Parenthesis));
-                res
+                Ok(res)
             }
             _ => todo!(),
         }
     }
 
-    pub fn led(&self, p: &mut Parser, left: AstNode) -> AstNode {
+    pub fn led(&self, p: &mut Parser, left: AstNode) -> Result<AstNode, Error> {
         match &self.kind {
             TokenKind::Dot => {
-                let name = match p.expect(TokenKind::Identifier("".to_string())) {
-                    Ok(t) => t,
-                    Err(_) => return AstNode::new(AstNodeKind::ErrorFiller, self.span),
-                };
+                let name = p.expect(TokenKind::Identifier("".to_string()))?;
 
                 // TODO: Check for parens (so we can tell if it's a function)
                 // TODO: If there are no parens, this needs to be AstNodeKind::CallOrPropertyAccess
-                AstNode::new(
-                    AstNodeKind::Call(Box::new(name.nud(p)), vec![left.clone()]),
+                Ok(AstNode::new(
+                    AstNodeKind::Call(Box::new(name.nud(p)?), vec![left.clone()]),
                     Span::new(left.span.start, name.span.end),
-                )
+                ))
             }
             _ => todo!(),
         }
