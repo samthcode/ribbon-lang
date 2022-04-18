@@ -62,63 +62,51 @@ impl Parser {
                 break;
             }
             // Unwrap will never error here since we have already peeked to a valid token thank to `while let`
-            lhs = self.advance().unwrap().clone().led(self, lhs);
+            lhs = self.advance().unwrap().clone().led(self, lhs)?;
         }
 
         Ok(lhs)
     }
 
     #[allow(clippy::result_unit_err)]
-    pub fn expect(&mut self, kind: TokenKind) -> Result<Token, ()> {
+    pub fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {
         let t = self.advance().cloned();
         if t.is_none() || !kind.is_a(&t.as_ref().unwrap().kind) {
             let loc = match t.clone() {
-                None => {
-                    match self.prev() {
-                        None => Span::from((1, 1, 1, 1)),
-                        Some(t) => t.span
-                    }
-                }
+                None => match self.prev() {
+                    None => Span::from((1, 1, 1, 1)),
+                    Some(t) => t.span,
+                },
                 Some(s) => s.span,
             };
             let n = &t.map(|t| t.kind);
-            self.error_and_recover(Error::new(
+            return Err(Error::new(
                 loc,
                 ErrorKind::ExpectedTokenFoundOther(kind, n.clone()),
             ));
-            return Err(())
         }
         Ok(t.unwrap())
     }
 
     fn skip_end_of_expr(&mut self) {
-        let t = match self.advance() {
-            None => return,
-            Some(t) => t.clone(),
-        };
-        match t.kind {
-            TokenKind::Newline => {
-                if let Some(Token {
-                    kind: TokenKind::Semicolon,
-                    ..
-                }) = self.peek()
-                {
-                    self.advance();
-                }
+        let mandatory = self.advance().cloned();
+        if !matches!(
+            mandatory
+                .as_ref()
+                .map(|t| &t.kind)
+                .unwrap_or(&TokenKind::Newline),
+            TokenKind::Newline | TokenKind::Semicolon
+        ) {
+            self.errors.push(Error::new(
+                mandatory.as_ref().unwrap().span,
+                ErrorKind::ExpectedEndOfExpressionFoundX(mandatory.unwrap().kind),
+            ));
+            return;
+        }
+        while let Some(t) = self.peek() {
+            if matches!(t.kind, TokenKind::Newline | TokenKind::Semicolon) {
+                self.advance();
             }
-            TokenKind::Semicolon => {
-                if let Some(Token {
-                    kind: TokenKind::Newline,
-                    ..
-                }) = self.peek()
-                {
-                    self.advance();
-                }
-            }
-            k => self.errors.push(Error::new(
-                t.span,
-                ErrorKind::ExpectedEndOfExpressionFoundX(k),
-            )),
         }
     }
 
