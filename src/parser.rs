@@ -70,20 +70,25 @@ impl Parser {
 
     #[allow(clippy::result_unit_err)]
     pub fn expect(&mut self, kind: TokenKind) -> Result<Token, ()> {
-        let t = self.advance();
-        if t.is_none() || !kind.is_a(&t.unwrap().kind) {
-            let loc = match t {
-                None => Span::from((1, 1, 1, 1)),
+        let t = self.advance().cloned();
+        if t.is_none() || !kind.is_a(&t.as_ref().unwrap().kind) {
+            let loc = match t.clone() {
+                None => {
+                    match self.prev() {
+                        None => Span::from((1, 1, 1, 1)),
+                        Some(t) => t.span
+                    }
+                }
                 Some(s) => s.span,
             };
-            let n = &t.map(|t| t.kind.clone());
+            let n = &t.map(|t| t.kind);
             self.error_and_recover(Error::new(
                 loc,
                 ErrorKind::ExpectedTokenFoundOther(kind, n.clone()),
             ));
             return Err(())
         }
-        Ok(t.unwrap().clone())
+        Ok(t.unwrap())
     }
 
     fn skip_end_of_expr(&mut self) {
