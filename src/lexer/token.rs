@@ -9,9 +9,9 @@ use crate::{
 
 pub static KEYWORDS: &[&str; 6] = &["mut", "if", "else", "while", "for", "type"];
 
-pub static OPERATOR_CHARACTERS: &[char; 20] = &[
+pub static OPERATOR_CHARACTERS: &[char; 21] = &[
     '=', '+', '-', '<', '>', '*', '/', ':', ';', '.', '(', ')', '{', '}', '[', ']',
-    /*Binding modifier*/ '$', '&', '|', '!',
+    /*Binding modifier*/ '$', '&', '|', '!', ','
 ];
 
 /// The Token created by the Lexer and used by the Parser to generate an AST
@@ -52,11 +52,10 @@ impl Token {
                 self.span,
             )),
             TokenKind::Identifier(name) => {
-                // TODO: Check for call
                 Ok(AstNode::new(AstNodeKind::Ident(name.clone()), self.span))
             }
             TokenKind::LParen => {
-                let res = p.parse_bp(self.bp().1)?;
+                let res = p.parse_bp(self.nud_bp().1)?;
                 let _ = p.expect(TokenKind::RParen);
                 Ok(res)
             }
@@ -80,14 +79,25 @@ impl Token {
         }
     }
 
-    pub fn bp(&self) -> (u8, u8) {
+    pub fn nud_bp(&self) -> (u8, u8) {
         match &self.kind {
-            TokenKind::Dot => (21, 20),
             TokenKind::LParen
             | TokenKind::RParen
             | TokenKind::Newline
             | TokenKind::Semicolon => (0, 0),
+            // Call args separator
+            TokenKind::Comma => (6, 5),
             _ => todo!(),
+        }
+    }
+    
+    pub fn led_bp(&self) -> (u8, u8) {
+        match &self.kind {
+            // Property access or `object.function` syntax
+            TokenKind::Dot => (21, 20),
+            // Function call ie. `print()`
+            TokenKind::LParen => (31, 30),
+            _ => self.nud_bp()
         }
     }
 }
@@ -142,6 +152,8 @@ pub enum TokenKind {
     Increment,
     /// --,
     Decrement,
+    /// ,
+    Comma,
 
     /// (
     LParen,
@@ -199,6 +211,7 @@ impl TryFrom<String> for TokenKind {
             "=>" => Ok(Self::FatArrow),
             "++" => Ok(Self::Increment),
             "--" => Ok(Self::Decrement),
+            "," => Ok(Self::Comma),
             // Delimeters
             "(" => Ok(Self::LParen),
             ")" => Ok(Self::RParen),
