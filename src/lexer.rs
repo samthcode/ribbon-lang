@@ -467,7 +467,7 @@ impl<'a> Lexer<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{token::DelimKind, *};
+    use super::*;
     use pretty_assertions::assert_eq;
     use token::TokenKind::*;
 
@@ -629,14 +629,8 @@ mod tests {
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Exp),
                     Span::new(Pos::with_values(1, 16), Pos::with_values(1, 18))
                 ),
-                Token::new(
-                    TokenKind::try_from("(").unwrap(),
-                    Span::from((1, 19, 1, 19))
-                ),
-                Token::new(
-                    TokenKind::try_from(")").unwrap(),
-                    Span::from((1, 20, 1, 20))
-                ),
+                Token::new(TokenKind::LParen, Span::from((1, 19, 1, 19))),
+                Token::new(TokenKind::RParen, Span::from((1, 20, 1, 20))),
             ]
         )
     }
@@ -667,18 +661,12 @@ mod tests {
             vec![
                 Token::new(Identifier("main".to_string()), Span::from((1, 1, 1, 4))),
                 Token::new(Colon, Span::from((1, 6, 1, 6))),
-                Token::new(Assignment, Span::from((1,7,1,7))),
-                Token::new(OpenDelim(DelimKind::Parenthesis), Span::from((1, 9, 1, 9))),
-                Token::new(
-                    ClosingDelim(DelimKind::Parenthesis),
-                    Span::from((1, 10, 1, 10))
-                ),
+                Token::new(Assignment, Span::from((1, 7, 1, 7))),
+                Token::new(LParen, Span::from((1, 9, 1, 9))),
+                Token::new(RParen, Span::from((1, 10, 1, 10))),
                 Token::new(FatArrow, Span::from((1, 12, 1, 13))),
-                Token::new(OpenDelim(DelimKind::CurlyBracket), Span::from((1, 15, 1, 15))),
-                Token::new(
-                    ClosingDelim(DelimKind::CurlyBracket),
-                    Span::from((1, 16, 1, 16))
-                ),
+                Token::new(LCurly, Span::from((1, 15, 1, 15))),
+                Token::new(RCurly, Span::from((1, 16, 1, 16))),
             ]
         )
     }

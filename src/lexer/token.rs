@@ -1,9 +1,10 @@
 use crate::{
+    error::Error,
     parser::{
         ast::{AstNode, AstNodeKind},
         Parser,
     },
-    pos::Span, error::Error,
+    pos::Span,
 };
 
 pub static KEYWORDS: &[&str; 6] = &["mut", "if", "else", "while", "for", "type"];
@@ -54,9 +55,9 @@ impl Token {
                 // TODO: Check for call
                 Ok(AstNode::new(AstNodeKind::Ident(name.clone()), self.span))
             }
-            TokenKind::OpenDelim(DelimKind::Parenthesis) => {
+            TokenKind::LParen => {
                 let res = p.parse_bp(self.bp().1)?;
-                let _ = p.expect(TokenKind::ClosingDelim(DelimKind::Parenthesis));
+                let _ = p.expect(TokenKind::RParen);
                 Ok(res)
             }
             _ => todo!(),
@@ -82,8 +83,8 @@ impl Token {
     pub fn bp(&self) -> (u8, u8) {
         match &self.kind {
             TokenKind::Dot => (21, 20),
-            TokenKind::OpenDelim(DelimKind::Parenthesis)
-            | TokenKind::ClosingDelim(DelimKind::Parenthesis)
+            TokenKind::LParen
+            | TokenKind::RParen
             | TokenKind::Newline
             | TokenKind::Semicolon => (0, 0),
             _ => todo!(),
@@ -142,10 +143,18 @@ pub enum TokenKind {
     /// --,
     Decrement,
 
-    /// i.e. (, {, [
-    OpenDelim(DelimKind),
-    /// i.e. ), }, ]
-    ClosingDelim(DelimKind),
+    /// (
+    LParen,
+    /// [
+    LBracket,
+    /// {
+    LCurly,
+    /// )
+    RParen,
+    /// ]
+    RBracket,
+    /// }
+    RCurly,
 
     /// i.e. +, -, *, /, ** (exponent)
     ArithmeticOp(ArithmeticOpKind),
@@ -191,12 +200,12 @@ impl TryFrom<String> for TokenKind {
             "++" => Ok(Self::Increment),
             "--" => Ok(Self::Decrement),
             // Delimeters
-            "(" => Ok(Self::OpenDelim(DelimKind::Parenthesis)),
-            ")" => Ok(Self::ClosingDelim(DelimKind::Parenthesis)),
-            "[" => Ok(Self::OpenDelim(DelimKind::SquareBracket)),
-            "]" => Ok(Self::ClosingDelim(DelimKind::SquareBracket)),
-            "{" => Ok(Self::OpenDelim(DelimKind::CurlyBracket)),
-            "}" => Ok(Self::ClosingDelim(DelimKind::CurlyBracket)),
+            "(" => Ok(Self::LParen),
+            ")" => Ok(Self::RParen),
+            "[" => Ok(Self::LBracket),
+            "]" => Ok(Self::RBracket),
+            "{" => Ok(Self::LCurly),
+            "}" => Ok(Self::RCurly),
             // Equalities
             "==" => Ok(Self::ComparativeOp(ComparativeOpKind::EQ)),
             "<" => Ok(Self::ComparativeOp(ComparativeOpKind::LT)),
@@ -251,13 +260,6 @@ impl LiteralKind {
             Bool(_) => return matches!(other, Bool(_)),
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum DelimKind {
-    Parenthesis,
-    SquareBracket,
-    CurlyBracket,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
