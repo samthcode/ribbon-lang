@@ -39,7 +39,6 @@ impl Parser {
         Ok(std::mem::take(&mut self.root))
     }
 
-    #[allow(clippy::result_unit_err)]
     pub fn parse_bp(&mut self, rbp: u8) -> Result<AstNode, Error> {
         let mut lhs = match self.advance() {
             Some(t) => t.clone(),
@@ -68,7 +67,6 @@ impl Parser {
         Ok(lhs)
     }
 
-    #[allow(clippy::result_unit_err)]
     pub fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {
         let t = self.advance().cloned();
         if t.is_none() || !kind.is_a(&t.as_ref().unwrap().kind) {
