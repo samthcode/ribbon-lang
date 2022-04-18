@@ -40,6 +40,18 @@ impl Parser {
     }
 
     pub fn parse_bp(&mut self, rbp: u8) -> Result<AstNode, Error> {
+        self.parse_bp_allowing_newlines(rbp, false)
+    }
+
+    pub fn parse_bp_allowing_newlines(
+        &mut self,
+        rbp: u8,
+        allow_newlines: bool,
+    ) -> Result<AstNode, Error> {
+        if allow_newlines {
+            self.skip_newline();
+        }
+
         let mut lhs = match self.advance() {
             Some(t) => t.clone(),
             None => {
@@ -55,6 +67,10 @@ impl Parser {
         }
         .nud(self)?;
 
+        if allow_newlines {
+            self.skip_newline();
+        }
+
         while let Some(t) = self.peek() {
             // Here, we break if the original binding power exceeds the binding power of the next operator.
             if rbp >= t.led_bp().0 {
@@ -62,9 +78,25 @@ impl Parser {
             }
             // Unwrap will never error here since we have already peeked to a valid token thank to `while let`
             lhs = self.advance().unwrap().clone().led(self, lhs)?;
+
+            if allow_newlines {
+                self.skip_newline();
+            }
         }
 
         Ok(lhs)
+    }
+
+    pub fn skip_newline(&mut self) {
+        if matches!(
+            self.peek(),
+            Some(Token {
+                kind: TokenKind::Newline,
+                ..
+            })
+        ) {
+            self.advance();
+        }
     }
 
     pub fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {

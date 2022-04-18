@@ -11,7 +11,7 @@ pub static KEYWORDS: &[&str; 6] = &["mut", "if", "else", "while", "for", "type"]
 
 pub static OPERATOR_CHARACTERS: &[char; 21] = &[
     '=', '+', '-', '<', '>', '*', '/', ':', ';', '.', '(', ')', '{', '}', '[', ']',
-    /*Binding modifier*/ '$', '&', '|', '!', ','
+    /*Binding modifier*/ '$', '&', '|', '!', ',',
 ];
 
 /// The Token created by the Lexer and used by the Parser to generate an AST
@@ -55,7 +55,7 @@ impl Token {
                 Ok(AstNode::new(AstNodeKind::Ident(name.clone()), self.span))
             }
             TokenKind::LParen => {
-                let res = p.parse_bp(self.nud_bp().1)?;
+                let res = p.parse_bp_allowing_newlines(self.nud_bp().1, true)?;
                 let _ = p.expect(TokenKind::RParen);
                 Ok(res)
             }
@@ -81,23 +81,22 @@ impl Token {
 
     pub fn nud_bp(&self) -> (u8, u8) {
         match &self.kind {
-            TokenKind::LParen
-            | TokenKind::RParen
-            | TokenKind::Newline
-            | TokenKind::Semicolon => (0, 0),
+            TokenKind::LParen | TokenKind::RParen | TokenKind::Newline | TokenKind::Semicolon => {
+                (0, 0)
+            }
             // Call args separator
             TokenKind::Comma => (6, 5),
             _ => todo!(),
         }
     }
-    
+
     pub fn led_bp(&self) -> (u8, u8) {
         match &self.kind {
             // Property access or `object.function` syntax
             TokenKind::Dot => (21, 20),
             // Function call ie. `print()`
             TokenKind::LParen => (31, 30),
-            _ => self.nud_bp()
+            _ => self.nud_bp(),
         }
     }
 }
