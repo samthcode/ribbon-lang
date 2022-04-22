@@ -55,7 +55,7 @@ impl Token {
                 Ok(AstNode::new(AstNodeKind::Ident(name.clone()), self.span))
             }
             TokenKind::LParen => {
-                let res = p.parse_bp_allowing_newlines(self.nud_bp().1, true)?;
+                let res = p.parse_bp_allowing_newlines(self.kind.nud_bp().1, true)?;
                 let _ = p.expect(TokenKind::RParen);
                 Ok(res)
             }
@@ -66,37 +66,58 @@ impl Token {
     pub fn led(&self, p: &mut Parser, left: AstNode) -> Result<AstNode, Error> {
         match &self.kind {
             TokenKind::Dot => {
-                let name = p.expect(TokenKind::Identifier("".to_string()))?;
+                let name = p.expect(TokenKind::Identifier("".to_string()))?.nud(p)?;
 
-                // TODO: Check for parens (so we can tell if it's a function)
-                // TODO: If there are no parens, this needs to be AstNodeKind::CallOrPropertyAccess
+                if let Some(Token {
+                    kind: TokenKind::LParen,
+                    ..
+                }) = p.peek()
+                {
+                    // TODO: Extract this out into its own function and use for normal function calls
+
+                    let mut args = vec![left];
+
+                    p.advance();
+                    p.skip_newline();
+
+                    while !matches!(
+                        p.peek(),
+                        Some(Token {
+                            kind: TokenKind::RParen,
+                            binding_modified: _,
+                            span: _
+                        })
+                    ) {
+                        let arg = p.parse_bp(TokenKind::Comma.nud_bp().0)?;
+                        args.push(arg);
+
+                        if let Some(Token {
+                            kind: TokenKind::Comma,
+                            ..
+                        }) = p.peek()
+                        {
+                            p.advance();
+                        }
+                        p.skip_newline();
+                    }
+
+                    let end = p.expect(TokenKind::RParen)?.span.end;
+
+                    return Ok(AstNode::new(
+                        AstNodeKind::Call(Box::new(name.clone()), args),
+                        Span::new(name.span.start, end),
+                    ));
+                }
+
                 Ok(AstNode::new(
-                    AstNodeKind::Call(Box::new(name.nud(p)?), vec![left.clone()]),
+                    AstNodeKind::CallOrPropertyAccess(
+                        Box::new(name.clone()),
+                        Box::new(left.clone()),
+                    ),
                     Span::new(left.span.start, name.span.end),
                 ))
             }
             _ => todo!(),
-        }
-    }
-
-    pub fn nud_bp(&self) -> (u8, u8) {
-        match &self.kind {
-            TokenKind::LParen | TokenKind::RParen | TokenKind::Newline | TokenKind::Semicolon => {
-                (0, 0)
-            }
-            // Call args separator
-            TokenKind::Comma => (6, 5),
-            _ => todo!(),
-        }
-    }
-
-    pub fn led_bp(&self) -> (u8, u8) {
-        match &self.kind {
-            // Property access or `object.function` syntax
-            TokenKind::Dot => (21, 20),
-            // Function call ie. `print()`
-            TokenKind::LParen => (31, 30),
-            _ => self.nud_bp(),
         }
     }
 }
@@ -191,6 +212,27 @@ impl TokenKind {
                 return false;
             }
             _ => self == other,
+        }
+    }
+
+    pub fn nud_bp(&self) -> (u8, u8) {
+        match &self {
+            TokenKind::LParen | TokenKind::RParen | TokenKind::Newline | TokenKind::Semicolon => {
+                (0, 0)
+            }
+            // Call args separator
+            TokenKind::Comma => (6, 5),
+            _ => todo!(),
+        }
+    }
+
+    pub fn led_bp(&self) -> (u8, u8) {
+        match &self {
+            // Property access or `object.function` syntax
+            TokenKind::Dot => (21, 20),
+            // Function call ie. `print()`
+            TokenKind::LParen => (31, 30),
+            _ => self.nud_bp(),
         }
     }
 }
