@@ -55,7 +55,7 @@ impl Token {
                 Ok(AstNode::new(AstNodeKind::Ident(name.clone()), self.span))
             }
             TokenKind::LParen => {
-                let res = p.parse_bp_allowing_newlines(self.kind.nud_bp().1, true)?;
+                let res = p.parse_bp_allowing_newlines(self.kind.bp().1, true)?;
                 let _ = p.expect(TokenKind::RParen);
                 Ok(res)
             }
@@ -88,7 +88,7 @@ impl Token {
                             span: _
                         })
                     ) {
-                        let arg = p.parse_bp(TokenKind::Comma.nud_bp().0)?;
+                        let arg = p.parse_bp(TokenKind::Comma.bp().0)?;
                         args.push(arg);
 
                         if let Some(Token {
@@ -215,24 +215,15 @@ impl TokenKind {
         }
     }
 
-    pub fn nud_bp(&self) -> (u8, u8) {
+    pub fn bp(&self) -> (u8, u8) {
         match &self {
             TokenKind::LParen | TokenKind::RParen | TokenKind::Newline | TokenKind::Semicolon => {
                 (0, 0)
             }
             // Call args separator
             TokenKind::Comma => (6, 5),
-            _ => todo!(),
-        }
-    }
-
-    pub fn led_bp(&self) -> (u8, u8) {
-        match &self {
-            // Property access or `object.function` syntax
             TokenKind::Dot => (21, 20),
-            // Function call ie. `print()`
-            TokenKind::LParen => (31, 30),
-            _ => self.nud_bp(),
+            _ => todo!(),
         }
     }
 }

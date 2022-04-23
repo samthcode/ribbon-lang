@@ -77,7 +77,7 @@ impl Parser {
 
         while let Some(t) = self.peek() {
             // Here, we break if the original binding power exceeds the binding power of the next operator.
-            if rbp >= t.kind.led_bp().0 {
+            if rbp >= t.kind.bp().0 {
                 break;
             }
             // Unwrap will never error here since we have already peeked to a valid token thank to `while let`
