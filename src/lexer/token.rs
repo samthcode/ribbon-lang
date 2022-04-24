@@ -91,6 +91,14 @@ impl Token {
                     Span::new(left.span.start, name.span.end),
                 ))
             }
+            TokenKind::LParen => {
+                let (args, end) = p.parse_list(vec![], TokenKind::RParen)?;
+
+                Ok(AstNode::new(
+                    AstNodeKind::Call(Box::new(left.clone()), args),
+                    Span::new(left.span.start, end),
+                ))
+            }
             _ => todo!(),
         }
     }
