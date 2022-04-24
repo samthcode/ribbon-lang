@@ -8,6 +8,7 @@ authors = ["Sam Thomas"]
 
 [dependencies]
 clap = { version = "3.0.0", features = ["derive"] }
+indenter = "0.3.3"
 
 [dev-dependencies]
 pretty_assertions = "1.2.1"

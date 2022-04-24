@@ -41,7 +41,7 @@ impl<'a> Interpreter<'a> {
         };
         if self.tokens {
             for i in &toks {
-                println!("{}", i)
+                println!("{i}")
             }
         }
 
@@ -53,7 +53,7 @@ impl<'a> Interpreter<'a> {
             }
         };
         if self.ast {
-            println!("{ast:#?}");
+            println!("{ast}");
         }
     }
 }

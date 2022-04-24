@@ -105,6 +105,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "indenter"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce23b50ad8242c51a442f3ff322d56b02f08852c77e4c0b4d3fd684abc89c683"
+
+[[package]]
 name = "indexmap"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -209,6 +215,7 @@ name = "ribbon"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "indenter",
  "pretty_assertions",
 ]
 
