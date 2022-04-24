@@ -73,35 +73,9 @@ impl Token {
                     ..
                 }) = p.peek()
                 {
-                    // TODO: Extract this out into its own function and use for normal function calls
-
-                    let mut args = vec![left];
-
                     p.advance();
-                    p.skip_newline();
 
-                    while !matches!(
-                        p.peek(),
-                        Some(Token {
-                            kind: TokenKind::RParen,
-                            binding_modified: _,
-                            span: _
-                        })
-                    ) {
-                        let arg = p.parse_bp(TokenKind::Comma.bp().0)?;
-                        args.push(arg);
-
-                        if let Some(Token {
-                            kind: TokenKind::Comma,
-                            ..
-                        }) = p.peek()
-                        {
-                            p.advance();
-                        }
-                        p.skip_newline();
-                    }
-
-                    let end = p.expect(TokenKind::RParen)?.span.end;
+                    let (args, end) = p.parse_list(vec![left], TokenKind::RParen)?;
 
                     return Ok(AstNode::new(
                         AstNodeKind::Call(Box::new(name.clone()), args),

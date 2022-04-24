@@ -1,7 +1,6 @@
 /// The Ribbon Parser
-/// 
+///
 /// This turns a list of tokens into an Abstract Syntax Tree
-
 use self::ast::{AstNode, RootAstNode};
 use crate::{
     error::{Error, ErrorKind},
@@ -101,6 +100,35 @@ impl Parser {
         ) {
             self.advance();
         }
+    }
+
+    pub fn parse_list(
+        &mut self,
+        elements: Vec<AstNode>,
+        end: TokenKind,
+    ) -> Result<(Vec<AstNode>, Pos), Error> {
+        let mut elements = elements;
+
+        self.skip_newline();
+
+        while let Some(Token { kind, .. }) = self.peek() {
+            if kind.is_a(&end) {
+                break;
+            }
+            let arg = self.parse_bp(TokenKind::Comma.bp().0)?;
+            elements.push(arg);
+
+            if let Some(Token {
+                kind: TokenKind::Comma,
+                ..
+            }) = self.peek()
+            {
+                self.advance();
+            }
+            self.skip_newline();
+        }
+
+        Ok((elements, self.expect(TokenKind::RParen)?.span.end))
     }
 
     pub fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {
