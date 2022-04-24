@@ -72,10 +72,10 @@ impl fmt::Display for AstNode {
                 }
                 Ok(())
             }
-            CallOrPropertyAccess(name, arg) => write!(
-                f,
-                "Property Access or Function Call \"{name}\" Arg:\n    {arg}"
-            ),
+            CallOrPropertyAccess(name, arg) => {
+                writeln!(f, "Property Access or Function Call \"{name}\" Arg:")?;
+                write!(indented(f), "{arg}")
+            }
 
             VarDecl(name, value) => write!(f, "Variable Declaration \"{name}\" = {value}"),
         }
