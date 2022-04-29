@@ -72,11 +72,24 @@ impl fmt::Display for AstNode {
                 }
                 Ok(())
             }
+            List(vals) => {
+                write!(f, "List")?;
+                if !vals.is_empty() {
+                    writeln!(f, " Values:")?;
+                    for (ind, i) in vals.iter().enumerate() {
+                        write!(
+                            indented(f),
+                            "{i}{}",
+                            if ind != vals.len() - 1 { "\n" } else { "" }
+                        )?;
+                    }
+                }
+                Ok(())
+            }
             CallOrPropertyAccess(name, arg) => {
                 writeln!(f, "Property Access or Function Call \"{name}\" Arg:")?;
                 write!(indented(f), "{arg}")
             }
-
             VarDecl(name, value) => write!(f, "Variable Declaration \"{name}\" = {value}"),
         }
     }
@@ -96,4 +109,6 @@ pub enum AstNodeKind {
     /// Call to a function as the `object.function` syntactic sugar without parenthesis OR object accessor
     CallOrPropertyAccess(Box<AstNode>, Box<AstNode>),
     VarDecl(Box<AstNode>, Box<AstNode>),
+    /// A list ie. [1,2,3,4]
+    List(Vec<AstNode>),
 }

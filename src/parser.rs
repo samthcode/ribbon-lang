@@ -129,7 +129,7 @@ impl Parser {
             self.skip_newline();
         }
 
-        Ok((elements, self.expect(TokenKind::RParen)?.span.end))
+        Ok((elements, self.expect(end)?.span.end))
     }
 
     pub fn expect(&mut self, kind: TokenKind) -> Result<Token, Error> {

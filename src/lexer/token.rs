@@ -59,6 +59,14 @@ impl Token {
                 let _ = p.expect(TokenKind::RParen);
                 Ok(res)
             }
+            TokenKind::LBracket => {
+                let (vals, pos) = p.parse_list(vec![], TokenKind::RBracket)?;
+                let _ = p.expect(TokenKind::RBracket);
+                Ok(AstNode::new(
+                    AstNodeKind::List(vals),
+                    Span::new(self.span.start, pos),
+                ))
+            }
             _ => todo!(),
         }
     }
@@ -142,7 +150,7 @@ pub enum TokenKind {
     Dot,
     /// =
     Assignment,
-    /// ;
+    // ;
     Semicolon,
     /// |
     Pipe,
@@ -199,9 +207,12 @@ impl TokenKind {
 
     pub fn bp(&self) -> (u8, u8) {
         match &self {
-            TokenKind::LParen | TokenKind::RParen | TokenKind::Newline | TokenKind::Semicolon => {
-                (0, 0)
-            }
+            TokenKind::LParen
+            | TokenKind::RParen
+            | TokenKind::LBracket
+            | TokenKind::RBracket
+            | TokenKind::Newline
+            | TokenKind::Semicolon => (0, 0),
             // Call args separator
             TokenKind::Comma => (6, 5),
             TokenKind::Dot => (21, 20),
