@@ -61,7 +61,6 @@ impl Token {
             }
             TokenKind::LBracket => {
                 let (vals, pos) = p.parse_list(vec![], TokenKind::RBracket)?;
-                let _ = p.expect(TokenKind::RBracket);
                 Ok(AstNode::new(
                     AstNodeKind::List(vals),
                     Span::new(self.span.start, pos),
