@@ -55,7 +55,7 @@ impl Token {
                 Ok(AstNode::new(AstNodeKind::Ident(name.clone()), self.span))
             }
             TokenKind::LParen => {
-                let res = p.parse_bp_allowing_newlines(self.kind.bp().1, true)?;
+                let res = p.parse_bp_allowing_newlines(self.kind.nud_bp().1, true)?;
                 let _ = p.expect(TokenKind::RParen);
                 Ok(res)
             }
@@ -104,6 +104,13 @@ impl Token {
                 Ok(AstNode::new(
                     AstNodeKind::Call(Box::new(left.clone()), args),
                     Span::new(left.span.start, end),
+                ))
+            }
+            TokenKind::ArithmeticOp(k) => {
+                let right = p.parse_bp(self.kind.led_bp().0)?;
+                Ok(AstNode::new(
+                    AstNodeKind::BinOp(k.clone(), Box::new(left.clone()), Box::new(right.clone())),
+                    Span::new(left.span.start, right.span.end),
                 ))
             }
             _ => todo!(),
@@ -204,7 +211,7 @@ impl TokenKind {
         }
     }
 
-    pub fn bp(&self) -> (u8, u8) {
+    pub fn nud_bp(&self) -> (u8, u8) {
         match &self {
             TokenKind::LParen
             | TokenKind::RParen
@@ -215,7 +222,17 @@ impl TokenKind {
             // Call args separator
             TokenKind::Comma => (6, 5),
             TokenKind::Dot => (21, 20),
-            _ => todo!(),
+            k => {println!("{k:?}"); todo!()},
+        }
+    }
+
+    pub fn led_bp(&self) -> (u8, u8) {
+        match &self {
+            TokenKind::ArithmeticOp(kind) => match kind {
+                ArithmeticOpKind::Add | ArithmeticOpKind::Sub => (11, 10),
+                ArithmeticOpKind::Div | ArithmeticOpKind::Mul | ArithmeticOpKind::Exp => (13, 12),
+            },
+            _ => self.nud_bp(),
         }
     }
 }
@@ -319,6 +336,22 @@ pub enum ArithmeticOpKind {
     Div,
     Mul,
     Exp,
+}
+
+impl std::fmt::Display for ArithmeticOpKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match &self {
+                ArithmeticOpKind::Add => "+",
+                ArithmeticOpKind::Sub => "-",
+                ArithmeticOpKind::Div => "/",
+                ArithmeticOpKind::Mul => "*",
+                ArithmeticOpKind::Exp => "**",
+            }
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

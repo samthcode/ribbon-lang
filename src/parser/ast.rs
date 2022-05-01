@@ -3,7 +3,10 @@
 use indenter::indented;
 use std::fmt::{self, Write};
 
-use crate::{lexer::token::LiteralKind, pos::Span};
+use crate::{
+    lexer::token::{ArithmeticOpKind, LiteralKind},
+    pos::Span,
+};
 
 #[derive(Default, Debug)]
 /// The root node of a program.
@@ -86,6 +89,11 @@ impl fmt::Display for AstNode {
                 }
                 Ok(())
             }
+            BinOp(kind, lhs, rhs) => {
+                writeln!(f, "Binary Operator \"{kind}\"")?;
+                writeln!(indented(f), "{lhs}")?;
+                write!(indented(f), "{rhs}")
+            }
             CallOrPropertyAccess(name, arg) => {
                 writeln!(f, "Property Access or Function Call \"{name}\" Arg:")?;
                 write!(indented(f), "{arg}")
@@ -111,4 +119,6 @@ pub enum AstNodeKind {
     VarDecl(Box<AstNode>, Box<AstNode>),
     /// A list ie. [1,2,3,4]
     List(Vec<AstNode>),
+    /// A binary operator
+    BinOp(ArithmeticOpKind, Box<AstNode>, Box<AstNode>),
 }
