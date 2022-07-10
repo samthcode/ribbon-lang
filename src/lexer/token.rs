@@ -222,7 +222,10 @@ impl TokenKind {
             // Call args separator
             TokenKind::Comma => (6, 5),
             TokenKind::Dot => (21, 20),
-            k => {println!("{k:?}"); todo!()},
+            k => {
+                println!("{k:?}");
+                todo!()
+            }
         }
     }
 
@@ -365,7 +368,6 @@ pub enum ComparativeOpKind {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-
 pub enum LogicalOpKind {
     And,
     Or,
