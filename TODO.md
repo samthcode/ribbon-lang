@@ -1,2 +1,6 @@
 - [ ] Change precedence system to use a single number for precedence and a an Assoc enum for Left, Right, etc. associativity
+- [ ] Move parser logic out of lexer file. Use fn which matches on a tokenkind and provides logic there or separate fns for each tt, depending on complexity
+- [ ] Functions called alone; argument parsing for dot fns and lone fns
+- [ ] Function defenition parsing
 - [ ] Get started on evaluator, come back to parser when new stuff is needed
+- [ ] Figure out a better error system than just a massive enum. Maybe separate enums for different types of error?
