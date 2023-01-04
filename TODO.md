@@ -1,0 +1,2 @@
+- [ ] Change precedence system to use a single number for precedence and a an Assoc enum for Left, Right, etc. associativity
+- [ ] Get started on evaluator, come back to parser when new stuff is needed
