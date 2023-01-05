@@ -45,7 +45,7 @@ impl<'a> Interpreter<'a> {
             }
         }
 
-        let ast = match crate::parser::Parser::new(&*toks).parse() {
+        let ast = match crate::parser::Parser::new(&toks).parse() {
             Ok(ast) => ast,
             Err(e) => {
                 crate::error::eprint_error_message(e, self.file_name, self.source);

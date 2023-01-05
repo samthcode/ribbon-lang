@@ -309,12 +309,13 @@ pub enum LiteralKind {
 impl LiteralKind {
     pub fn is_a(&self, other: &LiteralKind) -> bool {
         use LiteralKind::*;
+        
         match self {
-            Integer(_) => return matches!(other, Integer(_)),
-            Float(_) => return matches!(other, Float(_)),
-            String(_) => return matches!(other, String(_)),
-            Char(_) => return matches!(other, Char(_)),
-            Bool(_) => return matches!(other, Bool(_)),
+            Integer(_) => matches!(other, Integer(_)),
+            Float(_) => matches!(other, Float(_)),
+            String(_) => matches!(other, String(_)),
+            Char(_) => matches!(other, Char(_)),
+            Bool(_) => matches!(other, Bool(_)),
         }
     }
 }
