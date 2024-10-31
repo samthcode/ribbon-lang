@@ -389,7 +389,7 @@ impl<'a> Lexer<'a> {
     fn expect(&mut self, expected_char: char) {
         match self.next() {
             Some(c) if c == expected_char => (),
-            Some(c) if c == '\n' => {
+            Some('\n') => {
                 // Avoids 'error: Unexpeted character: '
                 // '
                 self.errors.push(Error::new(
@@ -786,7 +786,7 @@ mod tests {
         if let Err(errs) = Lexer::new("'hello'").lex() {
             assert_eq!(errs.len(), 1);
             assert_eq!(
-                *errs.get(0).unwrap(),
+                *errs.first().unwrap(),
                 Error::new(
                     Span::new(Pos::with_values(1, 3), Pos::with_values(1, 3)),
                     ErrorKind::ExpectedXFoundY('\'', 'e')
@@ -813,7 +813,7 @@ mod tests {
         if let Err(errs) = Lexer::new("'").lex() {
             assert_eq!(errs.len(), 1);
             assert_eq!(
-                errs.get(0).unwrap().span,
+                errs.first().unwrap().span,
                 Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
             );
         } else {
@@ -887,7 +887,7 @@ mod tests {
         if let Err(errs) = Lexer::new("\"Hello World").lex() {
             assert_eq!(errs.len(), 1);
             assert_eq!(
-                errs.get(0).unwrap().span,
+                errs.first().unwrap().span,
                 Span::new(Pos::with_values(1, 13), Pos::with_values(1, 13))
             );
         } else {
