@@ -139,6 +139,8 @@ impl std::fmt::Display for Token {
 pub enum TokenKind {
     /// A newline needs to be tokenised to delimit the end of an expression
     Newline,
+    /// A comment is tokenised for any future use in documentation
+    Comment(String),
 
     /// i.e. abcd, hello_there, TestingTesting123
     Identifier(String),

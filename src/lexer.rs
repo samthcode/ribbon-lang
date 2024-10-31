@@ -56,21 +56,22 @@ impl<'a> Lexer<'a> {
 
                 // Single-line Comments
                 '/' if matches!(self.peek(), Some('/')) => {
-                    // Consume the second /
+                    let start = self.pos;
+                    // Consume the second '/'
                     self.next();
 
                     // Consume up to next line
-                    self.take_while(|ch| ch != '\n' && ch != '\r');
+                    let contents = self.take_while(|ch| ch != '\n' && ch != '\r');
+                    self.tokens.push(Token::new(
+                        TokenKind::Comment(contents),
+                        Span::new(start, self.pos),
+                    ))
                 }
 
                 // Multiline comments / Embedded comments
                 // I would prefer these to be /* {comment} */ but that wouldn't work in certain situations
                 // due to operator clumping (10 +/*Hello There*/ 20 making a '+', '/' and a '*' token)
-                '#' => {
-                    self.take_while(|ch| ch != '#');
-
-                    self.expect('#');
-                }
+                '#' => self.construct_multiline_comment(),
 
                 // Any type of whitespace
                 _ if c.is_whitespace() => (),
@@ -292,7 +293,17 @@ impl<'a> Lexer<'a> {
         // The rest of the newlines can be skipped
         self.skip_excess_newlines(carriage_return);
     }
-
+    /// Construct a comment in the form '#...#'
+    fn construct_multiline_comment(&mut self) {
+        let start = self.pos;
+        let contents = self.take_while(|char| char != '#');
+        self.expect('#');
+        self.tokens.push(Token::new(
+            TokenKind::Comment(contents),
+            Span::new(start, self.pos),
+        ))
+        // TODO: Fix tests
+    }
     /// Constructs a string token
     ///
     /// Currently, we just take characters while said character is not a '"', however this is obviously flawed as it does not support escape literals
