@@ -45,6 +45,7 @@ impl Token {
         }
     }
 
+    /// "Null Denotation" - Called when a Token is found to be at the leftmost position in an expression (e.g. the "A" in A + B)
     pub fn nud(&self, p: &mut Parser) -> Result<AstNode, Error> {
         match &self.kind {
             TokenKind::Literal(LiteralKind::String(str)) => Ok(AstNode::new(
@@ -70,6 +71,7 @@ impl Token {
         }
     }
 
+    /// "Left Denotation" - Called when a Token is parsed as being between two expressions (e.g. the "+" in A + B)
     pub fn led(&self, p: &mut Parser, left: AstNode) -> Result<AstNode, Error> {
         match &self.kind {
             TokenKind::Dot => {
@@ -213,6 +215,9 @@ impl TokenKind {
         }
     }
 
+    /// This returns the binding power of a Token when it is found as a null denotation.
+    /// It returns a tuple as both the left and right binding powers need to be considered
+    /// so that associativity works as expected.
     pub fn nud_bp(&self) -> (u8, u8) {
         match &self {
             TokenKind::LParen
@@ -231,6 +236,8 @@ impl TokenKind {
         }
     }
 
+    /// Returns the binding power of a Token which is found in the middle of an expression,
+    /// in a tuple of the left then right binding powers
     pub fn led_bp(&self) -> (u8, u8) {
         match &self {
             TokenKind::ArithmeticOp(kind) => match kind {
@@ -311,7 +318,7 @@ pub enum LiteralKind {
 impl LiteralKind {
     pub fn is_a(&self, other: &LiteralKind) -> bool {
         use LiteralKind::*;
-        
+
         match self {
             Integer(_) => matches!(other, Integer(_)),
             Float(_) => matches!(other, Float(_)),
