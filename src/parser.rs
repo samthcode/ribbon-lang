@@ -42,13 +42,13 @@ impl Parser {
         Ok(std::mem::take(&mut self.root))
     }
 
-    pub fn parse_bp(&mut self, rbp: u8) -> Result<AstNode, Error> {
-        self.parse_bp_allowing_newlines(rbp, false)
+    pub fn parse_bp(&mut self, min_bp: u8) -> Result<AstNode, Error> {
+        self.parse_bp_allowing_newlines(min_bp, false)
     }
 
     pub fn parse_bp_allowing_newlines(
         &mut self,
-        rbp: u8,
+        min_bp: u8,
         allow_newlines: bool,
     ) -> Result<AstNode, Error> {
         if allow_newlines {
@@ -77,7 +77,7 @@ impl Parser {
         while let Some(t) = self.peek() {
             // Here, we break if the original binding power exceeds the binding power of the next operator or if it's a call, which binds very strongly
             // The LParen needs to be checked as it could also have a bp of 0, depending on context
-            if rbp >= t.kind.led_bp().0 && t.kind != TokenKind::LParen {
+            if t.kind.led_bp().0 < min_bp && t.kind != TokenKind::LParen {
                 break;
             }
             // Unwrap will never error here since we have already peeked to a valid token thank to `while let`

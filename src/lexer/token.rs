@@ -109,7 +109,7 @@ impl Token {
                 ))
             }
             TokenKind::ArithmeticOp(k) => {
-                let right = p.parse_bp(self.kind.led_bp().0)?;
+                let right = p.parse_bp(self.kind.led_bp().1)?;
                 Ok(AstNode::new(
                     AstNodeKind::BinOp(k.clone(), Box::new(left.clone()), Box::new(right.clone())),
                     Span::new(left.span.start, right.span.end),
@@ -241,8 +241,8 @@ impl TokenKind {
     pub fn led_bp(&self) -> (u8, u8) {
         match &self {
             TokenKind::ArithmeticOp(kind) => match kind {
-                ArithmeticOpKind::Add | ArithmeticOpKind::Sub => (11, 10),
-                ArithmeticOpKind::Div | ArithmeticOpKind::Mul | ArithmeticOpKind::Exp => (13, 12),
+                ArithmeticOpKind::Add | ArithmeticOpKind::Sub => (10, 11),
+                ArithmeticOpKind::Div | ArithmeticOpKind::Mul | ArithmeticOpKind::Exp => (12, 13),
             },
             _ => self.nud_bp(),
         }
