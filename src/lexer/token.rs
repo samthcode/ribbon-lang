@@ -115,7 +115,10 @@ impl Token {
                     Span::new(left.span.start, right.span.end),
                 ))
             }
-            _ => todo!(),
+            _ => {
+                println!("{:?}", self.kind);
+                todo!()
+            },
         }
     }
 }
@@ -225,10 +228,10 @@ impl TokenKind {
             | TokenKind::LBracket
             | TokenKind::RBracket
             | TokenKind::Newline
-            | TokenKind::Semicolon => (0, 0),
+            | TokenKind::Semicolon => (0, 1),
             // Call args separator
-            TokenKind::Comma => (6, 5),
-            TokenKind::Dot => (21, 20),
+            TokenKind::Comma => (0, 1),
+            TokenKind::Dot => (20, 21),
             k => {
                 println!("{k:?}");
                 todo!()

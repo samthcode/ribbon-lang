@@ -116,7 +116,7 @@ impl Parser {
             if kind.is_a(&end) {
                 break;
             }
-            let arg = self.parse_bp(TokenKind::Comma.nud_bp().0)?;
+            let arg = self.parse_bp(TokenKind::Comma.nud_bp().1)?;
             elements.push(arg);
 
             if let Some(Token {
