@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{
     error::Error,
     parser::{
@@ -118,23 +120,19 @@ impl Token {
             _ => {
                 println!("{:?}", self.kind);
                 todo!()
-            },
+            }
         }
     }
 }
 
-impl std::fmt::Display for Token {
+impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}: {:?}{}",
+            "{} {}{}",
             self.span,
             self.kind,
-            if self.binding_modified {
-                " (Binding modified)"
-            } else {
-                ""
-            }
+            if self.binding_modified { "(mod)" } else { "" }
         )
     }
 }
@@ -202,15 +200,14 @@ pub enum TokenKind {
 }
 
 impl TokenKind {
-    #[allow(clippy::needless_return)]
     pub fn is_a(&self, other: &TokenKind) -> bool {
         match self {
-            Self::Identifier(_) => return matches!(other, Self::Identifier(_)),
+            Self::Identifier(_) => matches!(other, Self::Identifier(_)),
             Self::Literal(kind) => {
                 if let Self::Literal(other_kind) = other {
                     return kind.is_a(other_kind);
                 }
-                return false;
+                false
             }
             _ => self == other,
         }
@@ -247,6 +244,43 @@ impl TokenKind {
             },
             _ => self.nud_bp(),
         }
+    }
+}
+
+impl Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                TokenKind::Newline => "Newline".to_string(),
+                TokenKind::Identifier(str) => format!("Identifier(\"{}\")", str),
+                TokenKind::Keyword(str) => format!("Keyword(\"{}\")", str),
+                TokenKind::Literal(lit) => format!("{:?}", lit),
+                TokenKind::Colon => ":".to_string(),
+                TokenKind::ScopeResolutionOperator => "::".to_string(),
+                TokenKind::Dot => ".".to_string(),
+                TokenKind::Assignment => "=".to_string(),
+                TokenKind::Semicolon => ";".to_string(),
+                TokenKind::Pipe => "|".to_string(),
+                TokenKind::FatArrow => "=>".to_string(),
+                TokenKind::QuestionMark => "?".to_string(),
+                TokenKind::Increment => "++".to_string(),
+                TokenKind::Decrement => "--".to_string(),
+                TokenKind::Comma => ",".to_string(),
+                TokenKind::LParen => "(".to_string(),
+                TokenKind::LBracket => "[".to_string(),
+                TokenKind::LCurly => "{".to_string(),
+                TokenKind::RParen => ")".to_string(),
+                TokenKind::RBracket => "]".to_string(),
+                TokenKind::RCurly => "}".to_string(),
+                // TODO: Sort these out:
+                TokenKind::ArithmeticOp(_kind) => "ArithmeticOp".to_string(),
+                TokenKind::ArithmeticOpEq(_kind) => "ArithmeticOpEq".to_string(),
+                TokenKind::ComparativeOp(_kind) => "ComparativeOp".to_string(),
+                TokenKind::LogicalOp(_kind) => "LogicalOp".to_string(),
+            }
+        )
     }
 }
 
