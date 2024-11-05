@@ -240,22 +240,43 @@ impl<'a> Lexer<'a> {
 
         if let Some('.') = self.peek() {
             self.next();
+            let next = self.peek();
+            if next.is_none() {
+                self.errors.push(Error::new(
+                    Span::new(self.pos, self.pos),
+                    ErrorKind::EofWhileLexingLiteral(LiteralKind::Float(
+                        result.parse().unwrap_or_else(|_| {
+                            panic!(
+                                "(Ribbon Internal Error):{}: Couldn't parse float: '{}'",
+                                self.pos, result
+                            )
+                        }),
+                    )),
+                ));
+                return;
+            }
+            if next.unwrap().is_numeric() {
+                // The number is a float
+                result.push('.');
 
-            result.push('.');
+                result.push_str(self.take_while(|ch| ch.is_numeric()).as_str());
 
-            result.push_str(self.take_while(|ch| ch.is_numeric()).as_str());
-
-            self.tokens.push(Token::new(
-                TokenKind::Literal(token::LiteralKind::Float(result.parse().unwrap_or_else(
-                    |_| {
-                        panic!(
-                            "(Ribbon Internal Error):{}: Couldn't parse float: '{}'",
-                            self.pos, result
-                        )
-                    },
-                ))),
-                Span::new(start, self.pos),
-            ));
+                self.tokens.push(Token::new(
+                    TokenKind::Literal(token::LiteralKind::Float(result.parse().unwrap_or_else(
+                        |_| {
+                            panic!(
+                                "(Ribbon Internal Error):{}: Couldn't parse float: '{}'",
+                                self.pos, result
+                            )
+                        },
+                    ))),
+                    Span::new(start, self.pos),
+                ));
+                return;
+            }
+            // A function is being called on the number, so we need to add the dot here since its been consumed
+            self.tokens
+                .push(Token::new(TokenKind::Dot, Span::new(self.pos, self.pos)))
         } else {
             self.tokens.push(Token::new(
                 TokenKind::Literal(token::LiteralKind::Integer(result.parse().unwrap_or_else(
