@@ -5,8 +5,8 @@
 //! ```
 //! use ribbon::pos;
 //!
-//! let mut pos1 = pos::Pos::new();
-//! let pos2 = pos::Pos::new();
+//! let mut pos1 = pos::Pos::default();
+//! let pos2 = pos::Pos::default();
 //! pos1.adv();
 //!
 //! let span = pos::Span::new(pos1, pos2);
@@ -21,13 +21,10 @@ pub struct Pos {
 }
 
 impl Pos {
-    pub fn new() -> Self {
-        Self { line: 1, col: 0 }
-    }
-    pub fn with_values(line: usize, col: usize) -> Self {
+    pub fn new(line: usize, col: usize) -> Self {
         Self { line, col }
     }
-    pub fn next_line(&mut self) {
+    pub fn adv_line(&mut self) {
         self.line += 1;
         self.col = 0;
     }
@@ -38,7 +35,7 @@ impl Pos {
 
 impl Default for Pos {
     fn default() -> Self {
-        Self::new()
+        Self { line: 1, col: 0 }
     }
 }
 
@@ -62,6 +59,14 @@ impl Span {
     pub fn new(start: Pos, end: Pos) -> Self {
         Self { start, end }
     }
+    // Creates a Span which is of width 1 - the start and the end are the same
+    pub fn char(pos: Pos) -> Self {
+        Self {start: pos, end: pos}
+    }
+    // Creates a Span with the given values preinputted into the two Pos structs
+    pub fn with_values(start_line: usize, start_col: usize, end_line: usize, end_col: usize) -> Self {
+        Self { start: Pos::new(start_line, start_col), end: Pos::new(end_line, end_col)}
+    }
 }
 
 impl fmt::Display for Span {
@@ -73,8 +78,8 @@ impl fmt::Display for Span {
 impl From<(usize, usize, usize, usize)> for Span {
     fn from(item: (usize, usize, usize, usize)) -> Self {
         Self {
-            start: Pos::with_values(item.0, item.1),
-            end: Pos::with_values(item.2, item.3)
+            start: Pos::new(item.0, item.1),
+            end: Pos::new(item.2, item.3),
         }
     }
 }
@@ -85,6 +90,9 @@ mod tests {
 
     #[test]
     fn span_from_tuple() {
-        assert_eq!(Span::from((1, 2, 1, 2)), Span::new(Pos::with_values(1, 2), Pos::with_values(1, 2)));
+        assert_eq!(
+            Span::from((1, 2, 1, 2)),
+            Span::new(Pos::new(1, 2), Pos::new(1, 2))
+        );
     }
 }

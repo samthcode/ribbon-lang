@@ -39,7 +39,7 @@ impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
             chars: source.chars().peekable(),
-            pos: Pos::new(),
+            pos: Default::default(),
             errors: Vec::new(),
             tokens: Vec::new(),
         }
@@ -137,7 +137,7 @@ impl<'a> Lexer<'a> {
             }
 
             if let Ok(op_kind) = TokenKind::try_from(maybe_op) {
-                let mut end = Pos::with_values(start.line, start.col + i - 1);
+                let mut end = Pos::new(start.line, start.col + i - 1);
                 self.tokens.push(Token::with_binding(
                     op_kind,
                     binding_modified,
@@ -150,10 +150,7 @@ impl<'a> Lexer<'a> {
         }
 
         self.raise_error_and_recover(Error::new(
-            Span::new(
-                start,
-                Pos::with_values(start.line, start.col + clump.len() - 1),
-            ),
+            Span::new(start, Pos::new(start.line, start.col + clump.len() - 1)),
             ErrorKind::InvalidOperator(clump),
         ))
     }
@@ -238,7 +235,9 @@ impl<'a> Lexer<'a> {
 
         result.push_str(self.take_while(|ch| ch.is_numeric()).as_str());
 
-        if let Some('.') = self.peek() {
+        // Do we need to push a dot?
+        let dot = matches!(self.peek(), Some('.'));
+        if dot {
             self.next();
             let next = self.peek();
             if next.is_none() {
@@ -274,21 +273,29 @@ impl<'a> Lexer<'a> {
                 ));
                 return;
             }
+        }
+        self.tokens.push(Token::new(
+            TokenKind::Literal(token::LiteralKind::Integer(result.parse().unwrap_or_else(
+                |_| {
+                    panic!(
+                        "(Ribbon Internal Error):{}: Couldn't parse integer: '{}'",
+                        self.pos, result
+                    )
+                },
+            ))),
+            Span::new(
+                start,
+                if dot {
+                    Pos::new(self.pos.line, self.pos.col - 1)
+                } else {
+                    self.pos
+                },
+            ),
+        ));
+        if dot {
             // A function is being called on the number, so we need to add the dot here since its been consumed
             self.tokens
                 .push(Token::new(TokenKind::Dot, Span::new(self.pos, self.pos)))
-        } else {
-            self.tokens.push(Token::new(
-                TokenKind::Literal(token::LiteralKind::Integer(result.parse().unwrap_or_else(
-                    |_| {
-                        panic!(
-                            "(Ribbon Internal Error):{}: Couldn't parse integer: '{}'",
-                            self.pos, result
-                        )
-                    },
-                ))),
-                Span::new(start, self.pos),
-            ))
         }
     }
 
@@ -308,7 +315,7 @@ impl<'a> Lexer<'a> {
             true
         };
 
-        self.pos.next_line();
+        self.pos.adv_line();
 
         // The rest of the newlines can be skipped
         self.skip_excess_newlines(carriage_return);
@@ -326,14 +333,14 @@ impl<'a> Lexer<'a> {
             match c {
                 '"' if !is_escape_sequence => {
                     self.tokens.push(Token::new(
-                        TokenKind::Literal(token::LiteralKind::String(string)),
+                        TokenKind::Literal(token::LiteralKind::Str(string)),
                         Span::new(start, self.pos),
                     ));
                     return;
                 }
                 '\n' => {
                     string.push('\n');
-                    self.pos.next_line()
+                    self.pos.adv_line()
                 }
                 '\\' => {
                     if is_escape_sequence {
@@ -350,10 +357,7 @@ impl<'a> Lexer<'a> {
                     } else {
                         self.raise_error_and_recover(Error::new(
                             Span::new(self.pos, self.pos),
-                            ErrorKind::InvalidEscapeCharacter(
-                                c,
-                                LiteralKind::String("".to_string()),
-                            ),
+                            ErrorKind::InvalidEscapeCharacter(c, LiteralKind::Str("".to_string())),
                         ));
                         return;
                     }
@@ -365,7 +369,7 @@ impl<'a> Lexer<'a> {
         // No need to recover since it's EOF
         self.errors.push(Error::new(
             Span::new(self.pos, self.pos),
-            ErrorKind::EofWhileLexingLiteral(LiteralKind::String(String::from(""))),
+            ErrorKind::EofWhileLexingLiteral(LiteralKind::Str(String::from(""))),
         ))
     }
 
@@ -417,7 +421,7 @@ impl<'a> Lexer<'a> {
                     Span::new(self.pos, self.pos),
                     ErrorKind::ExpectedXFoundY(expected_char, '\n'),
                 ));
-                self.pos.next_line();
+                self.pos.adv_line();
             }
             Some(c) => {
                 self.raise_error_and_recover(Error::new(
@@ -462,7 +466,7 @@ impl<'a> Lexer<'a> {
                 res.push(c);
                 self.next();
                 if c == '\n' {
-                    self.pos.next_line();
+                    self.pos.adv_line();
                 }
             } else {
                 break;
@@ -478,7 +482,7 @@ impl<'a> Lexer<'a> {
             while let Some('\r') = self.peek() {
                 self.next();
                 match self.next() {
-                    Some('\n') => self.pos.next_line(),
+                    Some('\n') => self.pos.adv_line(),
                     _ => panic!("(Ribbon Internal Error):{}: There wasn't a newline after the carriage return. WTF went wrong???", self.pos.clone())
                 };
             }
@@ -490,18 +494,16 @@ impl<'a> Lexer<'a> {
 mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
-    use token::TokenKind::*;
+    use token::{LiteralKind::*, TokenKind::*};
+
+    fn test(input: &str, toks: Vec<Token>) {
+        assert_eq!(Lexer::new(input).lex().unwrap(), toks)
+    }
 
     #[test]
     fn comments() {
-        assert_eq!(
-            Lexer::new("// Hello there").lex().unwrap(),
-            vec![]
-        );
-        assert_eq!(
-            Lexer::new("# Hello there #").lex().unwrap(),
-            vec![]
-        );
+        assert_eq!(Lexer::new("// Hello there").lex().unwrap(), vec![]);
+        assert_eq!(Lexer::new("# Hello there #").lex().unwrap(), vec![]);
         assert_eq!(Lexer::new("#\nHello there\n#").lex().unwrap(), vec![]);
         assert_eq!(
             Lexer::new(
@@ -522,16 +524,13 @@ mod tests {
                 .unwrap(),
             vec![
                 Token::new(
-                    TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
-                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 14))
+                    TokenKind::Literal(Str(String::from("Hello World!"))),
+                    Span::new(Pos::new(1, 1), Pos::new(1, 14))
                 ),
+                Token::new(Dot, Span::new(Pos::new(1, 15), Pos::new(1, 15))),
                 Token::new(
-                    TokenKind::Dot,
-                    Span::new(Pos::with_values(1, 15), Pos::with_values(1, 15))
-                ),
-                Token::new(
-                    TokenKind::Identifier(String::from("print")),
-                    Span::new(Pos::with_values(1, 16), Pos::with_values(1, 20))
+                    Identifier(String::from("print")),
+                    Span::new(Pos::new(1, 16), Pos::new(1, 20))
                 )
             ]
         );
@@ -539,16 +538,13 @@ mod tests {
             Lexer::new("\"Hello World!\".# Hello #print").lex().unwrap(),
             vec![
                 Token::new(
-                    TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
-                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 14))
+                    Literal(Str(String::from("Hello World!"))),
+                    Span::new(Pos::new(1, 1), Pos::new(1, 14))
                 ),
+                Token::new(Dot, Span::new(Pos::new(1, 15), Pos::new(1, 15))),
                 Token::new(
-                    TokenKind::Dot,
-                    Span::new(Pos::with_values(1, 15), Pos::with_values(1, 15))
-                ),
-                Token::new(
-                    TokenKind::Identifier(String::from("print")),
-                    Span::new(Pos::with_values(1, 25), Pos::with_values(1, 29))
+                    Identifier(String::from("print")),
+                    Span::new(Pos::new(1, 25), Pos::new(1, 29))
                 )
             ]
         );
@@ -561,43 +557,40 @@ mod tests {
             vec![
                 Token::new(
                     TokenKind::ScopeResolutionOperator,
-                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+                    Span::new(Pos::new(1, 1), Pos::new(1, 2))
                 ),
-                Token::new(
-                    TokenKind::Colon,
-                    Span::new(Pos::with_values(1, 4), Pos::with_values(1, 4))
-                ),
+                Token::new(TokenKind::Colon, Span::new(Pos::new(1, 4), Pos::new(1, 4))),
                 Token::new(
                     TokenKind::ArithmeticOp(token::ArithmeticOpKind::Add),
-                    Span::new(Pos::with_values(1, 6), Pos::with_values(1, 6))
+                    Span::new(Pos::new(1, 6), Pos::new(1, 6))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOp(token::ArithmeticOpKind::Sub),
-                    Span::new(Pos::with_values(1, 8), Pos::with_values(1, 8))
+                    Span::new(Pos::new(1, 8), Pos::new(1, 8))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOp(token::ArithmeticOpKind::Div),
-                    Span::new(Pos::with_values(1, 10), Pos::with_values(1, 10))
+                    Span::new(Pos::new(1, 10), Pos::new(1, 10))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOp(token::ArithmeticOpKind::Mul),
-                    Span::new(Pos::with_values(1, 12), Pos::with_values(1, 12))
+                    Span::new(Pos::new(1, 12), Pos::new(1, 12))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Add),
-                    Span::new(Pos::with_values(1, 14), Pos::with_values(1, 15))
+                    Span::new(Pos::new(1, 14), Pos::new(1, 15))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Sub),
-                    Span::new(Pos::with_values(1, 17), Pos::with_values(1, 18))
+                    Span::new(Pos::new(1, 17), Pos::new(1, 18))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Mul),
-                    Span::new(Pos::with_values(1, 20), Pos::with_values(1, 21))
+                    Span::new(Pos::new(1, 20), Pos::new(1, 21))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Div),
-                    Span::new(Pos::with_values(1, 23), Pos::with_values(1, 24))
+                    Span::new(Pos::new(1, 23), Pos::new(1, 24))
                 ),
                 Token::new(
                     TokenKind::try_from("(").unwrap(),
@@ -614,47 +607,44 @@ mod tests {
             vec![
                 Token::new(
                     TokenKind::ScopeResolutionOperator,
-                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+                    Span::new(Pos::new(1, 1), Pos::new(1, 2))
                 ),
-                Token::new(
-                    TokenKind::Colon,
-                    Span::new(Pos::with_values(1, 3), Pos::with_values(1, 3))
-                ),
+                Token::new(TokenKind::Colon, Span::new(Pos::new(1, 3), Pos::new(1, 3))),
                 Token::new(
                     TokenKind::ArithmeticOp(token::ArithmeticOpKind::Add),
-                    Span::new(Pos::with_values(1, 4), Pos::with_values(1, 4))
+                    Span::new(Pos::new(1, 4), Pos::new(1, 4))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOp(token::ArithmeticOpKind::Sub),
-                    Span::new(Pos::with_values(1, 5), Pos::with_values(1, 5))
+                    Span::new(Pos::new(1, 5), Pos::new(1, 5))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOp(token::ArithmeticOpKind::Div),
-                    Span::new(Pos::with_values(1, 6), Pos::with_values(1, 6))
+                    Span::new(Pos::new(1, 6), Pos::new(1, 6))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOp(token::ArithmeticOpKind::Mul),
-                    Span::new(Pos::with_values(1, 7), Pos::with_values(1, 7))
+                    Span::new(Pos::new(1, 7), Pos::new(1, 7))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Add),
-                    Span::new(Pos::with_values(1, 8), Pos::with_values(1, 9))
+                    Span::new(Pos::new(1, 8), Pos::new(1, 9))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Sub),
-                    Span::new(Pos::with_values(1, 10), Pos::with_values(1, 11))
+                    Span::new(Pos::new(1, 10), Pos::new(1, 11))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Mul),
-                    Span::new(Pos::with_values(1, 12), Pos::with_values(1, 13))
+                    Span::new(Pos::new(1, 12), Pos::new(1, 13))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Div),
-                    Span::new(Pos::with_values(1, 14), Pos::with_values(1, 15))
+                    Span::new(Pos::new(1, 14), Pos::new(1, 15))
                 ),
                 Token::new(
                     TokenKind::ArithmeticOpEq(token::ArithmeticOpKind::Exp),
-                    Span::new(Pos::with_values(1, 16), Pos::with_values(1, 18))
+                    Span::new(Pos::new(1, 16), Pos::new(1, 18))
                 ),
                 Token::new(TokenKind::LParen, Span::from((1, 19, 1, 19))),
                 Token::new(TokenKind::RParen, Span::from((1, 20, 1, 20))),
@@ -670,12 +660,12 @@ mod tests {
                 Token::with_binding(
                     TokenKind::Colon,
                     true,
-                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+                    Span::new(Pos::new(1, 1), Pos::new(1, 2))
                 ),
                 Token::with_binding(
                     TokenKind::ArithmeticOp(token::ArithmeticOpKind::Add),
                     true,
-                    Span::new(Pos::with_values(1, 4), Pos::with_values(1, 5))
+                    Span::new(Pos::new(1, 4), Pos::new(1, 5))
                 )
             ]
         )
@@ -704,7 +694,7 @@ mod tests {
             Lexer::new("\n").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Newline,
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
+                Span::new(Pos::new(1, 1), Pos::new(1, 1))
             )]
         )
     }
@@ -715,7 +705,7 @@ mod tests {
             Lexer::new("\n\n\n\n").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Newline,
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
+                Span::new(Pos::new(1, 1), Pos::new(1, 1))
             )]
         )
     }
@@ -726,7 +716,7 @@ mod tests {
             Lexer::new("\r\n\r\n\r\n").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Newline,
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
+                Span::new(Pos::new(1, 1), Pos::new(1, 1))
             )]
         )
     }
@@ -738,15 +728,15 @@ mod tests {
             vec![
                 Token::new(
                     TokenKind::Newline,
-                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
+                    Span::new(Pos::new(1, 1), Pos::new(1, 1))
                 ),
                 Token::new(
                     TokenKind::Identifier(String::from("print")),
-                    Span::new(Pos::with_values(3, 1), Pos::with_values(3, 5))
+                    Span::new(Pos::new(3, 1), Pos::new(3, 5))
                 ),
                 Token::new(
                     TokenKind::Newline,
-                    Span::new(Pos::with_values(3, 6), Pos::with_values(3, 6))
+                    Span::new(Pos::new(3, 6), Pos::new(3, 6))
                 )
             ]
         );
@@ -757,31 +747,28 @@ mod tests {
             vec![
                 Token::new(
                     TokenKind::Newline,
-                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
+                    Span::new(Pos::new(1, 1), Pos::new(1, 1))
                 ),
                 Token::new(
-                    TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
-                    Span::new(Pos::with_values(3, 1), Pos::with_values(3, 14))
+                    TokenKind::Literal(token::LiteralKind::Str(String::from("Hello World!"))),
+                    Span::new(Pos::new(3, 1), Pos::new(3, 14))
                 ),
-                Token::new(
-                    TokenKind::Dot,
-                    Span::new(Pos::with_values(3, 15), Pos::with_values(3, 15))
-                ),
+                Token::new(TokenKind::Dot, Span::new(Pos::new(3, 15), Pos::new(3, 15))),
                 Token::new(
                     TokenKind::Identifier(String::from("print")),
-                    Span::new(Pos::with_values(3, 16), Pos::with_values(3, 20))
+                    Span::new(Pos::new(3, 16), Pos::new(3, 20))
                 ),
                 Token::new(
                     TokenKind::Newline,
-                    Span::new(Pos::with_values(3, 21), Pos::with_values(3, 21))
+                    Span::new(Pos::new(3, 21), Pos::new(3, 21))
                 ),
                 Token::new(
-                    TokenKind::Literal(token::LiteralKind::String(String::from("String"))),
-                    Span::new(Pos::with_values(4, 1), Pos::with_values(4, 8))
+                    TokenKind::Literal(token::LiteralKind::Str(String::from("String"))),
+                    Span::new(Pos::new(4, 1), Pos::new(4, 8))
                 ),
                 Token::new(
                     TokenKind::Newline,
-                    Span::new(Pos::with_values(4, 9), Pos::with_values(4, 9))
+                    Span::new(Pos::new(4, 9), Pos::new(4, 9))
                 )
             ]
         )
@@ -794,15 +781,15 @@ mod tests {
             vec![
                 Token::new(
                     TokenKind::Newline,
-                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 1))
+                    Span::new(Pos::new(1, 1), Pos::new(1, 1))
                 ),
                 Token::new(
                     TokenKind::Identifier(String::from("print")),
-                    Span::new(Pos::with_values(3, 1), Pos::with_values(3, 5))
+                    Span::new(Pos::new(3, 1), Pos::new(3, 5))
                 ),
                 Token::new(
                     TokenKind::Newline,
-                    Span::new(Pos::with_values(3, 6), Pos::with_values(3, 6))
+                    Span::new(Pos::new(3, 6), Pos::new(3, 6))
                 )
             ]
         )
@@ -815,7 +802,7 @@ mod tests {
             assert_eq!(
                 *errs.first().unwrap(),
                 Error::new(
-                    Span::new(Pos::with_values(1, 3), Pos::with_values(1, 3)),
+                    Span::new(Pos::new(1, 3), Pos::new(1, 3)),
                     ErrorKind::ExpectedXFoundY('\'', 'e')
                 )
             );
@@ -830,7 +817,7 @@ mod tests {
             Lexer::new("'a'").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Char('a')),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 3))
+                Span::new(Pos::new(1, 1), Pos::new(1, 3))
             )]
         )
     }
@@ -841,7 +828,7 @@ mod tests {
             assert_eq!(errs.len(), 1);
             assert_eq!(
                 errs.first().unwrap().span,
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+                Span::new(Pos::new(1, 1), Pos::new(1, 2))
             );
         } else {
             panic!()
@@ -854,14 +841,14 @@ mod tests {
             Lexer::new("true").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Bool(true)),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 4))
+                Span::new(Pos::new(1, 1), Pos::new(1, 4))
             )]
         );
         assert_eq!(
             Lexer::new("false").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Bool(false)),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 5))
+                Span::new(Pos::new(1, 1), Pos::new(1, 5))
             )]
         );
     }
@@ -872,16 +859,13 @@ mod tests {
             Lexer::new("\"Hello World!\".print").lex().unwrap(),
             vec![
                 Token::new(
-                    TokenKind::Literal(token::LiteralKind::String(String::from("Hello World!"))),
-                    Span::new(Pos::with_values(1, 1), Pos::with_values(1, 14))
+                    TokenKind::Literal(token::LiteralKind::Str(String::from("Hello World!"))),
+                    Span::new(Pos::new(1, 1), Pos::new(1, 14))
                 ),
-                Token::new(
-                    TokenKind::Dot,
-                    Span::new(Pos::with_values(1, 15), Pos::with_values(1, 15))
-                ),
+                Token::new(TokenKind::Dot, Span::new(Pos::new(1, 15), Pos::new(1, 15))),
                 Token::new(
                     TokenKind::Identifier(String::from("print")),
-                    Span::new(Pos::with_values(1, 16), Pos::with_values(1, 20))
+                    Span::new(Pos::new(1, 16), Pos::new(1, 20))
                 )
             ]
         )
@@ -892,8 +876,8 @@ mod tests {
         assert_eq!(
             Lexer::new("\"Hello World\"").lex().unwrap(),
             vec![Token::new(
-                TokenKind::Literal(token::LiteralKind::String(String::from("Hello World"))),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 13))
+                TokenKind::Literal(token::LiteralKind::Str(String::from("Hello World"))),
+                Span::new(Pos::new(1, 1), Pos::new(1, 13))
             )]
         )
     }
@@ -903,7 +887,7 @@ mod tests {
         assert_eq!(
             Lexer::new("\"Hello\\nWorld\\r\\t\"").lex().unwrap(),
             vec![Token::new(
-                token::TokenKind::Literal(LiteralKind::String(String::from("Hello\nWorld\r\t"))),
+                token::TokenKind::Literal(LiteralKind::Str(String::from("Hello\nWorld\r\t"))),
                 Span::from((1, 1, 1, 18))
             )]
         )
@@ -915,7 +899,7 @@ mod tests {
             assert_eq!(errs.len(), 1);
             assert_eq!(
                 errs.first().unwrap().span,
-                Span::new(Pos::with_values(1, 13), Pos::with_values(1, 13))
+                Span::new(Pos::new(1, 13), Pos::new(1, 13))
             );
         } else {
             panic!()
@@ -927,8 +911,8 @@ mod tests {
         assert_eq!(
             Lexer::new("\"Hello\nWorld\"").lex().unwrap(),
             vec![Token::new(
-                TokenKind::Literal(token::LiteralKind::String(String::from("Hello\nWorld"))),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(2, 6))
+                TokenKind::Literal(token::LiteralKind::Str(String::from("Hello\nWorld"))),
+                Span::new(Pos::new(1, 1), Pos::new(2, 6))
             )]
         )
     }
@@ -939,7 +923,7 @@ mod tests {
             Lexer::new("mut").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword("mut".to_string()),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 3))
+                Span::new(Pos::new(1, 1), Pos::new(1, 3))
             )]
         )
     }
@@ -950,7 +934,7 @@ mod tests {
             Lexer::new("if").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword("if".to_string()),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 2))
+                Span::new(Pos::new(1, 1), Pos::new(1, 2))
             )]
         )
     }
@@ -961,7 +945,7 @@ mod tests {
             Lexer::new("else").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword("else".to_string()),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 4))
+                Span::new(Pos::new(1, 1), Pos::new(1, 4))
             )]
         )
     }
@@ -972,41 +956,48 @@ mod tests {
             Lexer::new("while").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Keyword("while".to_string()),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 5))
+                Span::new(Pos::new(1, 1), Pos::new(1, 5))
             )]
         )
     }
 
     #[test]
-    fn integer() {
+    fn integers() {
         assert_eq!(
             Lexer::new("1234").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Integer(1234)),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 4))
+                Span::new(Pos::new(1, 1), Pos::new(1, 4))
             )]
-        )
-    }
-
-    #[test]
-    fn long_integer() {
+        );
         assert_eq!(
             Lexer::new("1234453879834").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Integer(1234453879834)),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 13))
+                Span::new(Pos::new(1, 1), Pos::new(1, 13))
             )]
-        )
+        );
+        test(
+            "9.print",
+            vec![
+                Token::new(Literal(Integer(9)), Span::char(Pos::new(1, 1))),
+                Token::new(Dot, Span::char(Pos::new(1, 2))),
+                Token::new(
+                    Identifier("print".to_string()),
+                    Span::with_values(1, 3, 1, 7),
+                ),
+            ],
+        );
     }
 
     #[test]
-    fn float() {
+    fn floats() {
         assert_eq!(
             Lexer::new("1234453879834.342").lex().unwrap(),
             vec![Token::new(
                 TokenKind::Literal(token::LiteralKind::Float(1234453879834.342)),
-                Span::new(Pos::with_values(1, 1), Pos::with_values(1, 17))
+                Span::new(Pos::new(1, 1), Pos::new(1, 17))
             )]
-        )
+        );
     }
 }

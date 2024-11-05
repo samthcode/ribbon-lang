@@ -60,7 +60,7 @@ impl Parser {
             None => {
                 let prev_loc = match self.prev() {
                     Some(t) => t.span.end,
-                    None => Pos::with_values(1, 1),
+                    None => Pos::new(1, 1),
                 };
                 return Err(Error::new(
                     Span::new(prev_loc, prev_loc),

@@ -54,7 +54,7 @@ impl fmt::Display for AstNode {
         // write!(f, "{}: ", self.span)?;
         match &self.kind {
             Literal(kind) => match kind {
-                LiteralKind::String(s) => write!(f, "String \"{s}\""),
+                LiteralKind::Str(s) => write!(f, "String \"{s}\""),
                 LiteralKind::Integer(i) => write!(f, "Integer \"{i}\""),
                 LiteralKind::Char(c) => write!(f, "Character \"{c}\""),
                 LiteralKind::Bool(b) => write!(f, "Boolean \"{b}\""),

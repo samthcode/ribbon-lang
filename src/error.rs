@@ -107,7 +107,7 @@ impl std::fmt::Display for ErrorKind {
 
 fn literal_kind_to_string<'a>(literal_kind: LiteralKind) -> &'a str {
     match literal_kind {
-        LiteralKind::String(_) => " string",
+        LiteralKind::Str(_) => " string",
         LiteralKind::Char(_) => " character",
         LiteralKind::Float(_) => " float",
         _ => "",

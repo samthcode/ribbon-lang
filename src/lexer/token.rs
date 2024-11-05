@@ -50,8 +50,8 @@ impl Token {
     /// "Null Denotation" - Called when a Token is found to be at the leftmost position in an expression (e.g. the "A" in A + B)
     pub fn nud(&self, p: &mut Parser) -> Result<AstNode, Error> {
         match &self.kind {
-            TokenKind::Literal(LiteralKind::String(str)) => Ok(AstNode::new(
-                AstNodeKind::Literal(LiteralKind::String(str.clone())),
+            TokenKind::Literal(LiteralKind::Str(str)) => Ok(AstNode::new(
+                AstNodeKind::Literal(LiteralKind::Str(str.clone())),
                 self.span,
             )),
             TokenKind::Identifier(name) => {
@@ -345,7 +345,7 @@ impl TryFrom<&str> for TokenKind {
 pub enum LiteralKind {
     Integer(i64),
     Float(f64),
-    String(String),
+    Str(String),
     Char(char),
     Bool(bool),
 }
@@ -357,7 +357,7 @@ impl LiteralKind {
         match self {
             Integer(_) => matches!(other, Integer(_)),
             Float(_) => matches!(other, Float(_)),
-            String(_) => matches!(other, String(_)),
+            Str(_) => matches!(other, Str(_)),
             Char(_) => matches!(other, Char(_)),
             Bool(_) => matches!(other, Bool(_)),
         }
