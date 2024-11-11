@@ -203,3 +203,24 @@ impl Parser {
         self.tokens.get(usize::try_from(self.ind - 1).unwrap_or(0))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::{token::LiteralKind, Lexer};
+    use ast::{AstNode, AstNodeKind};
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn integer_literal() {
+        assert_eq!(
+            Parser::new(Lexer::new("10").lex().unwrap().as_slice())
+                .parse()
+                .unwrap(),
+            RootAstNode::new(vec![AstNode::new(
+                AstNodeKind::Literal(LiteralKind::Integer(10)),
+                Span::with_values(1, 1, 1, 2)
+            )])
+        );
+    }
+}

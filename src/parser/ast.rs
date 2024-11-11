@@ -8,7 +8,7 @@ use crate::{
     pos::Span,
 };
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq)]
 /// The root node of a program.
 ///
 /// This contains a list of nodes which represent each expression/statement of a Ribbon program.
