@@ -54,6 +54,10 @@ impl Token {
                 AstNodeKind::Literal(LiteralKind::Str(str.clone())),
                 self.span,
             )),
+            TokenKind::Literal(LiteralKind::Integer(int)) => Ok(AstNode::new(
+                AstNodeKind::Literal(LiteralKind::Integer(*int)),
+                self.span,
+            )),
             TokenKind::Identifier(name) => {
                 Ok(AstNode::new(AstNodeKind::Ident(name.clone()), self.span))
             }
