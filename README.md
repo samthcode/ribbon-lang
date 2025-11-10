@@ -1,36 +1,20 @@
 # The Ribbon Programming Language (WIP)
 
-A language made for fun and designed to be very easy to write. It is made in Rust, designed to be easy to write, and is inspired by languages such as [Nim](https://nim-lang.org/) and other functional languages.
+The Ribbon Programming Language is designed to be pleasing to develop in, including modern features and sugar which elevate the developer experience.
 
-Currently, this language is incomplete.
+Ribbon is just in its infancy at this stage and is not even fully concepted, let alone anywhere near completion.
 
-## Current Stage
+## Unfinalised Code Examples
 
-At current, work on the parser is just about to begin.
-
-## Code Examples
-
-### Hello World (not final)
-
-```ribbon
-"Hello World".print
+```rust
+const add := (i32, i32) -> i32 {
+    (10, b) => 100 + b,
+    (a, 20) => a.pow(2) + 20,
+    (a, b) => a + b
+};
+const main := () -> {
+    a := 10;
+    b := 20;
+    add(a, b).assert_eq(120)
+};
 ```
-
-### Factorial (not final)
-
-```ribbon
-factorial := (n:u32) => {
-    n <= 1 ? return n : n * factorial n-1
-}
-```
-
-## Aspirations
-
-**This language aims to be:**
-
-- Functional
-- Immutable by default
-- Declarative
-- Strongly and statically typed
-
-This will be a 'toy' language really, not anything made for production code, but I hope it will be very enjoyable to write in and fun to use!
