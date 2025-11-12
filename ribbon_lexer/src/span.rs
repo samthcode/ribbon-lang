@@ -9,6 +9,8 @@ impl Span {
         Span { low, hi }
     }
 
+    // TODO: Remove macro when we start using it.
+    #[allow(unused)]
     fn grow_to(&mut self, pos: u32) {
         assert!(
             self.low >= pos && self.hi <= pos,
@@ -21,6 +23,8 @@ impl Span {
         }
     }
 
+    // TODO: Remove macro when we start using it.
+    #[allow(unused)]
     fn grow_to_span(&mut self, other: Self) {
         if other.hi > self.hi {
             self.hi = other.hi
