@@ -9,28 +9,28 @@ pub mod span;
 
 pub struct Lexer<'a> {
     cursor: Cursor<'a>,
-    curr: Option<char>,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
-        let mut lexer = Lexer {
+        Lexer {
             cursor: Cursor::new(source),
-            curr: None,
-        };
-        // We want tok positions to be zero-indexed
-        lexer.next_char();
-        lexer.cursor.pos = 0;
-        lexer
+        }
     }
 
     /// Returns the next lexed token
     /// The Lexer is lazy so it only lexes one token at a time as needed
     fn next_token(&mut self) -> Option<Tok> {
-        let res = if let Some(c) = self.curr {
+        let res = if let Some(c) = self.curr_char() {
             match c {
+                // Whitespace
+                c if is_whitespace(&c) => {
+                    self.next_char();
+                    self.next_token()
+                }
                 // Identifiers and keywords
                 c if is_ident_head(&c) => Some(self.tok_ident()),
+                // Operators
                 c if is_op_head(&c) => Some(self.tok_op()),
                 _ => todo!(),
             }
@@ -41,10 +41,9 @@ impl<'a> Lexer<'a> {
         res
     }
 
-    /// Advances the cursor to the source characters and sets `self.curr` to the new character
-    /// Always use this instead of calling `self.cursor.next()` in order to maintain `self.curr`
+    /// Advances the source character cursor
     fn next_char(&mut self) {
-        self.curr = self.cursor.next()
+        self.cursor.next();
     }
 
     /// Peeks the cursor to the source characters
@@ -52,9 +51,14 @@ impl<'a> Lexer<'a> {
         self.cursor.peek()
     }
 
+    /// Returns the current character under the cursor
+    fn curr_char(&self) -> Option<char> {
+        self.cursor.curr
+    }
+
     /// Creates an identifier or keyword token
     fn tok_ident(&mut self) -> Tok {
-        let mut res = self.curr.unwrap().to_string();
+        let mut res = self.curr_char().unwrap().to_string();
         let start = self.cursor.pos;
         while let Some(c) = self.peek_char() {
             if is_ident_tail(c) {
@@ -76,7 +80,7 @@ impl<'a> Lexer<'a> {
     /// This function is greedy, it takes the largest valid operator it can make
     /// - these may need to be split up once there is more context.
     fn tok_op(&mut self) -> Tok {
-        if let Some(c) = self.curr {
+        if let Some(c) = self.curr_char() {
             use TokKind::*;
             let mut kind = match c {
                 '+' => Plus,
@@ -125,10 +129,25 @@ impl<'a> Lexer<'a> {
     }
 }
 
-impl<'a> Iterator for Lexer<'a> {
+pub struct TokenStream<'a> {
+    lexer: Lexer<'a>,
+}
+
+impl<'a> Iterator for TokenStream<'a> {
     type Item = Tok;
+
     fn next(&mut self) -> Option<Self::Item> {
-        self.next_token()
+        self.lexer.next_token()
+    }
+}
+
+impl<'a> IntoIterator for Lexer<'a> {
+    type Item = Tok;
+
+    type IntoIter = TokenStream<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Self::IntoIter { lexer: self }
     }
 }
 
@@ -136,14 +155,21 @@ impl<'a> Iterator for Lexer<'a> {
 pub struct Cursor<'a> {
     chars: Peekable<Chars<'a>>,
     pos: u32,
+    curr: Option<char>,
 }
 
 impl<'a> Cursor<'a> {
     fn new(source: &'a str) -> Self {
-        Cursor {
+        let mut cursor = Cursor {
             chars: source.chars().peekable(),
             pos: 0,
-        }
+            curr: None,
+        };
+        // Start on the first character
+        cursor.next();
+        // We want tokens to be zero-indexed
+        cursor.pos = 0;
+        cursor
     }
 
     fn peek(&mut self) -> Option<&char> {
@@ -155,21 +181,22 @@ impl<'a> Iterator for Cursor<'a> {
     type Item = char;
     fn next(&mut self) -> Option<Self::Item> {
         self.pos += 1;
-        self.chars.next()
+        self.curr = self.chars.next();
+        self.curr
     }
 }
 
 #[inline(always)]
-pub fn is_ident_head(c: &char) -> bool {
+fn is_ident_head(c: &char) -> bool {
     c.is_alphabetic() || *c == '_'
 }
 
 #[inline(always)]
-pub fn is_ident_tail(c: &char) -> bool {
+fn is_ident_tail(c: &char) -> bool {
     c.is_alphanumeric() || *c == '_'
 }
 
-pub fn is_op_head(c: &char) -> bool {
+fn is_op_head(c: &char) -> bool {
     match c {
         '+' | '-' | '*' | '/' | '%' | '(' | ')' | '[' | ']' | '{' | '}' | '.' | ':' | ';' | '@'
         | '#' | '~' | '&' | '|' | '!' | '=' | '$' | '<' | '>' => true,
@@ -177,8 +204,33 @@ pub fn is_op_head(c: &char) -> bool {
     }
 }
 
-pub fn is_op_tail(c: &char) -> bool {
+fn is_op_tail(c: &char) -> bool {
     matches!(c, '=' | '&' | '|' | ':' | '.' | '<' | '>' | '?')
+}
+
+/// Returns true if the given character is considered whitespace
+/// This is lifted from Rust's definition of whitespace
+/// https://github.com/rust-lang/rust/blob/main/compiler/rustc_lexer/src/lib.rs
+fn is_whitespace(c: &char) -> bool {
+    matches!(
+        *c,
+        // End-of-line characters
+        | '\u{000A}' // line feed (\n)
+        | '\u{000B}' // vertical tab
+        | '\u{000C}' // form feed
+        | '\u{000D}' // carriage return (\r)
+        | '\u{0085}' // next line (from latin1)
+        | '\u{2028}' // LINE SEPARATOR
+        | '\u{2029}' // PARAGRAPH SEPARATOR
+
+        // `Default_Ignorable_Code_Point` characters
+        | '\u{200E}' // LEFT-TO-RIGHT MARK
+        | '\u{200F}' // RIGHT-TO-LEFT MARK
+
+        // Horizontal space characters
+        | '\u{0009}'   // tab (\t)
+        | '\u{0020}' // space
+    )
 }
 
 #[cfg(test)]
@@ -211,5 +263,11 @@ mod test {
             tok!(TildeQuestion, 5, 6),
             tok!(ShiftLEq, 7, 9)
         )
+    }
+
+    #[test]
+    fn whitespace() {
+        test!("     ident", tok!(Ident("ident".to_string()), 5, 9));
+        test!("     \n\r\tident", tok!(Ident("ident".to_string()), 8, 12))
     }
 }
