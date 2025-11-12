@@ -17,69 +17,132 @@ pub enum TokKind {
     Ident(Box<String>),
 
     // Keywords
-    KwConst,  // `const`
-    KwStruct, // `struct`
-    KwEnum,   // `enum`
-    KwReturn, // `return`
-    KwUse,    // `use`
-    KwFor,    // `for`
-    KwWhile,  // `while`
+    /// `const`
+    KwConst,
+    /// `struct`
+    KwStruct,
+    /// `enum`
+    KwEnum,
+    /// `return`
+    KwReturn,
+    /// `use`
+    KwUse,
+    /// `for`
+    KwFor,
+    /// `while`
+    KwWhile,
 
     // Literals
-    LitInt(i64),         // e.g. `42`
-    LitStr(Box<String>), // e.g. `"Hello World!"`
-    LitFloat(i64),       // e.g. `42.0`
+    /// e.g. `42`
+    LitInt(i64),
+    /// e.g. `"Hello World!"`
+    LitStr(Box<String>),
+    /// e.g. `42.0`
+    LitFloat(i64),
 
     // Single-Character Operators
-    Plus,  // `+`
-    Minus, // `-`
-    Mul,   // `*`
-    Div,   // `/`
-    Mod,   // `%`
+    /// `+`
+    Plus,
+    /// `-`
+    Minus,
+    /// `*`
+    Mul,
+    /// `/`
+    Div,
+    /// `%`
+    Mod,
 
-    LParen,  // `(`
-    RParen,  // `)`
-    LSquare, // `[`
-    RSquare, // `]`
-    LCurly,  // `{`
-    RCurly,  // `}`
+    /// `(`
+    LParen,
+    /// `)`
+    RParen,
+    /// `[`
+    LSquare,
+    /// `]`
+    RSquare,
+    /// `{`
+    LCurly,
+    /// `}`
+    RCurly,
 
-    Dot,   // `.`
-    Colon, // `:`
-    Semi,  // `;`
-    At,    // `@`
-    Hash,  // `#`
-    Tilde, // `~`
+    /// `.`
+    Dot,
+    /// `:`
+    Colon,
+    /// `;`
+    Semi,
+    /// `@`
+    At,
+    /// `#`
+    Hash,
+    /// `~`
+    Tilde,
 
-    BitAnd, // `&`
-    BitOr,  // `|`
+    /// `&`
+    Amp,
+    /// `|`
+    Pipe,
 
-    Not, // `!`
+    /// `!`
+    Bang,
 
-    Eq, // `=`
+    /// `=`
+    Eq,
 
-    Dollar, // `$`
+    /// `$`
+    Dollar,
 
-    // Multi-Character Operators
-    EqEq,  // `==`
-    NotEq, // `!=`
+    // Two-Character Operators
+    /// `==`
+    EqEq,
+    /// `!=`
+    BangEq,
 
-    AndEq,   // `&=`
-    OrEq,    // `|=`
-    PusEq,   // `+=`
-    MinusEq, // -=
-    MulEq,   // `*=`
-    DivEq,   // `/=`
-    DotEq,   // `.=`
+    /// `&=`
+    AmpEq,
+    /// `|=`
+    PipeEq,
+    /// `+=`
+    PusEq,
+    /// -=
+    MinusEq,
+    /// `*=`
+    MulEq,
+    /// `/=`
+    DivEq,
+    /// `.=`
+    DotEq,
 
-    And, // `&&`
-    Or,  // `||`
+    /// `&&`
+    And,
+    /// `||`
+    Or,
 
-    Path,  // `::`
-    Range, // `..` or `..=`
+    /// `::`
+    Path,
+    /// `..`
+    DotDot,
 
-    ColonGt, // `:>`
-    TildeGt, // `~>`
+    /// `:>`
+    ColonGt,
+    /// `~>`
+    TildeGt,
+
+    /// `<<`
+    ShiftL,
+    /// `>>`
+    ShiftR,
+
+    // Three-Character Operators
+    /// `&&=`
+    AndEq,
+    /// `||=`
+    OrEq,
+
+    /// `<<=`
+    ShiftLEq,
+    /// `>>=`
+    ShiftREq,
 }
 
 macro_rules! tok {
