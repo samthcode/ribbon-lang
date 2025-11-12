@@ -24,10 +24,14 @@ impl<'a> Lexer<'a> {
         lexer
     }
 
+    /// Returns the next lexed token
+    /// The Lexer is lazy so it only lexes one token at a time as needed
     fn next_token(&mut self) -> Option<Tok> {
         let res = if let Some(c) = self.curr {
             match c {
+                // Identifiers and keywords
                 c if is_ident_head(&c) => Some(self.tok_ident()),
+                c if is_op_head(&c) => Some(self.tok_op()),
                 _ => todo!(),
             }
         } else {
@@ -37,15 +41,18 @@ impl<'a> Lexer<'a> {
         res
     }
 
-    /// Always use this instead of calling `self.cursor.next()` in order to maintain self.curr
+    /// Advances the cursor to the source characters and sets `self.curr` to the new character
+    /// Always use this instead of calling `self.cursor.next()` in order to maintain `self.curr`
     fn next_char(&mut self) {
         self.curr = self.cursor.next()
     }
 
+    /// Peeks the cursor to the source characters
     fn peek_char(&mut self) -> Option<&char> {
         self.cursor.peek()
     }
 
+    /// Creates an identifier or keyword token
     fn tok_ident(&mut self) -> Tok {
         let mut res = self.curr.unwrap().to_string();
         let start = self.cursor.pos;
@@ -62,7 +69,14 @@ impl<'a> Lexer<'a> {
             }
             self.next_char();
         }
-        tok!(Ident(res), start, self.cursor.pos)
+        tok!(@maybe_kw Ident(res), start, self.cursor.pos)
+    }
+
+    /// Creates an operator
+    /// This function is greedy, it takes the largest valid operator it can make
+    /// - these may need to be split up once there is more context.
+    fn tok_op(&mut self) -> Tok {
+        todo!()
     }
 }
 
@@ -73,6 +87,7 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 
+/// Peekable iterator over the characters of a source
 pub struct Cursor<'a> {
     chars: Peekable<Chars<'a>>,
     pos: u32,
@@ -107,6 +122,14 @@ pub fn is_ident_head(c: &char) -> bool {
 #[inline(always)]
 pub fn is_ident_tail(c: &char) -> bool {
     c.is_alphanumeric() || *c == '_'
+}
+
+pub fn is_op_head(c: &char) -> bool {
+    match c {
+        '+' | '-' | '*' | '/' | '%' | '(' | ')' | '[' | ']' | '{' | '}' | '.' | ':' | ';' | '@'
+        | '#' | '~' | '&' | '|' | '!' | '=' | '$' | '<' | '>' => true,
+        _ => false,
+    }
 }
 
 #[cfg(test)]

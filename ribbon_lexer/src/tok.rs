@@ -21,6 +21,8 @@ pub enum TokKind {
     KwConst,
     /// `struct`
     KwStruct,
+    /// `trait`
+    KwTrait,
     /// `enum`
     KwEnum,
     /// `return`
@@ -92,6 +94,11 @@ pub enum TokKind {
     /// `$`
     Dollar,
 
+    /// `<`
+    Lt,
+    // `>`
+    Gt,
+
     // Two-Character Operators
     /// `==`
     EqEq,
@@ -145,12 +152,39 @@ pub enum TokKind {
     ShiftREq,
 }
 
+impl TokKind {
+    pub fn maybe_ident_to_kw(self) -> Self {
+        use TokKind::*;
+        if let Ident(ref str) = self {
+            match (*str).as_str() {
+                "const" => KwConst,
+                "struct" => KwStruct,
+                "trait" => KwTrait,
+                "enum" => KwEnum,
+                "return" => KwReturn,
+                "use" => KwUse,
+                "for" => KwFor,
+                "while" => KwWhile,
+                _ => self,
+            }
+        } else {
+            panic!("Called maybe_ident_to_kw on non-identifier.")
+        }
+    }
+}
+
 macro_rules! tok {
     ($tok_kind:ident, $start:expr) => {
         Tok::new(TokKind::$tok_kind, ($start, $start).into())
     };
     (Ident($str:expr), $start:expr) => {
         Tok::new(TokKind::Ident(Box::new($str)), ($start, $start).into())
+    };
+    (@maybe_kw Ident($str:expr), $start:expr) => {
+        Tok::new(
+            TokKind::Ident(Box::new($str)).maybe_ident_to_kw(),
+            ($start, $start).into(),
+        )
     };
     ($tok_kind:ident($e:expr), $start:expr) => {
         Tok::new(TokKind::$tok_kind($e), ($start, $start).into())
@@ -161,6 +195,12 @@ macro_rules! tok {
     };
     (Ident($str:expr), $start:expr, $end:expr) => {
         Tok::new(TokKind::Ident(Box::new($str)), ($start, $end).into())
+    };
+    (@maybe_kw Ident($str:expr), $start:expr, $end:expr) => {
+        Tok::new(
+            TokKind::Ident(Box::new($str)).maybe_ident_to_kw(),
+            ($start, $end).into(),
+        )
     };
     ($tok_kind:ident($e:expr), $start:expr, $end:expr) => {
         Tok::new(TokKind::$tok_kind($e), ($start, $end).into())
