@@ -76,7 +76,52 @@ impl<'a> Lexer<'a> {
     /// This function is greedy, it takes the largest valid operator it can make
     /// - these may need to be split up once there is more context.
     fn tok_op(&mut self) -> Tok {
-        todo!()
+        if let Some(c) = self.curr {
+            use TokKind::*;
+            let mut kind = match c {
+                '+' => Plus,
+                '-' => Minus,
+                '*' => Mul,
+                '/' => Div,
+                '%' => Mod,
+                '(' => LParen,
+                ')' => RParen,
+                '[' => LSquare,
+                ']' => RSquare,
+                '{' => LCurly,
+                '}' => RCurly,
+                '.' => Dot,
+                ':' => Colon,
+                ';' => Semi,
+                '@' => At,
+                '#' => Hash,
+                '~' => Tilde,
+                '&' => Amp,
+                '|' => Pipe,
+                '!' => Bang,
+                '=' => Eq,
+                '$' => Dollar,
+                '<' => Lt,
+                '>' => Gt,
+                _ => panic!("Called tok_op with cursor not over operator character."),
+            };
+            let start = self.cursor.pos;
+            let mut end = start;
+            while let Some(c) = self.peek_char() {
+                if is_op_tail(c)
+                    && let Some(new_kind) = kind.try_expand_op(c)
+                {
+                    self.next_char();
+                    end = self.cursor.pos;
+                    kind = new_kind
+                } else {
+                    break;
+                }
+            }
+            Tok::new(kind, (start, end).into())
+        } else {
+            panic!("Called tok_op when cursor is not on a character.")
+        }
     }
 }
 
@@ -132,6 +177,10 @@ pub fn is_op_head(c: &char) -> bool {
     }
 }
 
+pub fn is_op_tail(c: &char) -> bool {
+    matches!(c, '=' | '&' | '|' | ':' | '.' | '<' | '>' | '?')
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -149,5 +198,18 @@ mod test {
         test!("hello", tok!(Ident("hello".to_string()), 0, 4));
         test!("_hello", tok!(Ident("_hello".to_string()), 0, 5));
         test!("t1_var_?", tok!(Ident("t1_var_?".to_string()), 0, 7));
+    }
+
+    #[test]
+    fn operators() {
+        test!(
+            "+=+-/~?<<=",
+            tok!(PlusEq, 0, 1),
+            tok!(Plus, 2),
+            tok!(Minus, 3),
+            tok!(Div, 4),
+            tok!(TildeQuestion, 5, 6),
+            tok!(ShiftLEq, 7, 9)
+        )
     }
 }

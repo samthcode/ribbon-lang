@@ -104,19 +104,25 @@ pub enum TokKind {
     EqEq,
     /// `!=`
     BangEq,
+    /// `<=`
+    LtEq,
+    /// `>=`
+    GtEq,
 
     /// `&=`
     AmpEq,
     /// `|=`
     PipeEq,
     /// `+=`
-    PusEq,
+    PlusEq,
     /// -=
     MinusEq,
     /// `*=`
     MulEq,
     /// `/=`
     DivEq,
+    /// `%=`
+    ModEq,
     /// `.=`
     DotEq,
 
@@ -135,6 +141,9 @@ pub enum TokKind {
     /// `~>`
     TildeGt,
 
+    /// `~?`
+    TildeQuestion,
+
     /// `<<`
     ShiftL,
     /// `>>`
@@ -150,6 +159,9 @@ pub enum TokKind {
     ShiftLEq,
     /// `>>=`
     ShiftREq,
+
+    /// `DotDotEq`
+    DotDotEq,
 }
 
 impl TokKind {
@@ -169,6 +181,38 @@ impl TokKind {
             }
         } else {
             panic!("Called maybe_ident_to_kw on non-identifier.")
+        }
+    }
+
+    pub fn try_expand_op(&self, c: &char) -> Option<Self> {
+        use TokKind::*;
+        match (self, *c) {
+            (Plus, '=') => Some(PlusEq),
+            (Minus, '=') => Some(MinusEq),
+            (Mul, '=') => Some(MulEq),
+            (Div, '=') => Some(DivEq),
+            (Mod, '=') => Some(ModEq),
+            (Dot, '=') => Some(DotEq),
+            (Colon, '>') => Some(ColonGt),
+            (Tilde, '>') => Some(TildeGt),
+            (Tilde, '?') => Some(TildeQuestion),
+            (Amp, '=') => Some(AmpEq),
+            (Amp, '&') => Some(And),
+            (Pipe, '=') => Some(PipeEq),
+            (Pipe, '|') => Some(Or),
+            (Bang, '=') => Some(BangEq),
+            (Eq, '=') => Some(EqEq),
+            (Lt, '=') => Some(LtEq),
+            (Lt, '<') => Some(ShiftL),
+            (Gt, '=') => Some(GtEq),
+            (Gt, '>') => Some(ShiftR),
+            // To Three-Character
+            (And, '=') => Some(AndEq),
+            (Or, '=') => Some(OrEq),
+            (DotDot, '=') => Some(DotDotEq),
+            (ShiftL, '=') => Some(ShiftLEq),
+            (ShiftR, '=') => Some(ShiftREq),
+            _ => None,
         }
     }
 }
