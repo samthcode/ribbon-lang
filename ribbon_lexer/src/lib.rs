@@ -114,7 +114,7 @@ mod test {
     use super::*;
 
     macro_rules! test {
-        ($source:literal, $($tok:expr,)*) => {
+        ($source:literal, $($tok:expr),* $(,)?) => {
             assert_eq!(Lexer::new($source).into_iter().collect::<Vec<Tok>>(), vec![$(
                 $tok,
             )*])
@@ -123,8 +123,8 @@ mod test {
 
     #[test]
     fn ident() {
-        test!("hello", tok!(Ident("hello".to_string()), 0, 4),);
-        test!("_hello", tok!(Ident("_hello".to_string()), 0, 5),);
-        test!("t1_var_?", tok!(Ident("t1_var_?".to_string()), 0, 7),);
+        test!("hello", tok!(Ident("hello".to_string()), 0, 4));
+        test!("_hello", tok!(Ident("_hello".to_string()), 0, 5));
+        test!("t1_var_?", tok!(Ident("t1_var_?".to_string()), 0, 7));
     }
 }
