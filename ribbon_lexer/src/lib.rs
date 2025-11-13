@@ -74,7 +74,7 @@ impl<'a> Lexer<'a> {
             }
             self.next_char();
         }
-        tok!(@maybe_kw Ident(res), start, self.cursor.pos)
+        tok!(@maybe_conv Ident(res), start, self.cursor.pos)
     }
 
     fn tok_str(&mut self) -> Tok {
@@ -318,5 +318,11 @@ mod test {
             tok!(LitUnclosedStr("Hello World".to_string(), Unclosed), 0, 11)
         );
         test!("\"\\t\"", tok!(LitStr("\t".to_string()), 0, 3))
+    }
+
+    #[test]
+    fn bools() {
+        test!("true", tok!(LitBool(true), 0, 3));
+        test!("false", tok!(LitBool(false), 0, 4))
     }
 }

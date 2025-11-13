@@ -15,7 +15,7 @@ impl Tok {
 #[derive(Debug, Clone, PartialEq)]
 pub enum LitUnclosedStrKind {
     Unclosed,
-    UnterminatedEscape
+    UnterminatedEscape,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -49,7 +49,9 @@ pub enum TokKind {
     /// This is given to the parser so that it can provide better error messages
     LitUnclosedStr(Box<String>, LitUnclosedStrKind),
     /// e.g. `42.0`
-    LitFloat(i64),
+    LitFloat(f64),
+    /// true or false
+    LitBool(bool),
 
     // Single-Character Operators
     /// `+`
@@ -174,7 +176,7 @@ pub enum TokKind {
 }
 
 impl TokKind {
-    pub fn maybe_ident_to_kw(self) -> Self {
+    pub fn maybe_ident_to_kw_or_bool(self) -> Self {
         use TokKind::*;
         if let Ident(ref str) = self {
             match (*str).as_str() {
@@ -186,10 +188,12 @@ impl TokKind {
                 "use" => KwUse,
                 "for" => KwFor,
                 "while" => KwWhile,
+                "true" => LitBool(true),
+                "false" => LitBool(false),
                 _ => self,
             }
         } else {
-            panic!("Called maybe_ident_to_kw on non-identifier.")
+            panic!("Called maybe_ident_to_kw_or_bool on non-identifier.")
         }
     }
 
@@ -234,9 +238,9 @@ macro_rules! tok {
     (Ident($str:expr), $start:expr$(, $end:expr)?) => {
         Tok::new(TokKind::Ident(Box::new($str)), ($start$(, $end)?).into())
     };
-    (@maybe_kw Ident($str:expr), $start:expr$(, $end:expr)?) => {
+    (@maybe_conv Ident($str:expr), $start:expr$(, $end:expr)?) => {
         Tok::new(
-            TokKind::Ident(Box::new($str)).maybe_ident_to_kw(),
+            TokKind::Ident(Box::new($str)).maybe_ident_to_kw_or_bool(),
             ($start$(, $end)?).into(),
         )
     };
