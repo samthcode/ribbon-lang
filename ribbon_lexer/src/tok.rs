@@ -39,6 +39,9 @@ pub enum TokKind {
     LitInt(i64),
     /// e.g. `"Hello World!"`
     LitStr(Box<String>),
+    /// e.g. `"Hello World`
+    /// This is given to the parser so that it can provide better error messages
+    LitUnclosedStr(Box<String>),
     /// e.g. `42.0`
     LitFloat(i64),
 
@@ -218,35 +221,26 @@ impl TokKind {
 }
 
 macro_rules! tok {
-    ($tok_kind:ident, $start:expr) => {
-        Tok::new(TokKind::$tok_kind, ($start, $start).into())
-    };
-    (Ident($str:expr), $start:expr) => {
-        Tok::new(TokKind::Ident(Box::new($str)), ($start, $start).into())
-    };
-    (@maybe_kw Ident($str:expr), $start:expr) => {
-        Tok::new(
-            TokKind::Ident(Box::new($str)).maybe_ident_to_kw(),
-            ($start, $start).into(),
-        )
-    };
-    ($tok_kind:ident($e:expr), $start:expr) => {
-        Tok::new(TokKind::$tok_kind($e), ($start, $start).into())
+    ($tok_kind:ident, $start:expr$(, $end:expr)?) => {
+        Tok::new(TokKind::$tok_kind, ($start$(, $end)?).into())
     };
 
-    ($tok_kind:ident, $start:expr, $end:expr) => {
-        Tok::new(TokKind::$tok_kind, ($start, $end).into())
+    (Ident($str:expr), $start:expr$(, $end:expr)?) => {
+        Tok::new(TokKind::Ident(Box::new($str)), ($start$(, $end)?).into())
     };
-    (Ident($str:expr), $start:expr, $end:expr) => {
-        Tok::new(TokKind::Ident(Box::new($str)), ($start, $end).into())
-    };
-    (@maybe_kw Ident($str:expr), $start:expr, $end:expr) => {
+    (@maybe_kw Ident($str:expr), $start:expr$(, $end:expr)?) => {
         Tok::new(
             TokKind::Ident(Box::new($str)).maybe_ident_to_kw(),
-            ($start, $end).into(),
+            ($start$(, $end)?).into(),
         )
     };
-    ($tok_kind:ident($e:expr), $start:expr, $end:expr) => {
-        Tok::new(TokKind::$tok_kind($e), ($start, $end).into())
+    (LitStr($str:expr), $start:expr$(, $end:expr)?) => {
+        Tok::new(TokKind::LitStr(Box::new($str)), ($start$(, $end)?).into())
     };
+    (LitUnclosedStr($str:expr), $start:expr$(, $end:expr)?) => {
+        Tok::new(TokKind::LitUnclosedStr(Box::new($str)), ($start$(, $end)?).into())
+    };
+    ($tok_kind:ident($e:expr), $start:expr$(, $end:expr)?) => {
+        Tok::new(TokKind::$tok_kind($e), ($start$(, $end)?).into())
+    }
 }
