@@ -8,31 +8,6 @@ impl Span {
     fn new(low: u32, hi: u32) -> Self {
         Span { low, hi }
     }
-
-    // TODO: Remove macro when we start using it.
-    #[allow(unused)]
-    fn grow_to(&mut self, pos: u32) {
-        assert!(
-            self.low >= pos && self.hi <= pos,
-            "pos must not lie within span"
-        );
-        if self.low > pos {
-            self.low = pos
-        } else {
-            self.hi = pos;
-        }
-    }
-
-    // TODO: Remove macro when we start using it.
-    #[allow(unused)]
-    fn grow_to_span(&mut self, other: Self) {
-        if other.hi > self.hi {
-            self.hi = other.hi
-        }
-        if other.low < self.low {
-            self.low = other.low
-        }
-    }
 }
 
 impl From<u32> for Span {
