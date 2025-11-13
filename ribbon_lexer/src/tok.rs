@@ -13,6 +13,12 @@ impl Tok {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum LitUnclosedStrKind {
+    Unclosed,
+    UnterminatedEscape
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokKind {
     Ident(Box<String>),
 
@@ -41,7 +47,7 @@ pub enum TokKind {
     LitStr(Box<String>),
     /// e.g. `"Hello World`
     /// This is given to the parser so that it can provide better error messages
-    LitUnclosedStr(Box<String>),
+    LitUnclosedStr(Box<String>, LitUnclosedStrKind),
     /// e.g. `42.0`
     LitFloat(i64),
 
@@ -237,8 +243,8 @@ macro_rules! tok {
     (LitStr($str:expr), $start:expr$(, $end:expr)?) => {
         Tok::new(TokKind::LitStr(Box::new($str)), ($start$(, $end)?).into())
     };
-    (LitUnclosedStr($str:expr), $start:expr$(, $end:expr)?) => {
-        Tok::new(TokKind::LitUnclosedStr(Box::new($str)), ($start$(, $end)?).into())
+    (LitUnclosedStr($str:expr, $kind:ident), $start:expr$(, $end:expr)?) => {
+        Tok::new(TokKind::LitUnclosedStr(Box::new($str), tok::LitUnclosedStrKind::$kind), ($start$(, $end)?).into())
     };
     ($tok_kind:ident($e:expr), $start:expr$(, $end:expr)?) => {
         Tok::new(TokKind::$tok_kind($e), ($start$(, $end)?).into())
