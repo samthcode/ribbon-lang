@@ -17,7 +17,7 @@ impl Tok {
 impl Display for Tok {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}-{}] ", self.span.low, self.span.hi)?;
-        writeln!(
+        write!(
             f,
             "{}",
             match &self.kind {
