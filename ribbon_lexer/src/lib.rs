@@ -28,6 +28,7 @@ impl<'a> Lexer<'a> {
                     self.next_char();
                     self.next_token()
                 }
+                '"' => Some(self.tok_str()),
                 // Identifiers and keywords
                 c if is_ident_head(&c) => Some(self.tok_ident()),
                 // Operators
@@ -42,8 +43,8 @@ impl<'a> Lexer<'a> {
     }
 
     /// Advances the source character cursor
-    fn next_char(&mut self) {
-        self.cursor.next();
+    fn next_char(&mut self) -> Option<char> {
+        self.cursor.next()
     }
 
     /// Peeks the cursor to the source characters
@@ -74,6 +75,41 @@ impl<'a> Lexer<'a> {
             self.next_char();
         }
         tok!(@maybe_kw Ident(res), start, self.cursor.pos)
+    }
+
+    fn tok_str(&mut self) -> Tok {
+        assert!(
+            matches!(self.curr_char(), Some('"')),
+            "Called tok_str while cursor not over double quote"
+        );
+        let mut res = String::new();
+        let start = self.cursor.pos;
+        while let Some(c) = self.next_char() {
+            match c {
+                '"' => return tok!(LitStr(res), start, self.cursor.pos),
+                '\\' => match self.next_char() {
+                    Some('\\') => res.push('\\'),
+                    Some('"') => res.push('"'),
+                    Some('n') => res.push('\n'),
+                    Some('r') => res.push('\r'),
+                    Some('t') => res.push('\t'),
+                    Some('0') => res.push('\0'),
+                    None => {
+                        // Note that the first `\` of the escape isn't appended to the string
+                        // This may be changed in the future depending on what we need
+                        return tok!(
+                            LitUnclosedStr(res, UnterminatedEscape),
+                            start,
+                            self.cursor.pos
+                        );
+                    }
+                    _ => res.push(c),
+                },
+                _ => res.push(c),
+            }
+        }
+        // The current position is past the end of the file (on the None character) so we need to bring it back
+        tok!(LitUnclosedStr(res, Unclosed), start, self.cursor.pos - 1)
     }
 
     /// Creates an operator
@@ -269,5 +305,18 @@ mod test {
     fn whitespace() {
         test!("     ident", tok!(Ident("ident".to_string()), 5, 9));
         test!("     \n\r\tident", tok!(Ident("ident".to_string()), 8, 12))
+    }
+
+    #[test]
+    fn strings() {
+        test!(
+            "\"Hello World\"",
+            tok!(LitStr("Hello World".to_string()), 0, 12)
+        );
+        test!(
+            "\"Hello World",
+            tok!(LitUnclosedStr("Hello World".to_string(), Unclosed), 0, 11)
+        );
+        test!("\"\\t\"", tok!(LitStr("\t".to_string()), 0, 3))
     }
 }
