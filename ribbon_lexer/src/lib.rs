@@ -305,6 +305,7 @@ mod test {
     #[test]
     fn whitespace() {
         test!("     ident", tok!(Ident("ident".to_string()), 5, 9));
+        test!("     ident ()", tok!(Ident("ident".to_string()), 5, 9), tok!(Op(OpKind::LParen), 11), tok!(Op(OpKind::RParen), 12));
         test!("     \n\r\tident", tok!(Ident("ident".to_string()), 8, 12))
     }
 
