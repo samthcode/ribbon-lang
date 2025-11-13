@@ -26,7 +26,7 @@ impl<'a> Lexer<'a> {
                 // Whitespace
                 c if is_whitespace(&c) => {
                     self.next_char();
-                    self.next_token()
+                    return self.next_token()
                 }
                 '"' => Some(self.tok_str()),
                 // Identifiers and keywords
