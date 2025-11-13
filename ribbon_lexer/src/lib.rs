@@ -98,7 +98,7 @@ impl<'a> Lexer<'a> {
                         // Note that the first `\` of the escape isn't appended to the string
                         // This may be changed in the future depending on what we need
                         return tok!(
-                            LitUnclosedStr(res, UnterminatedEscape),
+                            LitInvalidStr(res, UnterminatedEscape),
                             start,
                             self.cursor.pos
                         );
@@ -109,7 +109,7 @@ impl<'a> Lexer<'a> {
             }
         }
         // The current position is past the end of the file (on the None character) so we need to bring it back
-        tok!(LitUnclosedStr(res, Unclosed), start, self.cursor.pos - 1)
+        tok!(LitInvalidStr(res, Unclosed), start, self.cursor.pos - 1)
     }
 
     /// Creates an operator
@@ -315,7 +315,7 @@ mod test {
         );
         test!(
             "\"Hello World",
-            tok!(LitUnclosedStr("Hello World".to_string(), Unclosed), 0, 11)
+            tok!(LitInvalidStr("Hello World".to_string(), Unclosed), 0, 11)
         );
         test!("\"\\t\"", tok!(LitStr("\t".to_string()), 0, 3))
     }
