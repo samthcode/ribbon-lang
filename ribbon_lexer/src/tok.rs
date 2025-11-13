@@ -17,73 +17,104 @@ impl Tok {
 impl Display for Tok {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}-{}] ", self.span.low, self.span.hi)?;
-        let res = match &self.kind {
-            TokKind::Ident(i) => format!("ident:{}", *i),
-            TokKind::KwConst => "kw:const".to_string(),
-            TokKind::KwStruct => "kw:struct".to_string(),
-            TokKind::KwTrait => "kw:trait".to_string(),
-            TokKind::KwEnum => "kw:enum".to_string(),
-            TokKind::KwReturn => "kw:return".to_string(),
-            TokKind::KwUse => "kw:use".to_string(),
-            TokKind::KwFor => "kw:for".to_string(),
-            TokKind::KwWhile => "kw:while".to_string(),
-            TokKind::LitInt(i) => format!("int:{}", i),
-            TokKind::LitStr(s) => format!("str:{}", s),
-            TokKind::LitInvalidStr(s, kind) => match kind {
-                LitInvalidStrKind::Unclosed => format!("invalid-str:{}(unclosed)", s),
-                LitInvalidStrKind::UnterminatedEscape => {
-                    format!("invalid-str:{}(unterminated escape", s)
-                }
-            },
-            TokKind::LitFloat(f) => format!("float:{}", f),
-            TokKind::LitBool(b) => format!("bool:{}", b),
-            operator => format!("op:\"{}\"", operator.op_symbol())
-        };
-        writeln!(f, "{}", res)
+        writeln!(
+            f,
+            "{}",
+            match &self.kind {
+                TokKind::Ident(i) => format!("ident:{}", *i),
+                TokKind::Kw(kw) => format!("kw:{}", kw.str()),
+                TokKind::Lit(lit) => format!("lit:{}", lit.string()),
+                TokKind::Op(op) => format!("op:\"{}\"", op.str()),
+            }
+        )
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum LitInvalidStrKind {
+pub enum KwKind {
+    /// `const`
+    Const,
+    /// `struct`
+    Struct,
+    /// `trait`
+    Trait,
+    /// `enum`
+    Enum,
+    /// `return`
+    Return,
+    /// `use`
+    Use,
+    /// `for`
+    For,
+    /// `while`
+    While,
+}
+
+impl KwKind {
+    fn str(&self) -> &str {
+        use KwKind::*;
+        match self {
+            Const => "const",
+            Struct => "struct",
+            Trait => "trait",
+            Enum => "enum",
+            Return => "return",
+            Use => "use",
+            For => "for",
+            While => "while",
+        }
+    }
+}
+
+impl Display for KwKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "kw:{}", self.str())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum InvalidStrKind {
     Unclosed,
     UnterminatedEscape,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TokKind {
-    Ident(Box<String>),
-
-    // Keywords
-    /// `const`
-    KwConst,
-    /// `struct`
-    KwStruct,
-    /// `trait`
-    KwTrait,
-    /// `enum`
-    KwEnum,
-    /// `return`
-    KwReturn,
-    /// `use`
-    KwUse,
-    /// `for`
-    KwFor,
-    /// `while`
-    KwWhile,
-
-    // Literals
+pub enum LitKind {
     /// e.g. `42`
-    LitInt(i64),
+    Int(i64),
     /// e.g. `"Hello World!"`
-    LitStr(Box<String>),
+    Str(Box<String>),
     /// e.g. `"Hello World`
     /// This is given to the parser so that it can provide better error messages
-    LitInvalidStr(Box<String>, LitInvalidStrKind),
+    InvalidStr(Box<String>, InvalidStrKind),
     /// e.g. `42.0`
-    LitFloat(f64),
+    Float(f64),
     /// true or false
-    LitBool(bool),
+    Bool(bool),
+}
 
+impl LitKind {
+    fn string(&self) -> String {
+        use LitKind::*;
+        match self {
+            Int(i) => format!("{}", i),
+            Str(s) => format!("\"{}\"", *s),
+            InvalidStr(s, k) => format!(
+                "\"{}\"({})",
+                *s,
+                match k {
+                    InvalidStrKind::Unclosed => "unclosed",
+                    InvalidStrKind::UnterminatedEscape => "unterminated escape",
+                }
+            ),
+            Float(f) => format!("{}", f),
+            Bool(b) => format!("{}", b),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OpKind {
     // Single-Character Operators
     /// `+`
     Plus,
@@ -206,30 +237,65 @@ pub enum TokKind {
     DotDotEq,
 }
 
-impl TokKind {
-    pub fn maybe_ident_to_kw_or_bool(self) -> Self {
-        use TokKind::*;
-        if let Ident(ref str) = self {
-            match (*str).as_str() {
-                "const" => KwConst,
-                "struct" => KwStruct,
-                "trait" => KwTrait,
-                "enum" => KwEnum,
-                "return" => KwReturn,
-                "use" => KwUse,
-                "for" => KwFor,
-                "while" => KwWhile,
-                "true" => LitBool(true),
-                "false" => LitBool(false),
-                _ => self,
-            }
-        } else {
-            panic!("Called maybe_ident_to_kw_or_bool on non-identifier.")
+impl OpKind {
+    pub fn str(&self) -> &str {
+        use OpKind::*;
+        match &self {
+            Plus => "+",
+            Minus => "-",
+            Mul => "*",
+            Div => "/",
+            Mod => "%",
+            LParen => "(",
+            RParen => ")",
+            LSquare => "[",
+            RSquare => "]",
+            LCurly => "{",
+            RCurly => "}",
+            Dot => ".",
+            Colon => ":",
+            Semi => ";",
+            At => "@",
+            Hash => "#",
+            Tilde => "~",
+            Amp => "&",
+            Pipe => "|",
+            Bang => "!",
+            Eq => "=",
+            Dollar => "$",
+            Lt => "<",
+            Gt => ">",
+            EqEq => "==",
+            BangEq => "!=",
+            LtEq => "<=",
+            GtEq => ">=",
+            AmpEq => "&=",
+            PipeEq => "|=",
+            PlusEq => "+=",
+            MinusEq => "-=",
+            MulEq => "*=",
+            DivEq => "/=",
+            ModEq => "%=",
+            DotEq => ".=",
+            And => "&&",
+            Or => "||",
+            Path => "::",
+            DotDot => "..",
+            ColonGt => ":>",
+            TildeGt => "~>",
+            TildeQuestion => "~?",
+            ShiftL => "<<",
+            ShiftR => ">>",
+            AndEq => "&&=",
+            OrEq => "||=",
+            ShiftLEq => "<<=",
+            ShiftREq => ">>=",
+            DotDotEq => "..=",
         }
     }
 
-    pub fn try_expand_op(&self, c: &char) -> Option<Self> {
-        use TokKind::*;
+    pub fn try_expand(&self, c: &char) -> Option<Self> {
+        use OpKind::*;
         match (self, *c) {
             (Plus, '=') => Some(PlusEq),
             (Minus, '=') => Some(MinusEq),
@@ -259,85 +325,64 @@ impl TokKind {
             _ => None,
         }
     }
+}
 
-    pub fn op_symbol(&self) -> &str {
-        match &self {
-            TokKind::Plus => "+",
-            TokKind::Minus => "-",
-            TokKind::Mul => "*",
-            TokKind::Div => "/",
-            TokKind::Mod => "%",
-            TokKind::LParen => "(",
-            TokKind::RParen => ")",
-            TokKind::LSquare => "[",
-            TokKind::RSquare => "]",
-            TokKind::LCurly => "{",
-            TokKind::RCurly => "}",
-            TokKind::Dot => ".",
-            TokKind::Colon => ":",
-            TokKind::Semi => ";",
-            TokKind::At => "@",
-            TokKind::Hash => "#",
-            TokKind::Tilde => "~",
-            TokKind::Amp => "&",
-            TokKind::Pipe => "|",
-            TokKind::Bang => "!",
-            TokKind::Eq => "=",
-            TokKind::Dollar => "$",
-            TokKind::Lt => "<",
-            TokKind::Gt => ">",
-            TokKind::EqEq => "==",
-            TokKind::BangEq => "!=",
-            TokKind::LtEq => "<=",
-            TokKind::GtEq => ">=",
-            TokKind::AmpEq => "&=",
-            TokKind::PipeEq => "|=",
-            TokKind::PlusEq => "+=",
-            TokKind::MinusEq => "-=",
-            TokKind::MulEq => "*=",
-            TokKind::DivEq => "/=",
-            TokKind::ModEq => "%=",
-            TokKind::DotEq => ".=",
-            TokKind::And => "&&",
-            TokKind::Or => "||",
-            TokKind::Path => "::",
-            TokKind::DotDot => "..",
-            TokKind::ColonGt => ":>",
-            TokKind::TildeGt => "~>",
-            TokKind::TildeQuestion => "~?",
-            TokKind::ShiftL => "<<",
-            TokKind::ShiftR => ">>",
-            TokKind::AndEq => "&&=",
-            TokKind::OrEq => "||=",
-            TokKind::ShiftLEq => "<<=",
-            TokKind::ShiftREq => ">>=",
-            TokKind::DotDotEq => "..=",
-            _ => panic!("Called op_symbol on non-operator")
+#[derive(Debug, Clone, PartialEq)]
+pub enum TokKind {
+    Ident(Box<String>),
+
+    Kw(KwKind),
+
+    Lit(LitKind),
+
+    Op(OpKind),
+}
+
+impl TokKind {
+    pub fn maybe_ident_to_kw_or_bool(self) -> Self {
+        use KwKind::*;
+        use TokKind::*;
+        if let Ident(ref str) = self {
+            match (*str).as_str() {
+                "const" => Kw(Const),
+                "struct" => Kw(Struct),
+                "trait" => Kw(Trait),
+                "enum" => Kw(Enum),
+                "return" => Kw(Return),
+                "use" => Kw(Use),
+                "for" => Kw(For),
+                "while" => Kw(While),
+                "true" => Lit(LitKind::Bool(true)),
+                "false" => Lit(LitKind::Bool(false)),
+                _ => self,
+            }
+        } else {
+            panic!("Called maybe_ident_to_kw_or_bool on non-identifier.")
         }
     }
 }
 
 macro_rules! tok {
     ($tok_kind:ident, $start:expr$(, $end:expr)?) => {
-        Tok::new(TokKind::$tok_kind, ($start$(, $end)?).into())
+        tok::Tok::new(tok::TokKind::$tok_kind, ($start$(, $end)?).into())
     };
 
     (Ident($str:expr), $start:expr$(, $end:expr)?) => {
-        Tok::new(TokKind::Ident(Box::new($str)), ($start$(, $end)?).into())
+        tok::Tok::new(tok::TokKind::Ident(Box::new($str)), ($start$(, $end)?).into())
     };
     (@maybe_conv Ident($str:expr), $start:expr$(, $end:expr)?) => {
-        Tok::new(
-            TokKind::Ident(Box::new($str)).maybe_ident_to_kw_or_bool(),
+        tok::Tok::new(
+            tok::TokKind::Ident(Box::new($str)).maybe_ident_to_kw_or_bool(),
             ($start$(, $end)?).into(),
         )
     };
-    (LitStr($str:expr), $start:expr$(, $end:expr)?) => {
-        Tok::new(TokKind::LitStr(Box::new($str)), ($start$(, $end)?).into())
+    (Lit(Str($str:expr)), $start:expr$(, $end:expr)?) => {
+        tok::Tok::new(tok::TokKind::Lit(tok::LitKind::Str(Box::new($str))), ($start$(, $end)?).into())
     };
-    (LitInvalidStr($str:expr, $kind:ident), $start:expr$(, $end:expr)?) => {
-        Tok::new(TokKind::LitInvalidStr(Box::new($str), tok::LitInvalidStrKind::$kind), ($start$(, $end)?).into())
+    (Lit(InvalidStr($str:expr, $kind:ident)), $start:expr$(, $end:expr)?) => {
+        tok::Tok::new(tok::TokKind::Lit(tok::LitKind::InvalidStr(Box::new($str), tok::InvalidStrKind::$kind)), ($start$(, $end)?).into())
     };
     ($tok_kind:ident($e:expr), $start:expr$(, $end:expr)?) => {
-        Tok::new(TokKind::$tok_kind($e), ($start$(, $end)?).into())
+        tok::Tok::new(TokKind::$tok_kind($e), ($start$(, $end)?).into())
     }
 }

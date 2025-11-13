@@ -3,7 +3,7 @@ use std::str::Chars;
 
 #[macro_use]
 pub mod tok;
-pub use tok::{Tok, TokKind};
+pub use tok::{LitKind, OpKind, Tok, TokKind};
 
 pub mod span;
 
@@ -86,7 +86,7 @@ impl<'a> Lexer<'a> {
         let start = self.cursor.pos;
         while let Some(c) = self.next_char() {
             match c {
-                '"' => return tok!(LitStr(res), start, self.cursor.pos),
+                '"' => return tok!(Lit(Str(res)), start, self.cursor.pos),
                 '\\' => match self.next_char() {
                     Some('\\') => res.push('\\'),
                     Some('"') => res.push('"'),
@@ -98,7 +98,7 @@ impl<'a> Lexer<'a> {
                         // Note that the first `\` of the escape isn't appended to the string
                         // This may be changed in the future depending on what we need
                         return tok!(
-                            LitInvalidStr(res, UnterminatedEscape),
+                            Lit(InvalidStr(res, UnterminatedEscape)),
                             start,
                             self.cursor.pos
                         );
@@ -109,7 +109,7 @@ impl<'a> Lexer<'a> {
             }
         }
         // The current position is past the end of the file (on the None character) so we need to bring it back
-        tok!(LitInvalidStr(res, Unclosed), start, self.cursor.pos - 1)
+        tok!(Lit(InvalidStr(res, Unclosed)), start, self.cursor.pos - 1)
     }
 
     /// Creates an operator
@@ -117,7 +117,7 @@ impl<'a> Lexer<'a> {
     /// - these may need to be split up once there is more context.
     fn tok_op(&mut self) -> Tok {
         if let Some(c) = self.curr_char() {
-            use TokKind::*;
+            use OpKind::*;
             let mut kind = match c {
                 '+' => Plus,
                 '-' => Minus,
@@ -149,7 +149,7 @@ impl<'a> Lexer<'a> {
             let mut end = start;
             while let Some(c) = self.peek_char() {
                 if is_op_tail(c)
-                    && let Some(new_kind) = kind.try_expand_op(c)
+                    && let Some(new_kind) = kind.try_expand(c)
                 {
                     self.next_char();
                     end = self.cursor.pos;
@@ -158,7 +158,7 @@ impl<'a> Lexer<'a> {
                     break;
                 }
             }
-            Tok::new(kind, (start, end).into())
+            Tok::new(TokKind::Op(kind), (start, end).into())
         } else {
             panic!("Called tok_op when cursor is not on a character.")
         }
@@ -290,14 +290,15 @@ mod test {
 
     #[test]
     fn operators() {
+        use OpKind::*;
         test!(
             "+=+-/~?<<=",
-            tok!(PlusEq, 0, 1),
-            tok!(Plus, 2),
-            tok!(Minus, 3),
-            tok!(Div, 4),
-            tok!(TildeQuestion, 5, 6),
-            tok!(ShiftLEq, 7, 9)
+            tok!(Op(PlusEq), 0, 1),
+            tok!(Op(Plus), 2),
+            tok!(Op(Minus), 3),
+            tok!(Op(Div), 4),
+            tok!(Op(TildeQuestion), 5, 6),
+            tok!(Op(ShiftLEq), 7, 9)
         )
     }
 
@@ -311,18 +312,18 @@ mod test {
     fn strings() {
         test!(
             "\"Hello World\"",
-            tok!(LitStr("Hello World".to_string()), 0, 12)
+            tok!(Lit(Str("Hello World".to_string())), 0, 12)
         );
         test!(
             "\"Hello World",
-            tok!(LitInvalidStr("Hello World".to_string(), Unclosed), 0, 11)
+            tok!(Lit(InvalidStr("Hello World".to_string(), Unclosed)), 0, 11)
         );
-        test!("\"\\t\"", tok!(LitStr("\t".to_string()), 0, 3))
+        test!("\"\\t\"", tok!(Lit(Str("\t".to_string())), 0, 3))
     }
 
     #[test]
     fn bools() {
-        test!("true", tok!(LitBool(true), 0, 3));
-        test!("false", tok!(LitBool(false), 0, 4))
+        test!("true", tok!(Lit(LitKind::Bool(true)), 0, 3));
+        test!("false", tok!(Lit(LitKind::Bool(false)), 0, 4))
     }
 }
