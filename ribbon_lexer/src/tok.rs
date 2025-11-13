@@ -213,6 +213,10 @@ pub enum OpKind {
     ColonGt,
     /// `~>`
     TildeGt,
+    /// `->`
+    MinusGt,
+    /// `=>`
+    EqGt,
 
     /// `~?`
     TildeQuestion,
@@ -291,6 +295,8 @@ impl OpKind {
             ShiftLEq => "<<=",
             ShiftREq => ">>=",
             DotDotEq => "..=",
+            MinusGt => "->",
+            EqGt => "=>",
         }
     }
 
@@ -299,6 +305,7 @@ impl OpKind {
         match (self, *c) {
             (Plus, '=') => Some(PlusEq),
             (Minus, '=') => Some(MinusEq),
+            (Minus, '>') => Some(MinusGt),
             (Mul, '=') => Some(MulEq),
             (Div, '=') => Some(DivEq),
             (Mod, '=') => Some(ModEq),
@@ -312,6 +319,7 @@ impl OpKind {
             (Pipe, '|') => Some(Or),
             (Bang, '=') => Some(BangEq),
             (Eq, '=') => Some(EqEq),
+            (Eq, '>') => Some(EqGt),
             (Lt, '=') => Some(LtEq),
             (Lt, '<') => Some(ShiftL),
             (Gt, '=') => Some(GtEq),
