@@ -223,11 +223,11 @@ impl<'a> Lexer<'a> {
     }
 }
 
-pub struct TokenStream<'a> {
+pub struct TokStream<'a> {
     lexer: Lexer<'a>,
 }
 
-impl<'a> Iterator for TokenStream<'a> {
+impl<'a> Iterator for TokStream<'a> {
     type Item = Tok;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -238,7 +238,7 @@ impl<'a> Iterator for TokenStream<'a> {
 impl<'a> IntoIterator for Lexer<'a> {
     type Item = Tok;
 
-    type IntoIter = TokenStream<'a>;
+    type IntoIter = TokStream<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
         Self::IntoIter { lexer: self }
