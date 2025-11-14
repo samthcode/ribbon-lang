@@ -310,6 +310,7 @@ impl OpKind {
             (Div, '=') => Some(DivEq),
             (Mod, '=') => Some(ModEq),
             (Dot, '=') => Some(DotEq),
+            (Dot, '.') => Some(DotDot),
             (Colon, '>') => Some(ColonGt),
             (Tilde, '>') => Some(TildeGt),
             (Tilde, '?') => Some(TildeQuestion),
