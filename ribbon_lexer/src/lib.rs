@@ -26,13 +26,15 @@ impl<'a> Lexer<'a> {
                 // Whitespace
                 c if is_whitespace(&c) => {
                     self.next_char();
-                    return self.next_token()
+                    return self.next_token();
                 }
                 '"' => Some(self.tok_str()),
                 // Identifiers and keywords
                 c if is_ident_head(&c) => Some(self.tok_ident()),
                 // Operators
                 c if is_op_head(&c) => Some(self.tok_op()),
+                // Integers/floats
+                '0'..'9' => Some(self.tok_num()),
                 _ => todo!(),
             }
         } else {
@@ -112,6 +114,64 @@ impl<'a> Lexer<'a> {
         tok!(Lit(InvalidStr(res, Unclosed)), start, self.cursor.pos - 1)
     }
 
+    /// Creates an integer or float
+    ///
+    /// TODO: Support exponents
+    fn tok_num(&mut self) -> Tok {
+        assert!(
+            matches!(self.curr_char(), Some('0'..'9')),
+            "Called tok_num with no number under cursor"
+        );
+        let mut res = self.curr_char().unwrap().to_string();
+        let start = self.cursor.pos;
+
+        macro_rules! collect_digits {
+            () => {
+                while let Some(c @ '0'..'9' | c @ '_') = self.peek_char() {
+                    if *c != '_' {
+                        res.push(*c);
+                    }
+                    self.next_char();
+                }
+            };
+        }
+
+        collect_digits!();
+
+        if let Some('.') = self.peek_char() {
+            // We need to peek twice here as we could have a range or .(ident)
+            let mut peek_chars = self.cursor.chars.clone();
+            peek_chars.next();
+            let two_ahead = peek_chars.peek();
+            //  We have something like 1. followed by EOF which counts as the float 1.0
+            if let None = two_ahead {
+                self.next_char();
+                let float = res
+                    .parse::<f64>()
+                    .expect("Unable to parse float in tok_num");
+                return tok!(Lit(LitKind::Float(float)), start, self.cursor.pos);
+            }
+            // Is followed by a range or identifier therefore is not a float
+            if matches!(two_ahead, Some('.')) || is_ident_head(two_ahead.unwrap()) {
+                let int: i64 = res.parse().expect("Unable to parse integer in tok_num");
+                return tok!(Lit(LitKind::Int(int)), start, self.cursor.pos);
+            }
+            res.push('.');
+            self.next_char();
+
+            // Get the next part of the float if there is one
+            collect_digits!();
+
+            let float = res
+                .parse::<f64>()
+                .expect("Unable to parse float in tok_num");
+            return tok!(Lit(LitKind::Float(float)), start, self.cursor.pos);
+        }
+        // Not followed by a dot therefore is an integer
+        let int: i64 = res.parse().expect("Unable to parse integer in tok_num");
+        return tok!(Lit(LitKind::Int(int)), start, self.cursor.pos);
+    }
+
     /// Creates an operator
     /// This function is greedy, it takes the largest valid operator it can make
     /// - these may need to be split up once there is more context.
@@ -146,19 +206,17 @@ impl<'a> Lexer<'a> {
                 _ => panic!("Called tok_op with cursor not over operator character."),
             };
             let start = self.cursor.pos;
-            let mut end = start;
             while let Some(c) = self.peek_char() {
                 if is_op_tail(c)
                     && let Some(new_kind) = kind.try_expand(c)
                 {
                     self.next_char();
-                    end = self.cursor.pos;
                     kind = new_kind
                 } else {
                     break;
                 }
             }
-            Tok::new(TokKind::Op(kind), (start, end).into())
+            Tok::new(TokKind::Op(kind), (start, self.cursor.pos).into())
         } else {
             panic!("Called tok_op when cursor is not on a character.")
         }
@@ -305,7 +363,12 @@ mod test {
     #[test]
     fn whitespace() {
         test!("     ident", tok!(Ident("ident".to_string()), 5, 9));
-        test!("     ident ()", tok!(Ident("ident".to_string()), 5, 9), tok!(Op(OpKind::LParen), 11), tok!(Op(OpKind::RParen), 12));
+        test!(
+            "     ident ()",
+            tok!(Ident("ident".to_string()), 5, 9),
+            tok!(Op(OpKind::LParen), 11),
+            tok!(Op(OpKind::RParen), 12)
+        );
         test!("     \n\r\tident", tok!(Ident("ident".to_string()), 8, 12))
     }
 
@@ -326,5 +389,24 @@ mod test {
     fn bools() {
         test!("true", tok!(Lit(LitKind::Bool(true)), 0, 3));
         test!("false", tok!(Lit(LitKind::Bool(false)), 0, 4))
+    }
+
+    #[test]
+    fn numbers() {
+        test!("100", tok!(Lit(LitKind::Int(100)), 0, 2));
+        test!(
+            "100..",
+            tok!(Lit(LitKind::Int(100)), 0, 2),
+            tok!(Op(OpKind::DotDot), 3, 4)
+        );
+        test!("100.1", tok!(Lit(LitKind::Float(100.1)), 0, 4));
+        test!(
+            "100.func",
+            tok!(Lit(LitKind::Int(100)), 0, 2),
+            tok!(Op(OpKind::Dot), 3),
+            tok!(Ident("func".to_string()), 4, 7)
+        );
+        test!("1.", tok!(Lit(LitKind::Float(1.0)), 0, 1));
+        test!("100_000_000", tok!(Lit(LitKind::Int(100000000)), 0, 10));
     }
 }
