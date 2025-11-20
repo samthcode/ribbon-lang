@@ -197,6 +197,7 @@ impl<'a> Lexer<'a> {
                 '#' => Hash,
                 '~' => Tilde,
                 '&' => Amp,
+                '^' => Caret,
                 '|' => Pipe,
                 '!' => Bang,
                 '=' => Eq,
@@ -293,7 +294,7 @@ fn is_ident_tail(c: &char) -> bool {
 fn is_op_head(c: &char) -> bool {
     match c {
         '+' | '-' | '*' | '/' | '%' | '(' | ')' | '[' | ']' | '{' | '}' | '.' | ':' | ';' | '@'
-        | '#' | '~' | '&' | '|' | '!' | '=' | '$' | '<' | '>' => true,
+        | '#' | '~' | '&' | '^' | '|' | '!' | '=' | '$' | '<' | '>' => true,
         _ => false,
     }
 }
@@ -357,7 +358,9 @@ mod test {
             tok!(Op(Div), 4),
             tok!(Op(TildeQuestion), 5, 6),
             tok!(Op(ShiftLEq), 7, 9)
-        )
+        );
+        test!("^", tok!(Op(Caret), 0));
+        test!("^=", tok!(Op(CaretEq), 0, 1))
     }
 
     #[test]

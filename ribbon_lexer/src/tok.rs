@@ -155,6 +155,8 @@ pub enum OpKind {
 
     /// `&`
     Amp,
+    /// `^`
+    Caret,
     /// `|`
     Pipe,
 
@@ -184,6 +186,8 @@ pub enum OpKind {
 
     /// `&=`
     AmpEq,
+    /// `^=`
+    CaretEq,
     /// `|=`
     PipeEq,
     /// `+=`
@@ -263,6 +267,7 @@ impl OpKind {
             Hash => "#",
             Tilde => "~",
             Amp => "&",
+            Caret => "^",
             Pipe => "|",
             Bang => "!",
             Eq => "=",
@@ -274,6 +279,7 @@ impl OpKind {
             LtEq => "<=",
             GtEq => ">=",
             AmpEq => "&=",
+            CaretEq => "^=",
             PipeEq => "|=",
             PlusEq => "+=",
             MinusEq => "-=",
@@ -316,6 +322,7 @@ impl OpKind {
             (Tilde, '?') => Some(TildeQuestion),
             (Amp, '=') => Some(AmpEq),
             (Amp, '&') => Some(And),
+            (Caret, '=') => Some(CaretEq),
             (Pipe, '=') => Some(PipeEq),
             (Pipe, '|') => Some(Or),
             (Bang, '=') => Some(BangEq),
