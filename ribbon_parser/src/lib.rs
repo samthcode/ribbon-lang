@@ -6,6 +6,8 @@ use ribbon_lexer as lexer;
 use ast::Program;
 use lexer::{Lexer, TokStream};
 
+mod prec;
+
 /// The parser for the Ribbon programming language.
 ///
 /// This takes a source string (temporary) and first lexes it, and then turns
