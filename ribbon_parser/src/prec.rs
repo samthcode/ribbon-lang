@@ -7,7 +7,31 @@ pub enum Fixity {
     None,
 }
 
-pub fn unary_prec(kind: &TokKind) -> u8 {
+#[derive(PartialEq, PartialOrd, Eq, Ord)]
+pub enum Prec {
+    ListTerminator,
+    ArgTerminator,
+    Block,
+    Assign,
+    Pipe,
+    Range,
+    Or,
+    And,
+    Comparison,
+    BwOr,
+    BwXor,
+    BwAnd,
+    Shift,
+    Add,
+    Mul,
+    Unary,
+    FunctionCall,
+    ErrProp,
+    MethodCall,
+    Path,
+}
+
+pub fn unary_prec(kind: &TokKind) -> Prec {
     use lexer::OpKind::*;
     match kind {
         TokKind::Ident(_) => todo!(),
@@ -15,7 +39,7 @@ pub fn unary_prec(kind: &TokKind) -> u8 {
         TokKind::Lit(_) => todo!(),
         TokKind::Op(op_kind) => match op_kind {
             // Unary minus/not/deref/borrow
-            Minus | Bang | Mul | Amp => 15,
+            Minus | Bang | Mul | Amp => Prec::Unary,
             // This shouldn't be called on anything else
             // Need an error system set up in the parser first
             _ => todo!(),
@@ -23,42 +47,42 @@ pub fn unary_prec(kind: &TokKind) -> u8 {
     }
 }
 
-fn binary_prec(kind: &TokKind) -> (u8, Fixity) {
+fn binary_prec(kind: &TokKind) -> (Prec, Fixity) {
     use Fixity::*;
     use lexer::OpKind::*;
     match kind {
         TokKind::Op(op_kind) => match op_kind {
-            Path => (19, None),
+            Path => (Prec::Path, None),
             // Method call/field expression/no-parenthesis method call/(non-method) tilde call
-            Dot | Colon | Tilde => (18, Left),
+            Dot | Colon | Tilde => (Prec::MethodCall, Left),
             // Error propagation
-            TildeQuestion => (17, Left),
+            TildeQuestion => (Prec::ErrProp, Left),
             // Function call/array indexing
-            LParen | LSquare => (16, None),
+            LParen | LSquare => (Prec::FunctionCall, None),
             // -- Gap for unary ops --
-            Mul | Div | Mod => (14, Left),
-            Plus | Minus => (13, Left),
-            ShiftL | ShiftR => (12, Left),
-            Amp => (11, Left),
-            Caret => (10, Left),
-            Pipe => (9, Left),
+            Mul | Div | Mod => (Prec::Mul, Left),
+            Plus | Minus => (Prec::Add, Left),
+            ShiftL | ShiftR => (Prec::Shift, Left),
+            Amp => (Prec::BwAnd, Left),
+            Caret => (Prec::BwXor, Left),
+            Pipe => (Prec::BwOr, Left),
             // Comparisons
-            Lt | Gt | EqEq | BangEq | LtEq | GtEq => (8, Left),
-            And => (7, Left),
-            Or => (6, Left),
+            Lt | Gt | EqEq | BangEq | LtEq | GtEq => (Prec::Comparison, Left),
+            And => (Prec::And, Left),
+            Or => (Prec::Or, Left),
             // Ranges
-            DotDot | DotDotEq => (5, None),
+            DotDot | DotDotEq => (Prec::Range, None),
             // Piping operators
-            ColonGt | TildeGt => (4, Left),
+            ColonGt | TildeGt => (Prec::Pipe, Left),
             // All assignments
             Eq | AmpEq | CaretEq | PipeEq | PlusEq | MinusEq | MulEq | DivEq | ModEq | DotEq
-            | ShiftLEq | ShiftREq | AndEq | OrEq => (3, Right),
+            | ShiftLEq | ShiftREq | AndEq | OrEq => (Prec::Assign, Right),
             // Block
-            LCurly | RCurly => (2, None),
+            LCurly | RCurly => (Prec::Block, None),
             // Argument list terminator
-            RParen => (1, None),
+            RParen => (Prec::ArgTerminator, None),
             // List terminator
-            RSquare => (0, None),
+            RSquare => (Prec::ListTerminator, None),
 
             // Not sure what to do with these yet
             Semi => todo!(),
