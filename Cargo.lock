@@ -12,6 +12,9 @@ dependencies = [
 [[package]]
 name = "ribbon_ast"
 version = "0.1.0"
+dependencies = [
+ "ribbon_lexer",
+]
 
 [[package]]
 name = "ribbon_lexer"

@@ -1,3 +1,5 @@
+use ribbon_lexer::{LitKind, Tok, TokKind, span::Span};
+
 /// The root AST node for a Ribbon program
 ///
 /// This contains a list of expressions which make up all of the functions, structs, enums, and
@@ -12,12 +14,31 @@ impl Default for Program {
     }
 }
 
-pub enum Expr {
+pub struct Expr {
+    kind: ExprKind,
+    span: Span,
+}
+
+impl Expr {
+    pub fn new(kind: ExprKind, span: Span) -> Self {
+        Expr { kind, span }
+    }
+}
+
+pub enum ExprKind {
     BinOp {
-        lhs: Box<Expr>,
-        rhs: Box<Expr>,
+        lhs: Box<ExprKind>,
+        rhs: Box<ExprKind>,
         kind: BinOpKind,
     },
+    Ident(Box<String>),
 }
 
 pub enum BinOpKind {}
+
+pub fn tok_to_expr(tok: Tok) -> Option<Expr> {
+    match tok.kind {
+        TokKind::Ident(s) => Some(Expr::new(ExprKind::Ident(s), tok.span)),
+        _ => todo!(),
+    }
+}

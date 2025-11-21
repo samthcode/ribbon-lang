@@ -4,8 +4,8 @@ use crate::span::Span;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tok {
-    kind: TokKind,
-    span: Span,
+    pub kind: TokKind,
+    pub span: Span,
 }
 
 impl Tok {
