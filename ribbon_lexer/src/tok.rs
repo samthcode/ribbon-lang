@@ -241,7 +241,7 @@ pub enum OpKind {
     /// `>>=`
     ShiftREq,
 
-    /// `DotDotEq`
+    /// `..=`
     DotDotEq,
 }
 
