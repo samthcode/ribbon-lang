@@ -9,6 +9,7 @@ pub enum Fixity {
 
 #[derive(PartialEq, PartialOrd, Eq, Ord)]
 pub enum Prec {
+    Semi,
     ListTerminator,
     ArgTerminator,
     Block,
@@ -83,9 +84,10 @@ fn binary_prec(kind: &TokKind) -> (Prec, Fixity) {
             RParen => (Prec::ArgTerminator, None),
             // List terminator
             RSquare => (Prec::ListTerminator, None),
+            // Semicolon
+            Semi => (Prec::Semi, None),
 
             // Not sure what to do with these yet
-            Semi => todo!(),
             At => todo!(),
             Hash => todo!(),
             Bang => todo!(),
