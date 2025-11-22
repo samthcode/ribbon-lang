@@ -8,6 +8,13 @@ impl Span {
     fn new(low: u32, hi: u32) -> Self {
         Span { low, hi }
     }
+
+    pub fn to(&self, other: &Self) -> Self {
+        Span {
+            low: self.low,
+            hi: other.hi,
+        }
+    }
 }
 
 impl From<u32> for Span {

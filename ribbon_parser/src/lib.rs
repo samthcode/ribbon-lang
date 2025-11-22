@@ -1,12 +1,14 @@
 use std::{error::Error, iter::Peekable};
 
-use ribbon_ast::{self as ast, tok_to_expr};
+use ribbon_ast::{self as ast, BinOp, BinOpKind, Expr, ExprKind, tok_to_expr};
 use ribbon_lexer::{self as lexer, Lexer, TokKind, TokStream, tok::Tok};
 
 use ast::Program;
 
 mod prec;
-use prec::{Fixity, Prec, binary_prec, unary_prec};
+use prec::{Fixity, PrecOrd, binary_prec, unary_prec};
+
+use crate::prec::Prec;
 
 /// The parser for the Ribbon programming language.
 ///
@@ -43,26 +45,44 @@ impl<'a> Parser<'a> {
     }
 
     fn expr(&mut self) -> Result<ast::Expr, Box<dyn Error>> {
-        self.expr_prec((Prec::Semi, Fixity::None))
+        self.expr_prec(Prec::new(PrecOrd::Semi, Fixity::None))
     }
 
-    fn expr_prec(&mut self, (prec, fixity): (Prec, Fixity)) -> Result<ast::Expr, Box<dyn Error>> {
+    fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Box<dyn Error>> {
         let Some(lhs) = self.next_tok() else { panic!() };
+        // If the left hand side is an operator then we want to try to parse it as a unary operator.
         if let TokKind::Op(kind) = lhs.kind {
-            // Unary operator
             todo!()
         }
-        match self.next_tok() {
-            Some(Tok {
-                kind: TokKind::Op(op_kind),
-                span,
-            }) => {
-                let rhs = self.expr_prec(binary_prec(op_kind))?;
+        let mut lhs = tok_to_expr(lhs).unwrap_or_else(|| panic!() /* Raise error */);
+        loop {
+            match self.next_tok() {
+                // If the next token is an operator we want to try to parse it as a binary operator
+                Some(Tok {
+                    kind: TokKind::Op(op_kind),
+                    span: op_span,
+                }) => {
+                    let op_prec = binary_prec(&op_kind);
+                    if op_prec < min_prec {
+                        break;
+                    }
+                    let rhs = self.expr_prec(op_prec)?;
+                    let span = lhs.span.to(&rhs.span);
+                    lhs = Expr::new(
+                        ExprKind::BinOp {
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                            kind: BinOp::new(op_kind.try_into()?, op_span),
+                        },
+                        span, /* TODO:  This is wrong */
+                    )
+                }
+                // If is not an operator then we raise an error
+                Some(tok) => todo!(),
+                None => break,
             }
-            Some(tok) => todo!(), // Error
-            None => return Ok(tok_to_expr(lhs).unwrap()),
         }
-        todo!()
+        Ok(lhs)
     }
 
     fn peek_tok(&mut self) -> Option<&Tok> {
