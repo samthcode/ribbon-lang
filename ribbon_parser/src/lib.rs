@@ -74,7 +74,7 @@ impl<'a> Parser<'a> {
                             rhs: Box::new(rhs),
                             kind: BinOp::new(op_kind.try_into()?, op_span),
                         },
-                        span, /* TODO:  This is wrong */
+                        span,
                     )
                 }
                 // If is not an operator then we raise an error
