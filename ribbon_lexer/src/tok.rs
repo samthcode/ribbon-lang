@@ -113,7 +113,7 @@ impl LitKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum OpKind {
     // Single-Character Operators
     /// `+`
