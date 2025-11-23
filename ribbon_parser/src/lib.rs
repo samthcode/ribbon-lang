@@ -37,7 +37,10 @@ impl<'a> Parser<'a> {
     pub fn parse(mut self) -> (Program, Vec<Box<dyn Error>>) {
         while let Some(_) = self.peek_tok() {
             match self.expr() {
-                Ok(expr) => self.program.body.push(expr),
+                Ok(expr) => {
+                    self.program.body.push(expr);
+                    self.next_tok();
+                }
                 Err(e) => self.errors.push(e),
             }
         }
@@ -54,18 +57,24 @@ impl<'a> Parser<'a> {
         if let TokKind::Op(kind) = lhs.kind {
             todo!()
         }
-        let mut lhs = tok_to_expr(lhs).unwrap_or_else(|| panic!() /* Raise error */);
+        let mut lhs = tok_to_expr(lhs)?;
         loop {
-            match self.next_tok() {
+            let tok = if let Some(t) = self.peek_tok() {
+                t.clone()
+            } else {
+                break;
+            };
+            match tok {
                 // If the next token is an operator we want to try to parse it as a binary operator
-                Some(Tok {
+                Tok {
                     kind: TokKind::Op(op_kind),
                     span: op_span,
-                }) => {
+                } => {
                     let op_prec = binary_prec(&op_kind);
                     if op_prec < min_prec {
                         break;
                     }
+                    self.next_tok();
                     let rhs = self.expr_prec(op_prec)?;
                     let span = lhs.span.to(&rhs.span);
                     lhs = Expr::new(
@@ -78,8 +87,7 @@ impl<'a> Parser<'a> {
                     )
                 }
                 // If is not an operator then we raise an error
-                Some(tok) => todo!(),
-                None => break,
+                tok => todo!(),
             }
         }
         Ok(lhs)

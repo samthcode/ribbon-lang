@@ -64,9 +64,8 @@ impl PartialOrd for Prec {
         match self.prec_ord.cmp(&other.prec_ord) {
             ord @ (Ordering::Greater | Ordering::Less) => Some(ord),
             Ordering::Equal => match other.fixity {
-                Fixity::Left => Some(Ordering::Less),
+                Fixity::Left | Fixity::None => Some(Ordering::Less),
                 Fixity::Right => Some(Ordering::Greater),
-                Fixity::None => Some(Ordering::Equal),
             },
         }
     }
