@@ -61,13 +61,23 @@ impl Prec {
 
 impl PartialOrd for Prec {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.prec_ord.cmp(&other.prec_ord) {
-            ord @ (Ordering::Greater | Ordering::Less) => Some(ord),
-            Ordering::Equal => match other.fixity {
-                Fixity::Left | Fixity::None => Some(Ordering::Less),
-                Fixity::Right => Some(Ordering::Greater),
+        Some(match self.prec_ord.cmp(&other.prec_ord) {
+            ord @ (Ordering::Greater | Ordering::Less) => ord,
+            Ordering::Equal => match self.fixity {
+                Fixity::Left => match other.fixity {
+                    Fixity::Left | Fixity::None => Ordering::Greater,
+                    Fixity::Right => Ordering::Equal,
+                },
+                Fixity::Right => match other.fixity {
+                    Fixity::Right | Fixity::None => Ordering::Greater,
+                    Fixity::Left => Ordering::Equal,
+                },
+                Fixity::None => match other.fixity {
+                    Fixity::Left => Ordering::Less,
+                    Fixity::Right | Fixity::None => Ordering::Equal,
+                },
             },
-        }
+        })
     }
 }
 

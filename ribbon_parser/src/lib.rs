@@ -65,7 +65,7 @@ impl<'a> Parser<'a> {
                     span,
                 }) => {
                     let prec = binary_prec(op_kind);
-                    if prec < min_prec {
+                    if prec <= min_prec {
                         break;
                     }
                     (*op_kind, prec, *span)
