@@ -4,14 +4,14 @@ use crate::lexer;
 use lexer::tok::TokKind;
 use ribbon_lexer::OpKind;
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Fixity {
     Left,
     Right,
     None,
 }
 
-#[derive(PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub enum PrecOrd {
     Semi,
     ListTerminator,
@@ -47,7 +47,7 @@ pub fn unary_prec(kind: &OpKind) -> PrecOrd {
     }
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Prec {
     prec_ord: PrecOrd,
     fixity: Fixity,
@@ -65,8 +65,8 @@ impl PartialOrd for Prec {
             ord @ (Ordering::Greater | Ordering::Less) => ord,
             Ordering::Equal => match self.fixity {
                 Fixity::Left => match other.fixity {
-                    Fixity::Left | Fixity::None => Ordering::Greater,
-                    Fixity::Right => Ordering::Equal,
+                    Fixity::Right | Fixity::None => Ordering::Equal,
+                    Fixity::Left => Ordering::Less,
                 },
                 Fixity::Right => match other.fixity {
                     Fixity::Right | Fixity::None => Ordering::Greater,
