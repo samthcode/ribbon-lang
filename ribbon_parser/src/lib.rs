@@ -98,3 +98,29 @@ impl<'a> Parser<'a> {
         self.tok_stream.next()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    macro_rules! sexpr_test {
+        ($src:literal, $($res:literal),+) => {
+            {
+                let program = Parser::new("1*2+3-4/5").parse();
+                assert!(program.1.is_empty());
+                assert_eq!(
+                    program
+                        .0
+                        .body
+                        .iter()
+                        .map(|expr| expr.sexpr())
+                        .collect::<Vec<String>>(),
+                    vec![$($res, )+]
+                );
+            }
+        };
+    }
+    #[test]
+    fn binary_expressions() {
+        sexpr_test!("1*2+3-4/5", "(- (+ (* 1 2) 3) (/ 4 5))")
+    }
+}

@@ -6,8 +6,7 @@ fn main() {
     for i in lexer {
         println!("{}", i)
     }
-    let parser = Parser::new("1*2+3-4/5");
-    // (- (+ (* 1 2) 3) (/ 4 5))
+    let parser = Parser::new("1+2;2*2/3");
     for i in parser.parse().0.body {
         println!("{}", i.sexpr())
     }
