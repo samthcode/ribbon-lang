@@ -1,7 +1,7 @@
 use std::{error::Error, iter::Peekable};
 
 use ribbon_ast::{self as ast, BinOp, BinOpKind, Expr, ExprKind, tok_to_expr};
-use ribbon_lexer::{self as lexer, Lexer, TokKind, TokStream, tok::Tok};
+use ribbon_lexer::{self as lexer, Lexer, OpKind, TokKind, TokStream, tok::Tok};
 
 use ast::Program;
 
@@ -39,12 +39,28 @@ impl<'a> Parser<'a> {
             match self.expr() {
                 Ok(expr) => {
                     self.program.body.push(expr);
-                    self.next_tok();
+                    match self.expect_or_eof(TokKind::Op(OpKind::Semi)) {
+                        Ok(()) => (),
+                        Err(e) => self.errors.push(e),
+                    };
                 }
                 Err(e) => self.errors.push(e),
             }
         }
         (self.program, self.errors)
+    }
+
+    fn expect_or_eof(&mut self, tok: TokKind) -> Result<(), Box<dyn Error>> {
+        match self.next_tok() {
+            Some(n_tok) => {
+                if tok.is(n_tok.kind) {
+                    Ok(())
+                } else {
+                    Err(format!("Unexpected token {tok:?}").into())
+                }
+            }
+            None => Ok(()),
+        }
     }
 
     fn expr(&mut self) -> Result<ast::Expr, Box<dyn Error>> {
