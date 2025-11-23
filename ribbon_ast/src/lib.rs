@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fmt::format};
 
 use ribbon_lexer::{OpKind, Tok, TokKind, span::Span};
 
@@ -29,6 +29,12 @@ impl Expr {
     }
 }
 
+impl Expr {
+    pub fn sexpr(&self) -> String {
+        self.kind.sexpr()
+    }
+}
+
 #[derive(Debug)]
 pub enum ExprKind {
     BinOp {
@@ -38,6 +44,18 @@ pub enum ExprKind {
     },
     Ident(Box<String>),
     Lit(LitKind),
+}
+
+impl ExprKind {
+    pub fn sexpr(&self) -> String {
+        match self {
+            ExprKind::BinOp { lhs, rhs, kind } => {
+                format!("({} {} {})", kind.str(), lhs.sexpr(), rhs.sexpr())
+            }
+            ExprKind::Ident(s) => s.to_string(),
+            ExprKind::Lit(lit_kind) => lit_kind.repr(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -52,10 +70,27 @@ pub enum LitKind {
     Bool(bool),
 }
 
+impl LitKind {
+    pub fn repr(&self) -> String {
+        match self {
+            LitKind::Int(i) => i.to_string(),
+            LitKind::Str(s) => format!("\"{s}\""),
+            LitKind::Float(f) => f.to_string(),
+            LitKind::Bool(b) => b.to_string(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct BinOp {
     kind: BinOpKind,
     span: Span,
+}
+
+impl BinOp {
+    pub fn str(&self) -> &str {
+        self.kind.str()
+    }
 }
 
 impl BinOp {
@@ -166,6 +201,49 @@ pub enum BinOpKind {
     // /// `..=`
     // RangeInclusive,
     // -----------------
+}
+
+impl BinOpKind {
+    pub fn str(&self) -> &str {
+        match self {
+            BinOpKind::Add => "+",
+            BinOpKind::Sub => "-",
+            BinOpKind::Mul => "*",
+            BinOpKind::Div => "/",
+            BinOpKind::Mod => "%",
+            BinOpKind::Lt => "<",
+            BinOpKind::Gt => ">",
+            BinOpKind::Equality => "==",
+            BinOpKind::Inequality => "!=",
+            BinOpKind::LtEquality => "<=",
+            BinOpKind::GtEquality => ">=",
+            BinOpKind::BwAnd => "&",
+            BinOpKind::BwXor => "^",
+            BinOpKind::BwOr => "|",
+            BinOpKind::BwAndAssign => "&=",
+            BinOpKind::BwXorAssign => "^=",
+            BinOpKind::BwOrAssign => "|=",
+            BinOpKind::AddAssign => "+=",
+            BinOpKind::SubAssign => "-=",
+            BinOpKind::MulAssign => "*=",
+            BinOpKind::DivAssign => "/=",
+            BinOpKind::ModAssign => "%=",
+            BinOpKind::DotAssign => ".=",
+            BinOpKind::LogicalAnd => "&&",
+            BinOpKind::LogicalOr => "||",
+            BinOpKind::MethodPipe => ":>",
+            BinOpKind::NonMethodPipe => "~>",
+            BinOpKind::ErrProp => "~?",
+            BinOpKind::ShiftL => "<<",
+            BinOpKind::ShiftR => ">>",
+            BinOpKind::LogicalAndAssign => "&&=",
+            BinOpKind::LogicalOrAssign => "||=",
+            BinOpKind::ShiftLAssign => "<<=",
+            BinOpKind::ShiftRAssign => ">>=",
+            BinOpKind::ThinArrow => "->",
+            BinOpKind::FatArrow => "=>",
+        }
+    }
 }
 
 impl TryFrom<OpKind> for BinOpKind {

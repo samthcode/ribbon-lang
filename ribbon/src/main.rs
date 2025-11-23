@@ -6,6 +6,9 @@ fn main() {
     for i in lexer {
         println!("{}", i)
     }
-    let parser = Parser::new("hello + world; 10+20");
-    println!("{:#?}", parser.parse())
+    let parser = Parser::new("1*2+3-4/5");
+    // (- (+ (* 1 2) 3) (/ 4 5))
+    for i in parser.parse().0.body {
+        println!("{}", i.sexpr())
+    }
 }
