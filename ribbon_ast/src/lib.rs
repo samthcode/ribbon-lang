@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use ribbon_lexer::{LitKind, OpKind, Tok, TokKind, span::Span};
+use ribbon_lexer::{OpKind, Tok, TokKind, span::Span};
 
 /// The root AST node for a Ribbon program
 ///
@@ -37,6 +37,19 @@ pub enum ExprKind {
         kind: BinOp,
     },
     Ident(Box<String>),
+    Lit(LitKind),
+}
+
+#[derive(Debug)]
+pub enum LitKind {
+    /// e.g. `42`
+    Int(i64),
+    /// e.g. `"Hello World!"`
+    Str(Box<String>),
+    /// e.g. `42.0`
+    Float(f64),
+    /// true or false
+    Bool(bool),
 }
 
 #[derive(Debug)]
@@ -202,9 +215,26 @@ impl TryFrom<OpKind> for BinOpKind {
     }
 }
 
-pub fn tok_to_expr(tok: Tok) -> Option<Expr> {
-    match tok.kind {
-        TokKind::Ident(s) => Some(Expr::new(ExprKind::Ident(s), tok.span)),
+pub fn tok_to_expr(tok: Tok) -> Result<Expr, Box<dyn Error>> {
+    use ExprKind::*;
+    use ribbon_lexer::LitKind as LLK;
+    let kind = match tok.kind {
+        TokKind::Ident(s) => Some(Ident(s)),
+        TokKind::Lit(kind) => match kind {
+            // TODO: At some point, we need to find the true size of the integer
+            LLK::Int(i) => Some(Lit(LitKind::Int(i))),
+            LLK::Str(s) => Some(Lit(LitKind::Str(s))),
+            // TODO: Proper error type
+            LLK::InvalidStr(_, invalid_str_kind) => return Err("Invalid string literal.".into()),
+            LLK::Float(f) => Some(Lit(LitKind::Float(f))),
+            LLK::Bool(b) => Some(Lit(LitKind::Bool(b))),
+        },
         _ => todo!(),
+    };
+    if let Some(k) = kind {
+        Ok(Expr::new(k, tok.span))
+    } else {
+        // TODO: Proper error message
+        Err("Unexpected token.".into())
     }
 }
