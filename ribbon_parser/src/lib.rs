@@ -59,36 +59,33 @@ impl<'a> Parser<'a> {
         }
         let mut lhs = tok_to_expr(lhs)?;
         loop {
-            let tok = if let Some(t) = self.peek_tok() {
-                t.clone()
-            } else {
-                break;
-            };
-            match tok {
-                // If the next token is an operator we want to try to parse it as a binary operator
-                Tok {
+            let (op_kind, prec, op_span) = match self.peek_tok() {
+                Some(Tok {
                     kind: TokKind::Op(op_kind),
-                    span: op_span,
-                } => {
-                    let op_prec = binary_prec(&op_kind);
-                    if op_prec < min_prec {
+                    span,
+                }) => {
+                    let prec = binary_prec(op_kind);
+                    if prec < min_prec {
                         break;
                     }
-                    self.next_tok();
-                    let rhs = self.expr_prec(op_prec)?;
-                    let span = lhs.span.to(&rhs.span);
-                    lhs = Expr::new(
-                        ExprKind::BinOp {
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                            kind: BinOp::new(op_kind.try_into()?, op_span),
-                        },
-                        span,
-                    )
+                    (*op_kind, prec, *span)
                 }
-                // If is not an operator then we raise an error
-                tok => todo!(),
-            }
+                Some(t) => {
+                    return Err(format!("Unexpected token {t}. Expected binary operator.").into());
+                }
+                None => break,
+            };
+            self.next_tok();
+            let rhs = self.expr_prec(prec)?;
+            let span = lhs.span.to(&rhs.span);
+            lhs = Expr::new(
+                ExprKind::BinOp {
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                    kind: BinOp::new(op_kind.try_into()?, op_span),
+                },
+                span,
+            )
         }
         Ok(lhs)
     }
