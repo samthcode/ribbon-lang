@@ -114,8 +114,8 @@ pub fn binary_prec(kind: &OpKind) -> Prec {
         LCurly | RCurly => Prec::new(PrecOrd::Block, None),
         // Argument list terminator
         RParen => Prec::new(PrecOrd::ArgTerminator, None),
-        // List terminator
-        RSquare => Prec::new(PrecOrd::ListTerminator, None),
+        // List terminator or separator
+        RSquare | Comma => Prec::new(PrecOrd::ListTerminator, None),
         // Semicolon
         Semi => Prec::new(PrecOrd::Semi, None),
 

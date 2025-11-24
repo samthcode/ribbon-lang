@@ -140,6 +140,9 @@ pub enum OpKind {
     /// `}`
     RCurly,
 
+    /// `,`
+    Comma,
+
     /// `.`
     Dot,
     /// `:`
@@ -260,6 +263,7 @@ impl OpKind {
             RSquare => "]",
             LCurly => "{",
             RCurly => "}",
+            Comma => ",",
             Dot => ".",
             Colon => ":",
             Semi => ";",
@@ -377,12 +381,12 @@ impl TokKind {
         }
     }
 
-    pub fn is(&self, other: TokKind) -> bool {
+    pub fn is(&self, other: &TokKind) -> bool {
         match self {
             TokKind::Ident(_) => matches!(other, TokKind::Ident(_)),
-            TokKind::Kw(kw_kind) => matches!(other, TokKind::Kw(n_kind) if *kw_kind == n_kind),
-            TokKind::Lit(lit_kind) => matches!(other, TokKind::Lit(n_kind) if *lit_kind == n_kind),
-            TokKind::Op(op_kind) => matches!(other, TokKind::Op(n_kind) if *op_kind == n_kind),
+            TokKind::Kw(kw_kind) => matches!(other, TokKind::Kw(n_kind) if kw_kind == n_kind),
+            TokKind::Lit(lit_kind) => matches!(other, TokKind::Lit(n_kind) if lit_kind == n_kind),
+            TokKind::Op(op_kind) => matches!(other, TokKind::Op(n_kind) if op_kind == n_kind),
         }
     }
 }

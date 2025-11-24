@@ -44,6 +44,7 @@ pub enum ExprKind {
     },
     Ident(Box<String>),
     Lit(LitKind),
+    List(Vec<Expr>),
 }
 
 impl ExprKind {
@@ -54,6 +55,16 @@ impl ExprKind {
             }
             ExprKind::Ident(s) => s.to_string(),
             ExprKind::Lit(lit_kind) => lit_kind.repr(),
+            ExprKind::List(elems) => {
+                format!(
+                    "(list {})",
+                    elems
+                        .iter()
+                        .map(|e| e.sexpr())
+                        .reduce(|acc, elem| format!("{acc} {elem}"))
+                        .unwrap()
+                )
+            }
         }
     }
 }
