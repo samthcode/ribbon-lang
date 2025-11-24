@@ -121,7 +121,7 @@ mod test {
     macro_rules! sexpr_test {
         ($src:literal, $($res:literal),+) => {
             {
-                let program = Parser::new("1*2+3-4/5").parse();
+                let program = Parser::new($src).parse();
                 assert!(program.1.is_empty());
                 assert_eq!(
                     program
