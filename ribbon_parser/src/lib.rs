@@ -64,26 +64,21 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<(), Box<dyn Error>> {
+        let n_tok = self.next_tok();
+        if matches!(n_tok, Some(t) if toks.iter().any(|tok| tok.is(&t.kind))) {
+            return Ok(());
+        }
+        let formatted_toks = toks
+            .iter()
+            .map(|e| format!("{e:?}"))
+            .reduce(|acc, e| format!("{acc}, {e}"))
+            .unwrap();
         match self.next_tok() {
-            Some(t) if toks.iter().any(|tok| tok.is(&t.kind)) => Ok(()),
             // TODO: Replace Debug call
-            Some(t) => Err(format!(
-                "Expected one of {}, found {:?}.",
-                toks.iter()
-                    .map(|e| format!("{e:?}"))
-                    .reduce(|acc, e| format!("{acc}, {e}"))
-                    .unwrap(),
-                t.kind,
-            )
-            .into()),
-            None => Err(format!(
-                "Expected one of {}, found EOF.",
-                toks.iter()
-                    .map(|e| format!("{e:?}"))
-                    .reduce(|acc, e| format!("{acc}, {e}"))
-                    .unwrap()
-            )
-            .into()),
+            Some(t) => {
+                Err(format!("Expected one of {}, found {:?}.", formatted_toks, t.kind,).into())
+            }
+            None => Err(format!("Expected one of {}, found EOF.", formatted_toks).into()),
         }
     }
 
