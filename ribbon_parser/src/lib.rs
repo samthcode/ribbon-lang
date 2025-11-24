@@ -70,13 +70,13 @@ impl<'a> Parser<'a> {
         }
         let formatted_toks = toks
             .iter()
-            .map(|e| format!("{e:?}"))
+            .map(|e| format!("{e}"))
             .reduce(|acc, e| format!("{acc}, {e}"))
             .unwrap();
         match self.next_tok() {
             // TODO: Replace Debug call
             Some(t) => {
-                Err(format!("Expected one of {}, found {:?}.", formatted_toks, t.kind,).into())
+                Err(format!("Expected one of {}, found {}.", formatted_toks, t.kind,).into())
             }
             None => Err(format!("Expected one of {}, found EOF.", formatted_toks).into()),
         }
@@ -85,9 +85,9 @@ impl<'a> Parser<'a> {
     fn expect(&mut self, tok: TokKind) -> Result<(), Box<dyn Error>> {
         match self.next_tok() {
             Some(t) if t.kind.is(&tok) => Ok(()),
-            None => Err(format!("Expected {tok:?}, found EOF.").into()),
+            None => Err(format!("Expected {tok}, found EOF.").into()),
             // TODO: Replace Debug call
-            Some(t) => Err(format!("Expected {tok:?}, found {t:?}.").into()),
+            Some(t) => Err(format!("Expected {tok}, found {t}.").into()),
         }
     }
 

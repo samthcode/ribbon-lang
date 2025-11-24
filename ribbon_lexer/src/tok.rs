@@ -16,17 +16,7 @@ impl Tok {
 
 impl Display for Tok {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}-{}] ", self.span.low, self.span.hi)?;
-        write!(
-            f,
-            "{}",
-            match &self.kind {
-                TokKind::Ident(i) => format!("ident:{}", *i),
-                TokKind::Kw(kw) => format!("kw:{}", kw.str()),
-                TokKind::Lit(lit) => format!("lit:{}", lit.string()),
-                TokKind::Op(op) => format!("op:\"{}\"", op.str()),
-            }
-        )
+        write!(f, "[{}-{}] {}", self.span.low, self.span.hi, self.kind)
     }
 }
 
@@ -356,6 +346,21 @@ pub enum TokKind {
     Lit(LitKind),
 
     Op(OpKind),
+}
+
+impl Display for TokKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                TokKind::Ident(i) => format!("ident:`{}`", *i),
+                TokKind::Kw(kw) => format!("kw:`{}`", kw.str()),
+                TokKind::Lit(lit) => format!("lit:`{}`", lit.string()),
+                TokKind::Op(op) => format!("`{}`", op.str()),
+            }
+        )
+    }
 }
 
 impl TokKind {
