@@ -26,6 +26,13 @@ impl<'a> Lexer<'a> {
                 // Whitespace
                 c if is_whitespace(&c) => {
                     self.next_char();
+                    self.skip_while(|c| is_whitespace(c));
+                    return self.next_token();
+                }
+                // Comments
+                '/' if matches!(self.peek_char(), Some('/')) => {
+                    self.skip_while(|c| !is_newline(c));
+                    self.skip_while(|c| is_newline(c));
                     return self.next_token();
                 }
                 '"' => Some(self.tok_str()),
@@ -42,6 +49,15 @@ impl<'a> Lexer<'a> {
         };
         self.next_char();
         res
+    }
+
+    fn skip_while(&mut self, pred: fn(&char) -> bool) {
+        while let Some(c) = self.peek_char() {
+            if !pred(c) {
+                break;
+            }
+            self.next_char();
+        }
     }
 
     /// Advances the source character cursor
@@ -326,6 +342,19 @@ fn is_whitespace(c: &char) -> bool {
     )
 }
 
+fn is_newline(c: &char) -> bool {
+    matches!(
+        *c,
+        | '\u{000A}' // line feed (\n)
+        | '\u{000B}' // vertical tab
+        | '\u{000C}' // form feed
+        | '\u{000D}' // carriage return (\r)
+        | '\u{0085}' // next line (from latin1)
+        | '\u{2028}' // LINE SEPARATOR
+        | '\u{2029}' // PARAGRAPH SEPARATOR
+    )
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -411,5 +440,14 @@ mod test {
         test!("100_000_000", tok!(Lit(LitKind::Int(100000000)), 0, 10));
         test!("9", tok!(Lit(LitKind::Int(9)), 0, 0));
         test!("9876543210", tok!(Lit(LitKind::Int(9876543210)), 0, 9))
+    }
+
+    #[test]
+    fn comments() {
+        test!("//hello this is a comment\r\n",);
+        test!(
+            "//hello this is a comment\r\n101",
+            tok!(Lit(LitKind::Int(101)), 27, 29)
+        )
     }
 }
