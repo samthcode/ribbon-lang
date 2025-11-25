@@ -65,7 +65,7 @@ impl<'a> Parser<'a> {
 
     fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<(), Box<dyn Error>> {
         let n_tok = self.next_tok();
-        if matches!(n_tok, Some(t) if toks.iter().any(|tok| tok.is(&t.kind))) {
+        if matches!(&n_tok, Some(t) if toks.iter().any(|tok| tok.is(&t.kind))) {
             return Ok(());
         }
         let formatted_toks = toks
@@ -73,8 +73,7 @@ impl<'a> Parser<'a> {
             .map(|e| format!("{e}"))
             .reduce(|acc, e| format!("{acc}, {e}"))
             .unwrap();
-        match self.next_tok() {
-            // TODO: Replace Debug call
+        match n_tok {
             Some(t) => {
                 Err(format!("Expected one of {}, found {}.", formatted_toks, t.kind,).into())
             }
