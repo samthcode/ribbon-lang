@@ -102,10 +102,7 @@ impl<'a> Parser<'a> {
             match kind {
                 OpKind::LSquare => {
                     let (exprs, span) = self.list_expr(lhs.span, OpKind::RSquare)?;
-                    Expr::new(
-                        ExprKind::List(exprs),
-                        lhs.span, // TODO: wrong
-                    )
+                    Expr::new(ExprKind::List(exprs), span)
                 }
                 _ => todo!(),
             }
