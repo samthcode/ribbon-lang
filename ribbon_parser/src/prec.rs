@@ -13,10 +13,10 @@ pub enum Fixity {
 
 #[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub enum PrecOrd {
+    Block,
     Semi,
     ListTerminator,
     ArgTerminator,
-    Block,
     Assign,
     Pipe,
     Range,
@@ -110,14 +110,14 @@ pub fn binary_prec(kind: &OpKind) -> Prec {
         // All assignments
         Eq | AmpEq | CaretEq | PipeEq | PlusEq | MinusEq | MulEq | DivEq | ModEq | DotEq
         | ShiftLEq | ShiftREq | AndEq | OrEq => Prec::new(PrecOrd::Assign, Right),
-        // Block
-        LCurly | RCurly => Prec::new(PrecOrd::Block, None),
         // Argument list terminator
         RParen => Prec::new(PrecOrd::ArgTerminator, None),
         // List terminator or separator
         RSquare | Comma => Prec::new(PrecOrd::ListTerminator, None),
         // Semicolon
         Semi => Prec::new(PrecOrd::Semi, None),
+        // Block
+        LCurly | RCurly => Prec::new(PrecOrd::Block, None),
 
         // Not sure what to do with these yet
         At => todo!(),
