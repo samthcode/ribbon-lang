@@ -34,7 +34,7 @@ impl<'a> Lexer<'a> {
                 // Operators
                 c if is_op_head(&c) => Some(self.tok_op()),
                 // Integers/floats
-                '0'..'9' => Some(self.tok_num()),
+                '0'..='9' => Some(self.tok_num()),
                 _ => todo!(),
             }
         } else {
@@ -116,18 +116,15 @@ impl<'a> Lexer<'a> {
 
     /// Creates an integer or float
     ///
+    /// Ensure to only call this method with the cursor over the first digit of the number
     /// TODO: Support exponents
     fn tok_num(&mut self) -> Tok {
-        assert!(
-            matches!(self.curr_char(), Some('0'..'9')),
-            "Called tok_num with no number under cursor"
-        );
         let mut res = self.curr_char().unwrap().to_string();
         let start = self.cursor.pos;
 
         macro_rules! collect_digits {
             () => {
-                while let Some(c @ '0'..'9' | c @ '_') = self.peek_char() {
+                while let Some(c @ '0'..='9' | c @ '_') = self.peek_char() {
                     if *c != '_' {
                         res.push(*c);
                     }
@@ -294,8 +291,8 @@ fn is_ident_tail(c: &char) -> bool {
 
 fn is_op_head(c: &char) -> bool {
     match c {
-        '+' | '-' | '*' | '/' | '%' | '(' | ')' | '[' | ']' | '{' | '}' | ',' | '.' | ':' | ';' | '@'
-        | '#' | '~' | '&' | '^' | '|' | '!' | '=' | '$' | '<' | '>' => true,
+        '+' | '-' | '*' | '/' | '%' | '(' | ')' | '[' | ']' | '{' | '}' | ',' | '.' | ':' | ';'
+        | '@' | '#' | '~' | '&' | '^' | '|' | '!' | '=' | '$' | '<' | '>' => true,
         _ => false,
     }
 }
@@ -412,5 +409,7 @@ mod test {
         );
         test!("1.", tok!(Lit(LitKind::Float(1.0)), 0, 1));
         test!("100_000_000", tok!(Lit(LitKind::Int(100000000)), 0, 10));
+        test!("9", tok!(Lit(LitKind::Int(9)), 0, 0));
+        test!("9876543210", tok!(Lit(LitKind::Int(9876543210)), 0, 9))
     }
 }
