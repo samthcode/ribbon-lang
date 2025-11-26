@@ -161,6 +161,8 @@ pub enum BinOpKind {
     /// `|`
     BwOr,
 
+    /// `=`
+    Assign,
     /// `&=`
     BwAndAssign,
     /// `^=`
@@ -218,19 +220,13 @@ pub enum BinOpKind {
     MethodNoParen,
     /// Non-method called with `~` & method conventions
     NonMethod,
-    // Special cases ---
-    // These will have their own expr kinds because they don't conform specifically to LHS and RHS
-    // /// `!`
-    // ErrUnion,
-    // /// `=`
-    // Assign,
-    // /// `::`
-    // Path,
-    // /// `..`
-    // RangeExclusive,
-    // /// `..=`
-    // RangeInclusive,
-    // -----------------
+
+    /// `::`
+    Path,
+    /// `..`
+    RangeExclusive,
+    /// `..=`
+    RangeInclusive,
 }
 
 impl BinOpKind {
@@ -250,6 +246,7 @@ impl BinOpKind {
             BinOpKind::BwAnd => "&",
             BinOpKind::BwXor => "^",
             BinOpKind::BwOr => "|",
+            BinOpKind::Assign => "=",
             BinOpKind::BwAndAssign => "&=",
             BinOpKind::BwXorAssign => "^=",
             BinOpKind::BwOrAssign => "|=",
@@ -275,6 +272,9 @@ impl BinOpKind {
             BinOpKind::MethodParen => ".",
             BinOpKind::MethodNoParen => ":",
             BinOpKind::NonMethod => "~",
+            BinOpKind::Path => "::",
+            BinOpKind::RangeExclusive => "..",
+            BinOpKind::RangeInclusive => "..=",
         }
     }
 }
@@ -298,6 +298,7 @@ impl TryFrom<OpKind> for BinOpKind {
             OpKind::BangEq => Ok(Inequality),
             OpKind::LtEq => Ok(LtEquality),
             OpKind::GtEq => Ok(GtEquality),
+            OpKind::Eq => Ok(Assign),
             OpKind::AmpEq => Ok(BwAndAssign),
             OpKind::CaretEq => Ok(BwXorAssign),
             OpKind::PipeEq => Ok(BwOrAssign),
@@ -323,6 +324,9 @@ impl TryFrom<OpKind> for BinOpKind {
             OpKind::Dot => Ok(MethodParen),
             OpKind::Colon => Ok(MethodNoParen),
             OpKind::Tilde => Ok(NonMethod),
+            OpKind::Path => Ok(Path),
+            OpKind::DotDot => Ok(RangeExclusive),
+            OpKind::DotDotEq => Ok(RangeInclusive),
             // TODO: Proper error type
             _ => Err("Unexpected operator.".into()),
         }

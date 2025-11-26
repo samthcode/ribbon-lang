@@ -311,6 +311,7 @@ impl OpKind {
             (Mod, '=') => Some(ModEq),
             (Dot, '=') => Some(DotEq),
             (Dot, '.') => Some(DotDot),
+            (Colon, ':') => Some(Path),
             (Colon, '>') => Some(ColonGt),
             (Tilde, '>') => Some(TildeGt),
             (Tilde, '?') => Some(TildeQuestion),

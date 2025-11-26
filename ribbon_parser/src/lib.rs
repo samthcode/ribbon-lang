@@ -84,7 +84,7 @@ impl<'a> Parser<'a> {
                         span,
                     )
                 }
-                _ => todo!(),
+                k => panic!("unexpected/unimplemented unary op: {}", k.str()),
             }
         } else {
             tok_to_expr(lhs)?

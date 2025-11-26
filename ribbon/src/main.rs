@@ -1,7 +1,7 @@
 use ribbon_parser::Parser;
 
 fn main() {
-    let parser = Parser::new("(1,2,3)");
+    let parser = Parser::new("a=3;b=10;c=a+b");
     let program = parser.parse();
     if !program.diagnostics.is_empty() {
         for e in program.diagnostics {
