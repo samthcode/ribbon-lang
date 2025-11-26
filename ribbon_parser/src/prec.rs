@@ -36,15 +36,18 @@ pub enum PrecOrd {
     Path,
 }
 
-pub fn unary_prec(kind: &OpKind) -> PrecOrd {
+pub fn unary_prec(kind: &OpKind) -> Prec {
     use lexer::OpKind::*;
-    match kind {
-        // Unary minus/not/deref/borrow
-        Minus | Bang | Mul | Amp => PrecOrd::Unary,
-        // This shouldn't be called on anything else
-        // Need an error system set up in the parser first
-        _ => todo!(),
-    }
+    Prec::new(
+        match kind {
+            // Unary minus/not/deref/borrow
+            Minus | Bang | Mul | Amp => PrecOrd::Unary,
+            // This shouldn't be called on anything else
+            // Need an error system set up in the parser first
+            _ => todo!(),
+        },
+        Fixity::None,
+    )
 }
 
 #[derive(Debug, Eq, PartialEq)]

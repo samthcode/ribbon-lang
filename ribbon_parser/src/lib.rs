@@ -1,6 +1,6 @@
 use std::{error::Error, iter::Peekable};
 
-use ribbon_ast::{self as ast, BinOp, BinOpKind, Expr, ExprKind, tok_to_expr};
+use ribbon_ast::{self as ast, BinOp, Expr, ExprKind, UnaryOp, tok_to_expr};
 use ribbon_lexer::{self as lexer, Lexer, OpKind, TokKind, TokStream, span::Span, tok::Tok};
 
 use ast::Program;
@@ -50,58 +50,30 @@ impl<'a> Parser<'a> {
         (self.program, self.errors)
     }
 
-    fn expect_or_eof(&mut self, tok: TokKind) -> Result<(), Box<dyn Error>> {
-        match self.next_tok() {
-            Some(n_tok) => {
-                if tok.is(&n_tok.kind) {
-                    Ok(())
-                } else {
-                    Err(format!("Unexpected token {tok:?}").into())
-                }
-            }
-            None => Ok(()),
-        }
-    }
-
-    fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<(), Box<dyn Error>> {
-        let n_tok = self.next_tok();
-        if matches!(&n_tok, Some(t) if toks.iter().any(|tok| tok.is(&t.kind))) {
-            return Ok(());
-        }
-        let formatted_toks = toks
-            .iter()
-            .map(|e| format!("{e}"))
-            .reduce(|acc, e| format!("{acc}, {e}"))
-            .unwrap();
-        match n_tok {
-            Some(t) => {
-                Err(format!("Expected one of {}, found {}.", formatted_toks, t.kind,).into())
-            }
-            None => Err(format!("Expected one of {}, found EOF.", formatted_toks).into()),
-        }
-    }
-
-    fn expect(&mut self, tok: TokKind) -> Result<(), Box<dyn Error>> {
-        match self.next_tok() {
-            Some(t) if t.kind.is(&tok) => Ok(()),
-            None => Err(format!("Expected {tok}, found EOF.").into()),
-            // TODO: Replace Debug call
-            Some(t) => Err(format!("Expected {tok}, found {t}.").into()),
-        }
-    }
-
     fn expr(&mut self) -> Result<ast::Expr, Box<dyn Error>> {
         self.expr_prec(Prec::new(PrecOrd::Semi, Fixity::None))
     }
 
     fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Box<dyn Error>> {
         let Some(lhs) = self.next_tok() else { panic!() };
-        // If the left hand side is an operator then we want to try to parse it as a unary operator.
         let mut lhs = if let TokKind::Op(kind) = lhs.kind {
             match kind {
+                // List expression
                 OpKind::LSquare => {
                     let (exprs, span) = self.list_expr(lhs.span, OpKind::RSquare)?;
                     Expr::new(ExprKind::List(exprs), span)
+                }
+                // Unary operator
+                op @ (OpKind::Minus | OpKind::Bang | OpKind::Mul | OpKind::Amp) => {
+                    let rhs = self.expr_prec(unary_prec(&op))?;
+                    let span = lhs.span.to(&rhs.span);
+                    Expr::new(
+                        ExprKind::UnaryOp {
+                            rhs: Box::new(rhs),
+                            kind: UnaryOp::new(op.try_into()?, lhs.span),
+                        },
+                        span,
+                    )
                 }
                 _ => todo!(),
             }
@@ -186,6 +158,46 @@ impl<'a> Parser<'a> {
         Ok((exprs, begin_span.to(&end_span)))
     }
 
+    fn expect_or_eof(&mut self, tok: TokKind) -> Result<(), Box<dyn Error>> {
+        match self.next_tok() {
+            Some(n_tok) => {
+                if tok.is(&n_tok.kind) {
+                    Ok(())
+                } else {
+                    Err(format!("Unexpected token {tok:?}").into())
+                }
+            }
+            None => Ok(()),
+        }
+    }
+
+    fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<(), Box<dyn Error>> {
+        let n_tok = self.next_tok();
+        if matches!(&n_tok, Some(t) if toks.iter().any(|tok| tok.is(&t.kind))) {
+            return Ok(());
+        }
+        let formatted_toks = toks
+            .iter()
+            .map(|e| format!("{e}"))
+            .reduce(|acc, e| format!("{acc}, {e}"))
+            .unwrap();
+        match n_tok {
+            Some(t) => {
+                Err(format!("Expected one of {}, found {}.", formatted_toks, t.kind,).into())
+            }
+            None => Err(format!("Expected one of {}, found EOF.", formatted_toks).into()),
+        }
+    }
+
+    fn expect(&mut self, tok: TokKind) -> Result<(), Box<dyn Error>> {
+        match self.next_tok() {
+            Some(t) if t.kind.is(&tok) => Ok(()),
+            None => Err(format!("Expected {tok}, found EOF.").into()),
+            // TODO: Replace Debug call
+            Some(t) => Err(format!("Expected {tok}, found {t}.").into()),
+        }
+    }
+
     fn peek_tok(&mut self) -> Option<&Tok> {
         self.tok_stream.peek()
     }
@@ -226,5 +238,12 @@ mod test {
             "[1*10,2,\"Hello World\"+10]",
             "(list (* 1 10) 2 (+ \"Hello World\" 10))"
         )
+    }
+
+    #[test]
+    fn unary_expressions() {
+        sexpr_test!("-10", "(- 10)");
+        sexpr_test!("*ident", "(* ident)");
+        sexpr_test!("*ident.func", "(* (. ident func))");
     }
 }
