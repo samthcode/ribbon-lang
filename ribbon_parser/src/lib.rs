@@ -214,6 +214,9 @@ mod test {
         ($src:literal, $($res:literal),+) => {
             {
                 let program = Parser::new($src).parse();
+                for err in program.1.iter() {
+                    eprintln!("{err}");
+                }
                 assert!(program.1.is_empty());
                 assert_eq!(
                     program
@@ -245,5 +248,8 @@ mod test {
         sexpr_test!("-10", "(- 10)");
         sexpr_test!("*ident", "(* ident)");
         sexpr_test!("*ident.func", "(* (. ident func))");
+        sexpr_test!("-ident", "(- ident)");
+        sexpr_test!("!ident + 10", "(+ (! ident) 10)");
+        sexpr_test!("&ident", "(& ident)");
     }
 }
