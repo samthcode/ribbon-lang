@@ -17,6 +17,7 @@ pub enum PrecOrd {
     Semi,
     ListTerminator,
     ArgTerminator,
+    ListSeparator,
     Assign,
     Pipe,
     Range,
@@ -113,10 +114,12 @@ pub fn binary_prec(kind: &OpKind) -> Prec {
         // All assignments
         Eq | AmpEq | CaretEq | PipeEq | PlusEq | MinusEq | MulEq | DivEq | ModEq | DotEq
         | ShiftLEq | ShiftREq | AndEq | OrEq => Prec::new(PrecOrd::Assign, Right),
+        // List separator
+        Comma => Prec::new(PrecOrd::ListSeparator, Fixity::None),
         // Argument list terminator
         RParen => Prec::new(PrecOrd::ArgTerminator, None),
-        // List terminator or separator
-        RSquare | Comma => Prec::new(PrecOrd::ListTerminator, None),
+        // List terminator
+        RSquare => Prec::new(PrecOrd::ListTerminator, None),
         // Semicolon
         Semi => Prec::new(PrecOrd::Semi, None),
         // Block

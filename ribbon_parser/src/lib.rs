@@ -59,8 +59,18 @@ impl<'a> Parser<'a> {
             match kind {
                 // List expression
                 OpKind::LSquare => {
-                    let (exprs, span) = self.list_expr(lhs.span, OpKind::RSquare)?;
+                    let (exprs, span, _) = self.list_expr(lhs.span, OpKind::RSquare)?;
                     Expr::new(ExprKind::List(exprs), span)
+                }
+                // Tuple/unit type/function parameter list
+                OpKind::LParen => {
+                    let (exprs, span, trailing_comma) = self.list_expr(lhs.span, OpKind::RParen)?;
+                    if exprs.len() == 1 && !trailing_comma {
+                        // It is a parenthesised expression
+                        exprs[0].clone()
+                    } else {
+                        Expr::new(ExprKind::TupleOrParameterList(exprs), span)
+                    }
                 }
                 // Unary operator
                 op @ (OpKind::Minus | OpKind::Bang | OpKind::Mul | OpKind::Amp) => {
@@ -116,17 +126,22 @@ impl<'a> Parser<'a> {
         &mut self,
         begin_span: Span,
         delim: OpKind,
-    ) -> Result<(Vec<Expr>, Span), Box<dyn Error>> {
+    ) -> Result<(Vec<Expr>, Span, bool), Box<dyn Error>> {
         let mut exprs: Vec<Expr> = vec![];
         let mut end_span = begin_span;
+        // This is necessary for the differentiation of parenthesised expressions and tuples
+        let mut trailing_comma = false;
         loop {
             let Some(t) = self.peek_tok() else {
                 return Err(Box::new(
-                    Diagnostic::new_error(ErrorKind::UnclosedListLiteral, begin_span.to(&end_span))
-                        .with_subdiagnostics(vec![Diagnostic::new_info(
-                            InfoKind::ListLiteralBeginsHere,
-                            begin_span,
-                        )]),
+                    Diagnostic::new_error(
+                        ErrorKind::UnclosedDelimitedExpression,
+                        begin_span.to(&end_span),
+                    )
+                    .with_subdiagnostics(vec![Diagnostic::new_info(
+                        InfoKind::DelimitedExpressionBeginsHere,
+                        begin_span,
+                    )]),
                 ));
             };
             match t {
@@ -151,20 +166,18 @@ impl<'a> Parser<'a> {
                             span: _
                         }) if *d == delim
                     ) {
-                        if let Some(Tok { kind: _, span }) = self.peek_tok() {
+                        if let Some(Tok { kind, span }) = self.peek_tok() {
                             end_span = *span;
+                            trailing_comma = matches!(kind, TokKind::Op(OpKind::Comma))
                         }
-                        self.expect_one_of(&[
-                            TokKind::Op(OpKind::Comma),
-                            TokKind::Op(OpKind::RSquare),
-                        ])?;
+                        self.expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(delim)])?;
                     }
                 }
             }
         }
         // Consume end delimeter
         self.next_tok();
-        Ok((exprs, begin_span.to(&end_span)))
+        Ok((exprs, begin_span.to(&end_span), trailing_comma))
     }
 
     fn expect_or_eof(&mut self, tok: TokKind) -> Result<(), Box<dyn Error>> {
@@ -269,5 +282,14 @@ mod test {
         sexpr_test!("-ident", "(- ident)");
         sexpr_test!("!ident + 10", "(+ (! ident) 10)");
         sexpr_test!("&ident", "(& ident)");
+    }
+
+    #[test]
+    fn expression_or_tuple_or_parameter_list() {
+        sexpr_test!("(1,2)", "(tuple-param-list 1 2)");
+        sexpr_test!("(1,2,3,hello)", "(tuple-param-list 1 2 3 hello)");
+        sexpr_test!("()", "(tuple-param-list)");
+        sexpr_test!("(1)", "1");
+        sexpr_test!("(hello+world)", "(+ hello world)");
     }
 }

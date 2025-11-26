@@ -92,7 +92,7 @@ pub enum ErrorKind {
     ExpectedOneOfXOrEofFoundY(Vec<TokKind>, TokKind),
     ExpectedXFoundEof(TokKind),
     ExpectedOneOfXFoundEof(Vec<TokKind>),
-    UnclosedListLiteral,
+    UnclosedDelimitedExpression,
 }
 
 impl Display for ErrorKind {
@@ -138,7 +138,8 @@ impl Display for ErrorKind {
                             .unwrap(),
                     )
                 }
-                ErrorKind::UnclosedListLiteral => "unclosed list literal".to_string(),
+                ErrorKind::UnclosedDelimitedExpression =>
+                    "unclosed delimited expression".to_string(),
             }
         )
     }
@@ -155,7 +156,7 @@ impl Display for WarningKind {
 
 #[derive(Debug)]
 pub enum InfoKind {
-    ListLiteralBeginsHere,
+    DelimitedExpressionBeginsHere,
 }
 
 impl Display for InfoKind {
@@ -164,7 +165,7 @@ impl Display for InfoKind {
             f,
             "{}",
             match self {
-                InfoKind::ListLiteralBeginsHere => "list literal begins here",
+                InfoKind::DelimitedExpressionBeginsHere => "delimited expression begins here",
             }
         )
     }

@@ -21,7 +21,7 @@ impl Default for Program {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
@@ -39,7 +39,7 @@ impl Expr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExprKind {
     BinOp {
         lhs: Box<Expr>,
@@ -53,6 +53,7 @@ pub enum ExprKind {
     Ident(Box<String>),
     Lit(LitKind),
     List(Vec<Expr>),
+    TupleOrParameterList(Vec<Expr>),
 }
 
 impl ExprKind {
@@ -68,19 +69,27 @@ impl ExprKind {
             ExprKind::Lit(lit_kind) => lit_kind.repr(),
             ExprKind::List(elems) => {
                 format!(
-                    "(list {})",
-                    elems
-                        .iter()
-                        .map(|e| e.sexpr())
-                        .reduce(|acc, elem| format!("{acc} {elem}"))
-                        .unwrap()
+                    "(list{})",
+                    elems.iter().fold("".to_string(), |acc, elem| format!(
+                        "{acc} {}",
+                        elem.sexpr()
+                    ))
+                )
+            }
+            ExprKind::TupleOrParameterList(exprs) => {
+                format!(
+                    "(tuple-param-list{})",
+                    exprs.iter().fold("".to_string(), |acc, elem| format!(
+                        "{acc} {}",
+                        elem.sexpr()
+                    ))
                 )
             }
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LitKind {
     /// e.g. `42`
     Int(i64),
@@ -103,7 +112,7 @@ impl LitKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BinOp {
     kind: BinOpKind,
     span: Span,
@@ -119,7 +128,7 @@ impl BinOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BinOpKind {
     /// `+`
     Add,
@@ -320,7 +329,7 @@ impl TryFrom<OpKind> for BinOpKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnaryOp {
     kind: UnaryOpKind,
     span: Span,
@@ -336,7 +345,7 @@ impl UnaryOp {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum UnaryOpKind {
     Minus,
     Not,
