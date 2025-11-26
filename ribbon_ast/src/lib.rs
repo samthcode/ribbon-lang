@@ -42,6 +42,10 @@ pub enum ExprKind {
         rhs: Box<Expr>,
         kind: BinOp,
     },
+    UnaryOp {
+        rhs: Box<Expr>,
+        kind: UnaryOp,
+    },
     Ident(Box<String>),
     Lit(LitKind),
     List(Vec<Expr>),
@@ -52,6 +56,9 @@ impl ExprKind {
         match self {
             ExprKind::BinOp { lhs, rhs, kind } => {
                 format!("({} {} {})", kind.str(), lhs.sexpr(), rhs.sexpr())
+            }
+            ExprKind::UnaryOp { rhs, kind } => {
+                format!("({} {})", kind.str(), rhs.sexpr())
             }
             ExprKind::Ident(s) => s.to_string(),
             ExprKind::Lit(lit_kind) => lit_kind.repr(),
@@ -99,14 +106,12 @@ pub struct BinOp {
 }
 
 impl BinOp {
-    pub fn str(&self) -> &str {
-        self.kind.str()
-    }
-}
-
-impl BinOp {
     pub fn new(kind: BinOpKind, span: Span) -> Self {
         Self { kind, span }
+    }
+
+    pub fn str(&self) -> &str {
+        self.kind.str()
     }
 }
 
@@ -193,14 +198,15 @@ pub enum BinOpKind {
     ThinArrow,
     /// `=>`
     FatArrow,
+
+    /// A (strictly) parenthesised method call
+    MethodParen,
+    /// Method call with no required parentheses
+    MethodNoParen,
+    /// Non-method called with `~` & method conventions
+    NonMethod,
     // Special cases ---
     // These will have their own expr kinds because they don't conform specifically to LHS and RHS
-    // /// A (strictly) parenthesised method call
-    // MethodParen,
-    // /// Method call with no required parentheses
-    // MethodNoParen,
-    // /// Non-method called with `~` & method conventions
-    // NonMethod,
     // /// `!`
     // ErrUnion,
     // /// `=`
@@ -253,6 +259,9 @@ impl BinOpKind {
             BinOpKind::ShiftRAssign => ">>=",
             BinOpKind::ThinArrow => "->",
             BinOpKind::FatArrow => "=>",
+            BinOpKind::MethodParen => ".",
+            BinOpKind::MethodNoParen => ":",
+            BinOpKind::NonMethod => "~",
         }
     }
 }
@@ -298,8 +307,60 @@ impl TryFrom<OpKind> for BinOpKind {
             OpKind::OrEq => Ok(LogicalOrAssign),
             OpKind::ShiftLEq => Ok(ShiftLAssign),
             OpKind::ShiftREq => Ok(ShiftRAssign),
+            OpKind::Dot => Ok(MethodParen),
+            OpKind::Colon => Ok(MethodNoParen),
+            OpKind::Tilde => Ok(NonMethod),
             // TODO: Proper error type
             _ => Err("Unexpected operator.".into()),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct UnaryOp {
+    kind: UnaryOpKind,
+    span: Span,
+}
+
+impl UnaryOp {
+    pub fn new(kind: UnaryOpKind, span: Span) -> Self {
+        Self { kind, span }
+    }
+
+    pub fn str(&self) -> &str {
+        self.kind.str()
+    }
+}
+
+#[derive(Debug)]
+pub enum UnaryOpKind {
+    Minus,
+    Not,
+    Deref,
+    Ref,
+}
+
+impl UnaryOpKind {
+    pub fn str(&self) -> &str {
+        match self {
+            UnaryOpKind::Minus => "-",
+            UnaryOpKind::Not => "!",
+            UnaryOpKind::Deref => "*",
+            UnaryOpKind::Ref => "&",
+        }
+    }
+}
+
+impl TryFrom<OpKind> for UnaryOpKind {
+    type Error = Box<dyn Error>;
+
+    fn try_from(value: OpKind) -> Result<Self, Self::Error> {
+        match value {
+            OpKind::Minus => Ok(UnaryOpKind::Minus),
+            OpKind::Bang => Ok(UnaryOpKind::Not),
+            OpKind::Mul => Ok(UnaryOpKind::Deref),
+            OpKind::Amp => Ok(UnaryOpKind::Ref),
+            _ => Err(format!("Unexpected operator {}.", value.str()).into()),
         }
     }
 }
