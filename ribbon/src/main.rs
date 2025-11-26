@@ -3,12 +3,12 @@ use ribbon_parser::Parser;
 fn main() {
     let parser = Parser::new("[1+3,");
     let program = parser.parse();
-    if !program.1.is_empty() {
-        for e in program.1 {
+    if !program.diagnostics.is_empty() {
+        for e in program.diagnostics {
             eprintln!("{e}")
         }
     }
-    for i in program.0.body {
+    for i in program.body {
         println!("{}", i.sexpr())
     }
 }

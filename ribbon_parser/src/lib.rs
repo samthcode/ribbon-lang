@@ -18,7 +18,6 @@ pub struct Parser<'a> {
     source: &'a str,
     tok_stream: Peekable<TokStream<'a>>,
     program: Program,
-    errors: Vec<Box<dyn Error>>,
 }
 
 impl<'a> Parser<'a> {
@@ -27,27 +26,26 @@ impl<'a> Parser<'a> {
             source,
             tok_stream: Lexer::new(source).into_iter().peekable(),
             program: Default::default(),
-            errors: vec![],
         }
     }
 
     /// The method that turns the tok_stream into a root Program node
     ///
     /// This will need its own error struct/trait & result type
-    pub fn parse(mut self) -> (Program, Vec<Box<dyn Error>>) {
+    pub fn parse(mut self) -> Program {
         while let Some(_) = self.peek_tok() {
             match self.expr() {
                 Ok(expr) => {
                     self.program.body.push(expr);
                     match self.expect_or_eof(TokKind::Op(OpKind::Semi)) {
                         Ok(()) => (),
-                        Err(e) => self.errors.push(e),
+                        Err(e) => self.program.diagnostics.push(e),
                     };
                 }
-                Err(e) => self.errors.push(e),
+                Err(e) => self.program.diagnostics.push(e),
             }
         }
-        (self.program, self.errors)
+        self.program
     }
 
     fn expr(&mut self) -> Result<ast::Expr, Box<dyn Error>> {
@@ -214,13 +212,12 @@ mod test {
         ($src:literal, $($res:literal),+) => {
             {
                 let program = Parser::new($src).parse();
-                for err in program.1.iter() {
+                for err in program.diagnostics.iter() {
                     eprintln!("{err}");
                 }
-                assert!(program.1.is_empty());
+                assert!(program.diagnostics.is_empty());
                 assert_eq!(
                     program
-                        .0
                         .body
                         .iter()
                         .map(|expr| expr.sexpr())

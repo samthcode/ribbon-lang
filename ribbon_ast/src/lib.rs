@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::format};
+use std::error::Error;
 
 use ribbon_lexer::{OpKind, Tok, TokKind, span::Span};
 
@@ -9,11 +9,15 @@ use ribbon_lexer::{OpKind, Tok, TokKind, span::Span};
 #[derive(Debug)]
 pub struct Program {
     pub body: Vec<Expr>,
+    pub diagnostics: Vec<Box<dyn Error>>,
 }
 
 impl Default for Program {
     fn default() -> Self {
-        Self { body: vec![] }
+        Self {
+            body: vec![],
+            diagnostics: vec![],
+        }
     }
 }
 
