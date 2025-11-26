@@ -26,7 +26,6 @@ impl<'a> Lexer<'a> {
                 // Whitespace
                 c if is_whitespace(&c) => {
                     self.skip_while(|ch| is_whitespace(ch));
-                    self.next_char();
                     return self.next_token();
                 }
                 // Line comment
@@ -57,23 +56,22 @@ impl<'a> Lexer<'a> {
         res
     }
 
-    /// Skips while the predicate is true, leaving the cursor on the last character which matches the predicate.
+    /// Skips while the predicate is true, leaving the cursor on the first character which doesn't match the predicate.
     ///
     /// It is important to note that this starts on the character after the cursor so, in general,
     /// do not move the cursor before calling this.
     fn skip_while(&mut self, pred: fn(&char) -> bool) {
-        while let Some(c) = self.peek_char() {
-            if !pred(c) {
+        while let Some(c) = self.next_char() {
+            if !pred(&c) {
                 break;
             }
-            self.next_char();
         }
     }
 
     fn skip_block_comment(&mut self) {
         loop {
             self.skip_while(|c| *c != '*');
-            if let None = self.next_char() {
+            if let None = self.curr_char() {
                 todo!() // Unterminated block comment
             }
             if let '/' = self
@@ -505,6 +503,7 @@ mod test {
             tok!(Ident("hello".to_string()), 0, 4),
             tok!(Lit(LitKind::Int(123)), 12, 14)
         );
+        test!("hello/*****123*/", tok!(Ident("hello".to_string()), 0, 4));
         test!(
             "/*block comment*/\n123 // Line comment\n /**/ 123",
             tok!(Lit(LitKind::Int(123)), 18, 20),
