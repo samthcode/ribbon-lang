@@ -29,10 +29,16 @@ impl<'a> Lexer<'a> {
                     self.skip_while(|c| is_whitespace(c));
                     return self.next_token();
                 }
-                // Comments
+                // Line comment
                 '/' if matches!(self.peek_char(), Some('/')) => {
                     self.skip_while(|c| !is_newline(c));
                     self.skip_while(|c| is_newline(c));
+                    return self.next_token();
+                }
+                // Block comment
+                '/' if matches!(self.peek_char(), Some('*')) => {
+                    self.next_char(); // Move onto the asterisk
+                    self.skip_block_comment();
                     return self.next_token();
                 }
                 '"' => Some(self.tok_str()),
@@ -57,6 +63,23 @@ impl<'a> Lexer<'a> {
                 break;
             }
             self.next_char();
+        }
+    }
+
+    fn skip_block_comment(&mut self) {
+        loop {
+            self.skip_while(|c| *c != '*');
+            if let None = self.next_char() {
+                todo!() // Unterminated block comment
+            }
+            if let '/' = self
+                .peek_char()
+                .unwrap_or_else(|| todo!() /* Unterminated block comment */)
+            {
+                self.next_char(); // Consume the end of the block comment
+                self.next_char(); // Move the cursor onto the next character
+                break;
+            }
         }
     }
 
@@ -392,6 +415,7 @@ mod test {
 
     #[test]
     fn whitespace() {
+        test!(" 123", tok!(Lit(LitKind::Int(123)), 1, 3));
         test!("     ident", tok!(Ident("ident".to_string()), 5, 9));
         test!(
             "     ident ()",
@@ -443,11 +467,37 @@ mod test {
     }
 
     #[test]
-    fn comments() {
+    fn line_comments() {
         test!("//hello this is a comment\r\n",);
         test!(
             "//hello this is a comment\r\n101",
             tok!(Lit(LitKind::Int(101)), 27, 29)
         )
+    }
+
+    #[test]
+    fn block_comments() {
+        test!("/*block comment*/",);
+        test!("/*block*comment*/",);
+        test!(
+            "hello/**/123",
+            tok!(Ident("hello".to_string()), 0, 4),
+            tok!(Lit(LitKind::Int(123)), 9, 11)
+        );
+        test!(
+            "hello/***/123",
+            tok!(Ident("hello".to_string()), 0, 4),
+            tok!(Lit(LitKind::Int(123)), 10, 12)
+        );
+        test!(
+            "hello/*****/123",
+            tok!(Ident("hello".to_string()), 0, 4),
+            tok!(Lit(LitKind::Int(123)), 12, 14)
+        );
+        test!(
+            "/*block comment*/\n123 // Line comment\n /**/ 123",
+            tok!(Lit(LitKind::Int(123)), 18, 20),
+            tok!(Lit(LitKind::Int(123)), 44, 46)
+        );
     }
 }
