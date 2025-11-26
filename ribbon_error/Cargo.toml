@@ -1,0 +1,7 @@
+[package]
+name = "ribbon_error"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ribbon_lexer = { path = "../ribbon_lexer" }

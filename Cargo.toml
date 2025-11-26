@@ -1,3 +1,3 @@
 [workspace]
 resolver = "3"
-members = ["ribbon", "ribbon_ast", "ribbon_lexer", "ribbon_parser"]
+members = ["ribbon", "ribbon_ast", "ribbon_error", "ribbon_lexer", "ribbon_parser"]

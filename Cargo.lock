@@ -18,6 +18,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ribbon_error"
+version = "0.1.0"
+dependencies = [
+ "ribbon_lexer",
+]
+
+[[package]]
 name = "ribbon_lexer"
 version = "0.1.0"
 
@@ -26,5 +33,6 @@ name = "ribbon_parser"
 version = "0.1.0"
 dependencies = [
  "ribbon_ast",
+ "ribbon_error",
  "ribbon_lexer",
 ]

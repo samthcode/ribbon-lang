@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 ribbon_lexer = { path = "../ribbon_lexer" }
 ribbon_ast = { path = "../ribbon_ast" }
+ribbon_error = { path = "../ribbon_error" }

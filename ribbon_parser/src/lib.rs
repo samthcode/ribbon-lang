@@ -1,6 +1,7 @@
 use std::{error::Error, iter::Peekable};
 
 use ribbon_ast::{self as ast, BinOp, Expr, ExprKind, UnaryOp, tok_to_expr};
+use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
 use ribbon_lexer::{self as lexer, Lexer, OpKind, TokKind, TokStream, span::Span, tok::Tok};
 
 use ast::Program;
@@ -117,10 +118,16 @@ impl<'a> Parser<'a> {
         delim: OpKind,
     ) -> Result<(Vec<Expr>, Span), Box<dyn Error>> {
         let mut exprs: Vec<Expr> = vec![];
-        let end_span;
+        let mut end_span = begin_span;
         loop {
             let Some(t) = self.peek_tok() else {
-                return Err("EOF while parsing list.".into());
+                return Err(Box::new(
+                    Diagnostic::new_error(ErrorKind::UnclosedListLiteral, begin_span.to(&end_span))
+                        .with_subdiagnostics(vec![Diagnostic::new_info(
+                            InfoKind::ListLiteralBeginsHere,
+                            begin_span,
+                        )]),
+                ));
             };
             match t {
                 // End of list
@@ -134,6 +141,7 @@ impl<'a> Parser<'a> {
                 // Get next element and push to exprs
                 _ => {
                     let expr = self.expr_prec(binary_prec(&OpKind::Comma))?;
+                    end_span = expr.span;
                     exprs.push(expr);
                     // We catch end of list in the next iteration so we don't want to consume it here
                     if !matches!(
@@ -143,6 +151,9 @@ impl<'a> Parser<'a> {
                             span: _
                         }) if *d == delim
                     ) {
+                        if let Some(Tok { kind: _, span }) = self.peek_tok() {
+                            end_span = *span;
+                        }
                         self.expect_one_of(&[
                             TokKind::Op(OpKind::Comma),
                             TokKind::Op(OpKind::RSquare),
@@ -162,7 +173,10 @@ impl<'a> Parser<'a> {
                 if tok.is(&n_tok.kind) {
                     Ok(())
                 } else {
-                    Err(format!("Unexpected token {tok:?}").into())
+                    Err(Box::new(Diagnostic::new_error(
+                        ErrorKind::ExpectedXFoundY(tok, n_tok.kind),
+                        n_tok.span,
+                    )))
                 }
             }
             None => Ok(()),
@@ -174,25 +188,32 @@ impl<'a> Parser<'a> {
         if matches!(&n_tok, Some(t) if toks.iter().any(|tok| tok.is(&t.kind))) {
             return Ok(());
         }
-        let formatted_toks = toks
-            .iter()
-            .map(|e| format!("{e}"))
-            .reduce(|acc, e| format!("{acc}, {e}"))
-            .unwrap();
         match n_tok {
-            Some(t) => {
-                Err(format!("Expected one of {}, found {}.", formatted_toks, t.kind,).into())
-            }
-            None => Err(format!("Expected one of {}, found EOF.", formatted_toks).into()),
+            Some(t) => Err(Box::new(Diagnostic::new_error(
+                ErrorKind::ExpectedOneOfXFoundY(Vec::from(toks), t.kind),
+                t.span,
+            ))),
+            None => Err(Box::new(Diagnostic::new_error(
+                ErrorKind::ExpectedOneOfXFoundEof(Vec::from(toks)),
+                // TODO: this is wrong
+                Span::new(0, 0),
+            ))),
         }
     }
 
     fn expect(&mut self, tok: TokKind) -> Result<(), Box<dyn Error>> {
         match self.next_tok() {
             Some(t) if t.kind.is(&tok) => Ok(()),
-            None => Err(format!("Expected {tok}, found EOF.").into()),
+            None => Err(Box::new(Diagnostic::new_error(
+                ErrorKind::ExpectedXFoundEof(tok),
+                // TODO: this is wrong
+                Span::new(0, 0),
+            ))),
             // TODO: Replace Debug call
-            Some(t) => Err(format!("Expected {tok}, found {t}.").into()),
+            Some(t) => Err(Box::new(Diagnostic::new_error(
+                ErrorKind::ExpectedXFoundY(tok, t.kind),
+                t.span,
+            ))),
         }
     }
 
