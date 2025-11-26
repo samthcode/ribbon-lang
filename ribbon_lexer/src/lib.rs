@@ -25,8 +25,8 @@ impl<'a> Lexer<'a> {
             match c {
                 // Whitespace
                 c if is_whitespace(&c) => {
+                    self.skip_while(|ch| is_whitespace(ch));
                     self.next_char();
-                    self.skip_while(|c| is_whitespace(c));
                     return self.next_token();
                 }
                 // Line comment
@@ -57,6 +57,10 @@ impl<'a> Lexer<'a> {
         res
     }
 
+    /// Skips while the predicate is true, leaving the cursor on the last character which matches the predicate.
+    ///
+    /// It is important to note that this starts on the character after the cursor so, in general,
+    /// do not move the cursor before calling this.
     fn skip_while(&mut self, pred: fn(&char) -> bool) {
         while let Some(c) = self.peek_char() {
             if !pred(c) {
@@ -423,7 +427,14 @@ mod test {
             tok!(Op(OpKind::LParen), 11),
             tok!(Op(OpKind::RParen), 12)
         );
-        test!("     \n\r\tident", tok!(Ident("ident".to_string()), 8, 12))
+        test!("     \n\r\tident", tok!(Ident("ident".to_string()), 8, 12));
+        test!(
+            "!ident + 10",
+            tok!(Op(OpKind::Bang), 0, 0),
+            tok!(Ident("ident".to_string()), 1, 5),
+            tok!(Op(OpKind::Plus), 7, 7),
+            tok!(Lit(LitKind::Int(10)), 9, 10)
+        )
     }
 
     #[test]
