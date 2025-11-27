@@ -1,4 +1,4 @@
-use std::{error::Error, iter::Peekable};
+use std::{error::Error, iter::Peekable, str::EncodeUtf16};
 
 use ribbon_ast::{self as ast, BinOp, Expr, ExprKind, UnaryOp, tok_to_expr};
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
@@ -34,7 +34,7 @@ impl<'a> Parser<'a> {
     ///
     /// This will need its own error struct/trait & result type
     pub fn parse(mut self) -> Program {
-        while let Some(_) = self.peek_tok() {
+        while self.peek_tok().is_some() {
             match self.expr() {
                 Ok(expr) => {
                     self.program.body.push(expr);
@@ -57,6 +57,8 @@ impl<'a> Parser<'a> {
         let Some(lhs) = self.next_tok() else { panic!() };
         let mut lhs = if let TokKind::Op(kind) = lhs.kind {
             match kind {
+                // Block expression
+                OpKind::LCurly => self.block_expr(lhs.span)?,
                 // List expression
                 OpKind::LSquare => {
                     let (exprs, span, _) = self.list_expr(lhs.span, OpKind::RSquare)?;
@@ -66,8 +68,11 @@ impl<'a> Parser<'a> {
                 OpKind::LParen => {
                     let (exprs, span, trailing_comma) = self.list_expr(lhs.span, OpKind::RParen)?;
                     if exprs.len() == 1 && !trailing_comma {
-                        // It is a parenthesised expression
-                        exprs[0].clone()
+                        // We need the ParenthesisedExpression variant to ensure single-parameter functions are parsed correctly
+                        Expr::new(
+                            ExprKind::ParenthesisedExpression(Box::new(exprs[0].clone())),
+                            span,
+                        )
                     } else {
                         Expr::new(ExprKind::TupleOrParameterList(exprs), span)
                     }
@@ -108,6 +113,26 @@ impl<'a> Parser<'a> {
                 None => break,
             };
             self.next_tok();
+            // There are a few special cases that we need to parse differently
+            match op_kind {
+                // Function
+                // TODO: Support `=>` functions e.g. `const fn = () => "Hello World".print;`
+                OpKind::MinusGt => {
+                    match lhs.kind {
+                        ExprKind::TupleOrParameterList(exprs) => {
+                            lhs = self.fn_decl(exprs, lhs.span, op_span)?;
+                            continue;
+                        }
+                        ExprKind::ParenthesisedExpression(expr) => {
+                            lhs = self.fn_decl(vec![*expr], lhs.span, op_span)?;
+                            continue;
+                        }
+                        // TODO: Proper error
+                        _ => return Err("unexpected expression before function arrow".into()),
+                    }
+                }
+                _ => (),
+            }
             let rhs = self.expr_prec(prec)?;
             let span = lhs.span.to(&rhs.span);
             lhs = Expr::new(
@@ -120,6 +145,74 @@ impl<'a> Parser<'a> {
             )
         }
         Ok(lhs)
+    }
+
+    fn fn_decl(
+        &mut self,
+        parameters: Vec<Expr>,
+        param_span: Span,
+        arrow_span: Span,
+    ) -> Result<Expr, Box<dyn Error>> {
+        let n_tok = match self.peek_tok() {
+            Some(t) => t,
+            None => return Err("unfinished function literal".into()),
+        };
+        let mut lcurly_span = n_tok.span;
+        let ret_type = if let TokKind::Op(OpKind::LCurly) = n_tok.kind {
+            // No return type
+            self.next_tok();
+            Expr::new(ExprKind::UnitType, arrow_span)
+        } else {
+            // Parse the return type up to the block
+            let res = self.expr_prec(binary_prec(&OpKind::RCurly))?;
+            lcurly_span = self
+                .peek_tok()
+                .unwrap_or(&Tok::new(
+                    TokKind::Ident(Box::new("dummy".to_string())),
+                    lcurly_span,
+                ))
+                .span;
+            self.expect(TokKind::Op(OpKind::LCurly))?;
+            res
+        };
+        // TODO: Support functions with fat arrow blocks
+        let Expr {
+            kind: ExprKind::Block(body),
+            span: end_span,
+        } = self.block_expr(lcurly_span)?
+        else {
+            panic!()
+        };
+        Ok(Expr::new(
+            ExprKind::FunctionDeclaration {
+                parameters,
+                generic_parameters: vec![],
+                arrow_span,
+                return_type: Box::new(ret_type),
+                body,
+            },
+            param_span.to(&end_span),
+        ))
+    }
+
+    fn block_expr(&mut self, begin_span: Span) -> Result<Expr, Box<dyn Error>> {
+        let mut exprs = Vec::<Expr>::new();
+        let mut end_span = begin_span;
+        while let Some(t) = self.peek_tok() {
+            if t.kind.is(&TokKind::Op(OpKind::RCurly)) {
+                self.next_tok();
+                break;
+            } else if t.kind.is(&TokKind::Op(OpKind::Semi)) {
+                self.next_tok();
+                continue;
+            }
+            let expr = self.expr()?;
+            exprs.push(expr);
+            let Tok { span, .. } =
+                self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Op(OpKind::RCurly)])?;
+            end_span = span;
+        }
+        Ok(Expr::new(ExprKind::Block(exprs), begin_span.to(&end_span)))
     }
 
     fn list_expr(
@@ -196,12 +289,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<(), Box<dyn Error>> {
-        let n_tok = self.next_tok();
-        if matches!(&n_tok, Some(t) if toks.iter().any(|tok| tok.is(&t.kind))) {
-            return Ok(());
-        }
-        match n_tok {
+    fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<Tok, Box<dyn Error>> {
+        match self.next_tok() {
+            Some(t) if toks.iter().any(|tok| tok.is(&t.kind)) => Ok(t),
             Some(t) => Err(Box::new(Diagnostic::new_error(
                 ErrorKind::ExpectedOneOfXFoundY(Vec::from(toks), t.kind),
                 t.span,
@@ -291,5 +381,22 @@ mod test {
         sexpr_test!("()", "(tuple-param-list)");
         sexpr_test!("(1)", "1");
         sexpr_test!("(hello+world)", "(+ hello world)");
+    }
+
+    #[test]
+    fn functions() {
+        sexpr_test!("() -> {}", "(fn (params) (ret ()) (body))");
+        sexpr_test!(
+            "(a:i32) -> i32 {a+10}",
+            "(fn (params (: a i32)) (ret i32) (body
+    (+ a 10)
+))"
+        );
+        sexpr_test!(
+            "() -> {a+10;;};",
+            "(fn (params) (ret ()) (body
+    (+ a 10)
+))"
+        )
     }
 }

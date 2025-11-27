@@ -1,7 +1,7 @@
 use ribbon_parser::Parser;
 
 fn main() {
-    let parser = Parser::new("a=3;b=10;c=a+b");
+    let parser = Parser::new("(a:i32) -> i32 {a+10}");
     let program = parser.parse();
     if !program.diagnostics.is_empty() {
         for e in program.diagnostics {

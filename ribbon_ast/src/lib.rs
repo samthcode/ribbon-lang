@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fmt::format};
 
 use ribbon_lexer::{OpKind, Tok, TokKind, span::Span};
 
@@ -54,6 +54,19 @@ pub enum ExprKind {
     Lit(LitKind),
     List(Vec<Expr>),
     TupleOrParameterList(Vec<Expr>),
+    // This is only needed to correctly parse function declarations with a single parameter
+    // (and no trailing comma inside the parameter list)
+    ParenthesisedExpression(Box<Expr>),
+    Tuple(Vec<Expr>),
+    FunctionDeclaration {
+        parameters: Vec<Expr>,
+        generic_parameters: Vec<Expr>,
+        arrow_span: Span,
+        return_type: Box<Expr>,
+        body: Vec<Expr>,
+    },
+    UnitType,
+    Block(Vec<Expr>),
 }
 
 impl ExprKind {
@@ -84,6 +97,56 @@ impl ExprKind {
                         elem.sexpr()
                     ))
                 )
+            }
+            ExprKind::ParenthesisedExpression(expr) => expr.sexpr(),
+            ExprKind::Tuple(exprs) => format!(
+                "(tuple{})",
+                exprs.iter().fold("".to_string(), |acc, elem| format!(
+                    "{acc} {}",
+                    elem.sexpr()
+                ))
+            ),
+            ExprKind::FunctionDeclaration {
+                parameters,
+                generic_parameters,
+                arrow_span: _,
+                return_type,
+                body,
+            } => format!(
+                "(fn {}(params{}) (ret {}) (body{})",
+                if generic_parameters.len() > 0 {
+                    generic_parameters
+                        .iter()
+                        .fold("(generics ".to_string(), |acc, elem| {
+                            format!(
+                                "{acc}{ }{}",
+                                if acc == String::from("(generics ") {
+                                    ""
+                                } else {
+                                    " "
+                                },
+                                elem.sexpr()
+                            )
+                        })
+                        + ") "
+                } else {
+                    "".to_string()
+                },
+                parameters.iter().fold("".to_string(), |acc, elem| format!(
+                    "{acc} {}",
+                    elem.sexpr()
+                )),
+                return_type.sexpr(),
+                body.iter().fold("".to_string(), |acc, elem| format!(
+                    "{acc}\n    {}",
+                    elem.sexpr()
+                )) + &format!("{})", if body.len() == 0 { "" } else { "\n" })
+            ),
+            ExprKind::UnitType => "()".to_string(),
+            ExprKind::Block(exprs) => {
+                exprs.iter().fold("(block".to_string(), |acc, elem| {
+                    format!("{acc}\n    {}", elem.sexpr())
+                }) + &format!("{})", if exprs.len() == 0 { "" } else { "\n" })
             }
         }
     }
