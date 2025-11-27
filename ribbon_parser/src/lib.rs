@@ -388,15 +388,11 @@ mod test {
         sexpr_test!("() -> {}", "(fn (params) (ret ()) (body))");
         sexpr_test!(
             "(a:i32) -> i32 {a+10}",
-            "(fn (params (: a i32)) (ret i32) (body
-    (+ a 10)
-))"
+            "(fn (params (: a i32)) (ret i32) (body\n    (+ a 10)\n))"
         );
         sexpr_test!(
             "() -> {a+10;;};",
-            "(fn (params) (ret ()) (body
-    (+ a 10)
-))"
+            "(fn (params) (ret ()) (body\n    (+ a 10)\n))"
         )
     }
 }
