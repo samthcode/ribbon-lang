@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::format};
+use std::error::Error;
 
 use ribbon_lexer::{OpKind, Tok, TokKind, span::Span};
 

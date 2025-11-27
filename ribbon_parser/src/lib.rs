@@ -1,4 +1,4 @@
-use std::{error::Error, iter::Peekable, str::EncodeUtf16};
+use std::{error::Error, iter::Peekable};
 
 use ribbon_ast::{self as ast, BinOp, Expr, ExprKind, UnaryOp, tok_to_expr};
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
