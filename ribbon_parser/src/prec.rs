@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 
 use crate::lexer;
-use lexer::tok::TokKind;
 use ribbon_lexer::OpKind;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -18,6 +17,8 @@ pub enum PrecOrd {
     ListTerminator,
     ArgTerminator,
     ListSeparator,
+    // This is just to appease the need for all binary operators to have precedences
+    FunctionDef,
     Assign,
     Pipe,
     Range,
@@ -114,6 +115,8 @@ pub fn binary_prec(kind: &OpKind) -> Prec {
         // All assignments
         Eq | AmpEq | CaretEq | PipeEq | PlusEq | MinusEq | MulEq | DivEq | ModEq | DotEq
         | ShiftLEq | ShiftREq | AndEq | OrEq => Prec::new(PrecOrd::Assign, Right),
+        // Function definition
+        MinusGt => Prec::new(PrecOrd::FunctionDef, Fixity::None),
         // List separator
         Comma => Prec::new(PrecOrd::ListSeparator, Fixity::None),
         // Argument list terminator
@@ -130,7 +133,6 @@ pub fn binary_prec(kind: &OpKind) -> Prec {
         Hash => todo!(),
         Bang => todo!(),
         Dollar => todo!(),
-        MinusGt => todo!(),
         EqGt => todo!(),
     }
 }
