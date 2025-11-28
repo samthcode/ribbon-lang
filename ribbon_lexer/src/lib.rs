@@ -9,12 +9,14 @@ pub mod span;
 
 pub struct Lexer<'a> {
     cursor: Cursor<'a>,
+    pub is_eof: bool,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         Lexer {
             cursor: Cursor::new(source),
+            is_eof: false,
         }
     }
 
@@ -50,7 +52,18 @@ impl<'a> Lexer<'a> {
                 _ => todo!(),
             }
         } else {
-            None
+            // We only want one Eof token and then to end the iterator
+            if self.is_eof {
+                // This shouldn't ever be read but is needed to end the iterator
+                // n.b. the Eof token is needed for a span in diagnostics
+                // it is otherwise unnecessary and a little bit of a hassle
+                None
+            } else {
+                self.is_eof = true;
+                // Cursor position is beyond the end of the source file so we want to bring it back
+                // n.b. The Eof token is only needed to give a better Span for diagnostics
+                Some(tok!(Eof, self.cursor.pos - 1))
+            }
         };
         self.next_char();
         res
@@ -151,8 +164,11 @@ impl<'a> Lexer<'a> {
                 _ => res.push(c),
             }
         }
-        // The current position is past the end of the file (on the None character) so we need to bring it back
-        tok!(Lit(InvalidStr(res, Unclosed)), start, self.cursor.pos - 1)
+        // We want to bring the cursor back to the end of the file since it lies beyond it
+        // This is a bit of a hack but it avoids having to call peek_char then only advance if not at Eof
+        // If we didn't set the cursor itself back then the Eof token would be in the wrong position
+        self.cursor.pos -= 1;
+        tok!(Lit(InvalidStr(res, Unclosed)), start, self.cursor.pos)
     }
 
     /// Creates an integer or float
@@ -386,9 +402,10 @@ mod test {
 
     macro_rules! test {
         ($source:literal, $($tok:expr),* $(,)?) => {
-            assert_eq!(Lexer::new($source).into_iter().collect::<Vec<Tok>>(), vec![$(
-                $tok,
-            )*])
+            assert_eq!(Lexer::new($source).into_iter().collect::<Vec<Tok>>(), vec![
+                $($tok,)*
+                tok!(Eof, $source.len() as u32 - 1)
+            ])
         }
     }
 

@@ -88,10 +88,6 @@ impl Display for DiagnosticKind {
 pub enum ErrorKind {
     ExpectedXFoundY(TokKind, TokKind),
     ExpectedOneOfXFoundY(Vec<TokKind>, TokKind),
-    ExpectedXOrEofFoundY(TokKind, TokKind),
-    ExpectedOneOfXOrEofFoundY(Vec<TokKind>, TokKind),
-    ExpectedXFoundEof(TokKind),
-    ExpectedOneOfXFoundEof(Vec<TokKind>),
     UnclosedDelimitedExpression,
 }
 
@@ -112,30 +108,6 @@ impl Display for ErrorKind {
                             .reduce(|acc, e| format!("{acc}, {e}"))
                             .unwrap(),
                         found
-                    )
-                }
-                ErrorKind::ExpectedXOrEofFoundY(expected, found) =>
-                    format!("expected {expected} or EOF, found {found}"),
-                ErrorKind::ExpectedOneOfXOrEofFoundY(expected, found) => {
-                    format!(
-                        "expected one of {} or EOF, found {}",
-                        expected
-                            .iter()
-                            .map(|e| format!("{e}"))
-                            .reduce(|acc, e| format!("{acc}, {e}"))
-                            .unwrap(),
-                        found
-                    )
-                }
-                ErrorKind::ExpectedXFoundEof(expected) => format!("expected {expected}, found EOF"),
-                ErrorKind::ExpectedOneOfXFoundEof(expected) => {
-                    format!(
-                        "expected one of {}, found EOF",
-                        expected
-                            .iter()
-                            .map(|e| format!("{e}"))
-                            .reduce(|acc, e| format!("{acc}, {e}"))
-                            .unwrap(),
                     )
                 }
                 ErrorKind::UnclosedDelimitedExpression =>

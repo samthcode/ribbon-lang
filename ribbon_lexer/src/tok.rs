@@ -12,6 +12,10 @@ impl Tok {
     pub fn new(kind: TokKind, span: Span) -> Self {
         Tok { kind, span }
     }
+
+    pub fn is_eof(&self) -> bool {
+        self.kind.is_eof()
+    }
 }
 
 impl Display for Tok {
@@ -347,6 +351,8 @@ pub enum TokKind {
     Lit(LitKind),
 
     Op(OpKind),
+
+    Eof,
 }
 
 impl Display for TokKind {
@@ -359,6 +365,7 @@ impl Display for TokKind {
                 TokKind::Kw(kw) => format!("kw:`{}`", kw.str()),
                 TokKind::Lit(lit) => format!("lit:`{}`", lit.string()),
                 TokKind::Op(op) => format!("`{}`", op.str()),
+                TokKind::Eof => "EOF".to_string(),
             }
         )
     }
@@ -393,7 +400,12 @@ impl TokKind {
             TokKind::Kw(kw_kind) => matches!(other, TokKind::Kw(n_kind) if kw_kind == n_kind),
             TokKind::Lit(lit_kind) => matches!(other, TokKind::Lit(n_kind) if lit_kind == n_kind),
             TokKind::Op(op_kind) => matches!(other, TokKind::Op(n_kind) if op_kind == n_kind),
+            TokKind::Eof => self.is_eof(),
         }
+    }
+
+    pub fn is_eof(&self) -> bool {
+        matches!(self, TokKind::Eof)
     }
 }
 

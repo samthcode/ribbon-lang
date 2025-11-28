@@ -34,16 +34,19 @@ impl<'a> Parser<'a> {
     ///
     /// This will need its own error struct/trait & result type
     pub fn parse(mut self) -> Program {
-        while self.peek_tok().is_some() {
-            match self.expr() {
-                Ok(expr) => {
-                    self.program.body.push(expr);
-                    match self.expect_or_eof(TokKind::Op(OpKind::Semi)) {
-                        Ok(()) => (),
-                        Err(e) => self.program.diagnostics.push(e),
-                    };
-                }
-                Err(e) => self.program.diagnostics.push(e),
+        loop {
+            match self.peek_tok() {
+                Some(t) if !t.is_eof() => match self.expr() {
+                    Ok(expr) => {
+                        self.program.body.push(expr);
+                        match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Eof]) {
+                            Ok(_) => (),
+                            Err(e) => self.program.diagnostics.push(e),
+                        };
+                    }
+                    Err(e) => self.program.diagnostics.push(e),
+                },
+                _ => break,
             }
         }
         self.program
@@ -54,7 +57,8 @@ impl<'a> Parser<'a> {
     }
 
     fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Box<dyn Error>> {
-        let Some(lhs) = self.next_tok() else { panic!() };
+        let lhs = self.next_tok().unwrap();
+        assert!(!lhs.is_eof());
         let mut lhs = if let TokKind::Op(kind) = lhs.kind {
             match kind {
                 // Block expression
@@ -96,21 +100,21 @@ impl<'a> Parser<'a> {
         };
 
         loop {
-            let (op_kind, prec, op_span) = match self.peek_tok() {
-                Some(Tok {
+            let (op_kind, prec, op_span) = match self.peek_tok().unwrap() {
+                Tok {
                     kind: TokKind::Op(op_kind),
                     span,
-                }) => {
+                } => {
                     let prec = binary_prec(op_kind);
                     if prec <= min_prec {
                         break;
                     }
                     (*op_kind, prec, *span)
                 }
-                Some(t) => {
+                t if t.is_eof() => break,
+                t => {
                     return Err(format!("Unexpected token {t}. Expected binary operator.").into());
                 }
-                None => break,
             };
             self.next_tok();
             // There are a few special cases that we need to parse differently
@@ -153,10 +157,10 @@ impl<'a> Parser<'a> {
         param_span: Span,
         arrow_span: Span,
     ) -> Result<Expr, Box<dyn Error>> {
-        let n_tok = match self.peek_tok() {
-            Some(t) => t,
-            None => return Err("unfinished function literal".into()),
-        };
+        let n_tok = self.peek_tok().unwrap();
+        if n_tok.is_eof() {
+            return Err("unfinished function literal".into());
+        }
         let mut lcurly_span = n_tok.span;
         let ret_type = if let TokKind::Op(OpKind::LCurly) = n_tok.kind {
             // No return type
@@ -199,6 +203,9 @@ impl<'a> Parser<'a> {
         let mut exprs = Vec::<Expr>::new();
         let mut end_span = begin_span;
         while let Some(t) = self.peek_tok() {
+            if t.is_eof() {
+                break;
+            }
             if t.kind.is(&TokKind::Op(OpKind::RCurly)) {
                 self.next_tok();
                 break;
@@ -221,15 +228,15 @@ impl<'a> Parser<'a> {
         delim: OpKind,
     ) -> Result<(Vec<Expr>, Span, bool), Box<dyn Error>> {
         let mut exprs: Vec<Expr> = vec![];
-        let mut end_span = begin_span;
         // This is necessary for the differentiation of parenthesised expressions and tuples
         let mut trailing_comma = false;
-        loop {
-            let Some(t) = self.peek_tok() else {
+        let end_span = loop {
+            let t = self.peek_tok().unwrap();
+            if t.is_eof() {
                 return Err(Box::new(
                     Diagnostic::new_error(
                         ErrorKind::UnclosedDelimitedExpression,
-                        begin_span.to(&end_span),
+                        begin_span.to(&t.span),
                     )
                     .with_subdiagnostics(vec![Diagnostic::new_info(
                         InfoKind::DelimitedExpressionBeginsHere,
@@ -243,13 +250,11 @@ impl<'a> Parser<'a> {
                     kind: TokKind::Op(d),
                     span,
                 } if *d == delim => {
-                    end_span = *span;
-                    break;
+                    break *span;
                 }
                 // Get next element and push to exprs
                 _ => {
                     let expr = self.expr_prec(binary_prec(&OpKind::Comma))?;
-                    end_span = expr.span;
                     exprs.push(expr);
                     // We catch end of list in the next iteration so we don't want to consume it here
                     if !matches!(
@@ -259,64 +264,39 @@ impl<'a> Parser<'a> {
                             span: _
                         }) if *d == delim
                     ) {
-                        if let Some(Tok { kind, span }) = self.peek_tok() {
-                            end_span = *span;
-                            trailing_comma = matches!(kind, TokKind::Op(OpKind::Comma))
-                        }
+                        trailing_comma =
+                            matches!(self.peek_tok().unwrap().kind, TokKind::Op(OpKind::Comma));
                         self.expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(delim)])?;
                     }
                 }
             }
-        }
+        };
         // Consume end delimeter
         self.next_tok();
         Ok((exprs, begin_span.to(&end_span), trailing_comma))
     }
 
-    fn expect_or_eof(&mut self, tok: TokKind) -> Result<(), Box<dyn Error>> {
-        match self.next_tok() {
-            Some(n_tok) => {
-                if tok.is(&n_tok.kind) {
-                    Ok(())
-                } else {
-                    Err(Box::new(Diagnostic::new_error(
-                        ErrorKind::ExpectedXFoundY(tok, n_tok.kind),
-                        n_tok.span,
-                    )))
-                }
-            }
-            None => Ok(()),
-        }
-    }
-
     fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<Tok, Box<dyn Error>> {
-        match self.next_tok() {
-            Some(t) if toks.iter().any(|tok| tok.is(&t.kind)) => Ok(t),
-            Some(t) => Err(Box::new(Diagnostic::new_error(
+        let t = self.next_tok().unwrap();
+        if toks.iter().any(|tok| tok.is(&t.kind)) {
+            Ok(t)
+        } else {
+            Err(Box::new(Diagnostic::new_error(
                 ErrorKind::ExpectedOneOfXFoundY(Vec::from(toks), t.kind),
                 t.span,
-            ))),
-            None => Err(Box::new(Diagnostic::new_error(
-                ErrorKind::ExpectedOneOfXFoundEof(Vec::from(toks)),
-                // TODO: this is wrong
-                Span::new(0, 0),
-            ))),
+            )))
         }
     }
 
     fn expect(&mut self, tok: TokKind) -> Result<(), Box<dyn Error>> {
-        match self.next_tok() {
-            Some(t) if t.kind.is(&tok) => Ok(()),
-            None => Err(Box::new(Diagnostic::new_error(
-                ErrorKind::ExpectedXFoundEof(tok),
-                // TODO: this is wrong
-                Span::new(0, 0),
-            ))),
-            // TODO: Replace Debug call
-            Some(t) => Err(Box::new(Diagnostic::new_error(
+        let t = self.next_tok().unwrap();
+        if t.kind.is(&tok) {
+            Ok(())
+        } else {
+            Err(Box::new(Diagnostic::new_error(
                 ErrorKind::ExpectedXFoundY(tok, t.kind),
                 t.span,
-            ))),
+            )))
         }
     }
 
