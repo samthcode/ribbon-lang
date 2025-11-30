@@ -165,7 +165,6 @@ impl<'a> Parser<'a> {
                             lhs = self.fn_decl(vec![*expr], lhs.span, op_span)?;
                             continue;
                         }
-                        // TODO: Proper error
                         _ => {
                             return Err(Diagnostic::new_error(
                                 ErrorKind::UnexpectedToken(TokKind::Op(op_kind)),

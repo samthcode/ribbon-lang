@@ -391,7 +391,6 @@ impl TryFrom<OpKind> for BinOpKind {
             OpKind::Path => Ok(Path),
             OpKind::DotDot => Ok(RangeExclusive),
             OpKind::DotDotEq => Ok(RangeInclusive),
-            // TODO: Proper error type
             _ => Err(()),
         }
     }
@@ -457,7 +456,6 @@ pub fn tok_to_expr(tok: Tok) -> Result<Expr, Diagnostic> {
                 // TODO: At some point, we need to find the true size of the integer
                 LLK::Int(i) => Lit(LitKind::Int(i)),
                 LLK::Str(s) => Lit(LitKind::Str(s)),
-                // TODO: Proper error type
                 LLK::InvalidStr(_, invalid_str_kind) => {
                     return Err(Diagnostic::new_error(
                         ErrorKind::InvalidStringLiteral(invalid_str_kind),
