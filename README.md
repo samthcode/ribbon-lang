@@ -1,3 +1,5 @@
+NOTE: I'm currently starting again on this, so checkout the branch "starting-anew" for an up-to-date look at what the language might look like and the new implementation.
+
 # The Ribbon Programming Language (WIP)
 
 The Ribbon Programming Language is designed to be pleasing to develop in, including modern features and sugar which elevate the developer experience.
