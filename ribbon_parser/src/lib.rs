@@ -266,7 +266,7 @@ impl<'a> Parser<'a> {
                 ));
             };
 
-            if t.kind.is(&TokKind::Op(closing_delim)) {
+            if t.kind.is_op(&closing_delim) {
                 break t.span;
             }
 
@@ -274,7 +274,7 @@ impl<'a> Parser<'a> {
 
             let ending =
                 self.expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(closing_delim)])?;
-            if ending.kind.is(&TokKind::Op(closing_delim)) {
+            if ending.kind.is_op(&closing_delim) {
                 trailing_comma = false;
                 break ending.span;
             }

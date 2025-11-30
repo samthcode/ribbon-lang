@@ -404,6 +404,13 @@ impl TokKind {
         }
     }
 
+    pub fn is_op(&self, other: &OpKind) -> bool {
+        match self {
+            TokKind::Op(op_kind) => op_kind == other,
+            _ => false,
+        }
+    }
+
     pub fn is_eof(&self) -> bool {
         matches!(self, TokKind::Eof)
     }
