@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use ribbon_error::{Diagnostic, ErrorKind};
 use ribbon_lexer::{OpKind, Tok, TokKind, span::Span};
 
