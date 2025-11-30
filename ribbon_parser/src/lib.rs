@@ -65,7 +65,19 @@ impl<'a> Parser<'a> {
     }
 
     fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Box<dyn Error>> {
-        let lhs = self.next_tok().unwrap();
+        self.expr_prec_with_first(min_prec, None)
+    }
+
+    fn expr_prec_with_first(
+        &mut self,
+        min_prec: Prec,
+        first: Option<Tok>,
+    ) -> Result<ast::Expr, Box<dyn Error>> {
+        let lhs = if let Some(t) = first {
+            t
+        } else {
+            self.next_tok().unwrap()
+        };
         assert!(!lhs.is_eof());
         let mut lhs = if let TokKind::Op(kind) = lhs.kind {
             match kind {
@@ -73,12 +85,13 @@ impl<'a> Parser<'a> {
                 OpKind::LCurly => self.block_expr(lhs.span)?,
                 // List expression
                 OpKind::LSquare => {
-                    let (exprs, span, _) = self.list_expr(lhs.span, OpKind::RSquare)?;
+                    let (exprs, span, _) = self.delimited_list(lhs.span, OpKind::RSquare)?;
                     Expr::new(ExprKind::List(exprs), span)
                 }
                 // Tuple/unit type/function parameter list
                 OpKind::LParen => {
-                    let (exprs, span, trailing_comma) = self.list_expr(lhs.span, OpKind::RParen)?;
+                    let (exprs, span, trailing_comma) =
+                        self.delimited_list(lhs.span, OpKind::RParen)?;
                     if exprs.len() == 1 && !trailing_comma {
                         // We need the ParenthesisedExpression variant to ensure single-parameter functions are parsed correctly
                         Expr::new(
@@ -230,17 +243,17 @@ impl<'a> Parser<'a> {
         Ok(Expr::new(ExprKind::Block(exprs), begin_span.to(&end_span)))
     }
 
-    fn list_expr(
+    fn delimited_list(
         &mut self,
         begin_span: Span,
-        delim: OpKind,
+        closing_delim: OpKind,
     ) -> Result<(Vec<Expr>, Span, bool), Box<dyn Error>> {
         let mut exprs: Vec<Expr> = vec![];
         // This is necessary for the differentiation of parenthesised expressions and tuples
         let mut trailing_comma = false;
         let end_span = loop {
-            let t = self.peek_tok().unwrap();
-            if t.is_eof() {
+            let t = self.next_tok().unwrap();
+            if t.kind.is_eof() {
                 return Err(Box::new(
                     Diagnostic::new_error(
                         ErrorKind::UnclosedDelimitedExpression,
@@ -252,35 +265,21 @@ impl<'a> Parser<'a> {
                     )]),
                 ));
             };
-            match t {
-                // End of list
-                Tok {
-                    kind: TokKind::Op(d),
-                    span,
-                } if *d == delim => {
-                    break *span;
-                }
-                // Get next element and push to exprs
-                _ => {
-                    let expr = self.expr_prec(binary_prec(&OpKind::Comma))?;
-                    exprs.push(expr);
-                    // We catch end of list in the next iteration so we don't want to consume it here
-                    if !matches!(
-                        self.peek_tok(),
-                        Some(Tok {
-                            kind: TokKind::Op(d),
-                            span: _
-                        }) if *d == delim
-                    ) {
-                        trailing_comma =
-                            matches!(self.peek_tok().unwrap().kind, TokKind::Op(OpKind::Comma));
-                        self.expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(delim)])?;
-                    }
-                }
+
+            if t.kind.is(&TokKind::Op(closing_delim)) {
+                break t.span;
             }
+
+            exprs.push(self.expr_prec_with_first(binary_prec(&OpKind::Comma), Some(t))?);
+
+            let ending =
+                self.expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(closing_delim)])?;
+            if ending.kind.is(&TokKind::Op(closing_delim)) {
+                trailing_comma = false;
+                break ending.span;
+            }
+            trailing_comma = true
         };
-        // Consume end delimeter
-        self.next_tok();
         Ok((exprs, begin_span.to(&end_span), trailing_comma))
     }
 
@@ -296,10 +295,10 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expect(&mut self, tok: TokKind) -> Result<(), Box<dyn Error>> {
+    fn expect(&mut self, tok: TokKind) -> Result<Tok, Box<dyn Error>> {
         let t = self.next_tok().unwrap();
         if t.kind.is(&tok) {
-            Ok(())
+            Ok(t)
         } else {
             Err(Box::new(Diagnostic::new_error(
                 ErrorKind::ExpectedXFoundY(tok, t.kind),
