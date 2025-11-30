@@ -60,11 +60,11 @@ impl<'a> Parser<'a> {
         self.program
     }
 
-    fn expr(&mut self) -> Result<ast::Expr, Box<dyn Error>> {
+    fn expr(&mut self) -> Result<ast::Expr, Diagnostic> {
         self.expr_prec(Prec::new(PrecOrd::Semi, Fixity::None))
     }
 
-    fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Box<dyn Error>> {
+    fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Diagnostic> {
         self.expr_prec_with_first(min_prec, None)
     }
 
@@ -72,7 +72,7 @@ impl<'a> Parser<'a> {
         &mut self,
         min_prec: Prec,
         first: Option<Tok>,
-    ) -> Result<ast::Expr, Box<dyn Error>> {
+    ) -> Result<ast::Expr, Diagnostic> {
         let lhs = if let Some(t) = first {
             t
         } else {
@@ -109,7 +109,15 @@ impl<'a> Parser<'a> {
                     Expr::new(
                         ExprKind::UnaryOp {
                             rhs: Box::new(rhs),
-                            kind: UnaryOp::new(op.try_into()?, lhs.span),
+                            kind: UnaryOp::new(
+                                op.try_into().map_err(|_| {
+                                    Diagnostic::new_error(
+                                        ErrorKind::InvalidUnaryOperator(op),
+                                        lhs.span,
+                                    )
+                                })?,
+                                lhs.span,
+                            ),
                         },
                         span,
                     )
@@ -134,7 +142,10 @@ impl<'a> Parser<'a> {
                 }
                 t if t.is_eof() => break,
                 t => {
-                    return Err(format!("Unexpected token {t}. Expected binary operator.").into());
+                    return Err(Diagnostic::new_error(
+                        ErrorKind::UnexpectedToken(t.kind.clone()),
+                        t.span,
+                    ));
                 }
             };
             self.next_tok();
@@ -153,7 +164,12 @@ impl<'a> Parser<'a> {
                             continue;
                         }
                         // TODO: Proper error
-                        _ => return Err("unexpected expression before function arrow".into()),
+                        _ => {
+                            return Err(Diagnostic::new_error(
+                                ErrorKind::UnexpectedToken(TokKind::Op(op_kind)),
+                                op_span,
+                            ));
+                        }
                     }
                 }
                 _ => (),
@@ -164,7 +180,15 @@ impl<'a> Parser<'a> {
                 ExprKind::BinOp {
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
-                    kind: BinOp::new(op_kind.try_into()?, op_span),
+                    kind: BinOp::new(
+                        op_kind.try_into().map_err(|_| {
+                            Diagnostic::new_error(
+                                ErrorKind::InvalidBinaryOperator(op_kind),
+                                op_span,
+                            )
+                        })?,
+                        op_span,
+                    ),
                 },
                 span,
             )
@@ -177,10 +201,13 @@ impl<'a> Parser<'a> {
         parameters: Vec<Expr>,
         param_span: Span,
         arrow_span: Span,
-    ) -> Result<Expr, Box<dyn Error>> {
+    ) -> Result<Expr, Diagnostic> {
         let n_tok = self.peek_tok().unwrap();
         if n_tok.is_eof() {
-            return Err("unfinished function literal".into());
+            return Err(Diagnostic::new_error(
+                ErrorKind::UnexpectedToken(n_tok.kind.clone()),
+                n_tok.span,
+            ));
         }
         let mut lcurly_span = n_tok.span;
         let ret_type = if let TokKind::Op(OpKind::LCurly) = n_tok.kind {
@@ -220,7 +247,7 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn block_expr(&mut self, begin_span: Span) -> Result<Expr, Box<dyn Error>> {
+    fn block_expr(&mut self, begin_span: Span) -> Result<Expr, Diagnostic> {
         let mut exprs = Vec::<Expr>::new();
         let mut end_span = begin_span;
         while let Some(t) = self.peek_tok() {
@@ -247,23 +274,21 @@ impl<'a> Parser<'a> {
         &mut self,
         begin_span: Span,
         closing_delim: OpKind,
-    ) -> Result<(Vec<Expr>, Span, bool), Box<dyn Error>> {
+    ) -> Result<(Vec<Expr>, Span, bool), Diagnostic> {
         let mut exprs: Vec<Expr> = vec![];
         // This is necessary for the differentiation of parenthesised expressions and tuples
         let mut trailing_comma = false;
         let end_span = loop {
             let t = self.next_tok().unwrap();
             if t.kind.is_eof() {
-                return Err(Box::new(
-                    Diagnostic::new_error(
-                        ErrorKind::UnclosedDelimitedExpression,
-                        begin_span.to(&t.span),
-                    )
-                    .with_subdiagnostics(vec![Diagnostic::new_info(
-                        InfoKind::DelimitedExpressionBeginsHere,
-                        begin_span,
-                    )]),
-                ));
+                return Err(Diagnostic::new_error(
+                    ErrorKind::UnclosedDelimitedExpression,
+                    begin_span.to(&t.span),
+                )
+                .with_subdiagnostics(vec![Diagnostic::new_info(
+                    InfoKind::DelimitedExpressionBeginsHere,
+                    begin_span,
+                )]));
             };
 
             if t.kind.is_op(&closing_delim) {
@@ -283,27 +308,27 @@ impl<'a> Parser<'a> {
         Ok((exprs, begin_span.to(&end_span), trailing_comma))
     }
 
-    fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<Tok, Box<dyn Error>> {
+    fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<Tok, Diagnostic> {
         let t = self.next_tok().unwrap();
         if toks.iter().any(|tok| tok.is(&t.kind)) {
             Ok(t)
         } else {
-            Err(Box::new(Diagnostic::new_error(
+            Err(Diagnostic::new_error(
                 ErrorKind::ExpectedOneOfXFoundY(Vec::from(toks), t.kind),
                 t.span,
-            )))
+            ))
         }
     }
 
-    fn expect(&mut self, tok: TokKind) -> Result<Tok, Box<dyn Error>> {
+    fn expect(&mut self, tok: TokKind) -> Result<Tok, Diagnostic> {
         let t = self.next_tok().unwrap();
         if t.kind.is(&tok) {
             Ok(t)
         } else {
-            Err(Box::new(Diagnostic::new_error(
+            Err(Diagnostic::new_error(
                 ErrorKind::ExpectedXFoundY(tok, t.kind),
                 t.span,
-            )))
+            ))
         }
     }
 

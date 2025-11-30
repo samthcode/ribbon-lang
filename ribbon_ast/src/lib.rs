@@ -10,7 +10,7 @@ use ribbon_lexer::{OpKind, Tok, TokKind, span::Span};
 #[derive(Debug)]
 pub struct Program {
     pub body: Vec<Expr>,
-    pub diagnostics: Vec<Box<dyn Error>>,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 impl Default for Program {
@@ -344,8 +344,8 @@ impl BinOpKind {
 }
 
 impl TryFrom<OpKind> for BinOpKind {
-    type Error = Box<dyn Error>;
-    fn try_from(kind: OpKind) -> Result<Self, Box<dyn Error>> {
+    type Error = ();
+    fn try_from(kind: OpKind) -> Result<Self, Self::Error> {
         use BinOpKind::*;
         match kind {
             OpKind::Plus => Ok(Add),
@@ -392,7 +392,7 @@ impl TryFrom<OpKind> for BinOpKind {
             OpKind::DotDot => Ok(RangeExclusive),
             OpKind::DotDotEq => Ok(RangeInclusive),
             // TODO: Proper error type
-            _ => Err("Unexpected operator.".into()),
+            _ => Err(()),
         }
     }
 }
@@ -433,7 +433,7 @@ impl UnaryOpKind {
 }
 
 impl TryFrom<OpKind> for UnaryOpKind {
-    type Error = Box<dyn Error>;
+    type Error = ();
 
     fn try_from(value: OpKind) -> Result<Self, Self::Error> {
         match value {
@@ -441,12 +441,13 @@ impl TryFrom<OpKind> for UnaryOpKind {
             OpKind::Bang => Ok(UnaryOpKind::Not),
             OpKind::Mul => Ok(UnaryOpKind::Deref),
             OpKind::Amp => Ok(UnaryOpKind::Ref),
-            _ => Err(format!("Unexpected operator {}.", value.str()).into()),
+            // There's no convenient way of adding the span here
+            _ => Err(()),
         }
     }
 }
 
-pub fn tok_to_expr(tok: Tok) -> Result<Expr, Box<dyn Error>> {
+pub fn tok_to_expr(tok: Tok) -> Result<Expr, Diagnostic> {
     use ExprKind::*;
     use ribbon_lexer::LitKind as LLK;
     Ok(Expr::new(
@@ -458,16 +459,19 @@ pub fn tok_to_expr(tok: Tok) -> Result<Expr, Box<dyn Error>> {
                 LLK::Str(s) => Lit(LitKind::Str(s)),
                 // TODO: Proper error type
                 LLK::InvalidStr(_, invalid_str_kind) => {
-                    return Err("Invalid string literal.".into());
+                    return Err(Diagnostic::new_error(
+                        ErrorKind::InvalidStringLiteral(invalid_str_kind),
+                        tok.span,
+                    ));
                 }
                 LLK::Float(f) => Lit(LitKind::Float(f)),
                 LLK::Bool(b) => Lit(LitKind::Bool(b)),
             },
             _ => {
-                return Err(Box::new(Diagnostic::new_error(
+                return Err(Diagnostic::new_error(
                     ErrorKind::UnexpectedToken(tok.kind),
                     tok.span,
-                )));
+                ));
             }
         },
         tok.span,

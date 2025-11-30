@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use ribbon_lexer::{TokKind, span::Span};
+use ribbon_lexer::{OpKind, TokKind, span::Span, tok::InvalidStrKind};
 
 #[derive(Debug)]
 pub struct Diagnostic {
@@ -61,8 +61,6 @@ impl Display for Diagnostic {
     }
 }
 
-impl Error for Diagnostic {}
-
 #[derive(Debug)]
 pub enum DiagnosticKind {
     Error(ErrorKind),
@@ -90,6 +88,9 @@ pub enum ErrorKind {
     ExpectedOneOfXFoundY(Vec<TokKind>, TokKind),
     UnclosedDelimitedExpression,
     UnexpectedToken(TokKind),
+    InvalidUnaryOperator(OpKind),
+    InvalidBinaryOperator(OpKind),
+    InvalidStringLiteral(InvalidStrKind),
 }
 
 impl Display for ErrorKind {
@@ -114,6 +115,15 @@ impl Display for ErrorKind {
                 ErrorKind::UnclosedDelimitedExpression =>
                     "unclosed delimited expression".to_string(),
                 ErrorKind::UnexpectedToken(tok) => format!("unexpected token {}", tok),
+                ErrorKind::InvalidUnaryOperator(op) =>
+                    format!("invalid unary operator `{}`", op.str()),
+                ErrorKind::InvalidBinaryOperator(op) =>
+                    format!("invalid binary operator {}", op.str()),
+                ErrorKind::InvalidStringLiteral(k) => match k {
+                    InvalidStrKind::Unclosed => "unclosed string literal".to_string(),
+                    InvalidStrKind::UnterminatedEscape =>
+                        "unterminated escape sequence in string literal".to_string(),
+                },
             }
         )
     }
