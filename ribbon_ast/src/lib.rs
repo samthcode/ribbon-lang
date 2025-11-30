@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use ribbon_error::{Diagnostic, ErrorKind};
 use ribbon_lexer::{OpKind, Tok, TokKind, span::Span};
 
 /// The root AST node for a Ribbon program
@@ -448,23 +449,27 @@ impl TryFrom<OpKind> for UnaryOpKind {
 pub fn tok_to_expr(tok: Tok) -> Result<Expr, Box<dyn Error>> {
     use ExprKind::*;
     use ribbon_lexer::LitKind as LLK;
-    let kind = match tok.kind {
-        TokKind::Ident(s) => Some(Ident(s)),
-        TokKind::Lit(kind) => match kind {
-            // TODO: At some point, we need to find the true size of the integer
-            LLK::Int(i) => Some(Lit(LitKind::Int(i))),
-            LLK::Str(s) => Some(Lit(LitKind::Str(s))),
-            // TODO: Proper error type
-            LLK::InvalidStr(_, invalid_str_kind) => return Err("Invalid string literal.".into()),
-            LLK::Float(f) => Some(Lit(LitKind::Float(f))),
-            LLK::Bool(b) => Some(Lit(LitKind::Bool(b))),
+    Ok(Expr::new(
+        match tok.kind {
+            TokKind::Ident(s) => Ident(s),
+            TokKind::Lit(kind) => match kind {
+                // TODO: At some point, we need to find the true size of the integer
+                LLK::Int(i) => Lit(LitKind::Int(i)),
+                LLK::Str(s) => Lit(LitKind::Str(s)),
+                // TODO: Proper error type
+                LLK::InvalidStr(_, invalid_str_kind) => {
+                    return Err("Invalid string literal.".into());
+                }
+                LLK::Float(f) => Lit(LitKind::Float(f)),
+                LLK::Bool(b) => Lit(LitKind::Bool(b)),
+            },
+            _ => {
+                return Err(Box::new(Diagnostic::new_error(
+                    ErrorKind::UnexpectedToken(tok.kind),
+                    tok.span,
+                )));
+            }
         },
-        _ => todo!(),
-    };
-    if let Some(k) = kind {
-        Ok(Expr::new(k, tok.span))
-    } else {
-        // TODO: Proper error message
-        Err("Unexpected token.".into())
-    }
+        tok.span,
+    ))
 }

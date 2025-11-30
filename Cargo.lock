@@ -147,6 +147,7 @@ dependencies = [
 name = "ribbon_ast"
 version = "0.1.0"
 dependencies = [
+ "ribbon_error",
  "ribbon_lexer",
 ]
 

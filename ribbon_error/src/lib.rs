@@ -89,6 +89,7 @@ pub enum ErrorKind {
     ExpectedXFoundY(TokKind, TokKind),
     ExpectedOneOfXFoundY(Vec<TokKind>, TokKind),
     UnclosedDelimitedExpression,
+    UnexpectedToken(TokKind),
 }
 
 impl Display for ErrorKind {
@@ -112,6 +113,7 @@ impl Display for ErrorKind {
                 }
                 ErrorKind::UnclosedDelimitedExpression =>
                     "unclosed delimited expression".to_string(),
+                ErrorKind::UnexpectedToken(tok) => format!("unexpected token {}", tok),
             }
         )
     }
