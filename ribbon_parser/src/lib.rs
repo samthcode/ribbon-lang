@@ -30,6 +30,14 @@ impl<'a> Parser<'a> {
         }
     }
 
+    pub fn from_tok_stream(source: &'a str, tok_stream: TokStream<'a>) -> Self {
+        Self {
+            source,
+            tok_stream: tok_stream.peekable(),
+            program: Program::default(),
+        }
+    }
+
     /// The method that turns the tok_stream into a root Program node
     ///
     /// This will need its own error struct/trait & result type

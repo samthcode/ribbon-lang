@@ -7,6 +7,7 @@ pub use tok::{LitKind, OpKind, Tok, TokKind};
 
 pub mod span;
 
+#[derive(Clone)]
 pub struct Lexer<'a> {
     cursor: Cursor<'a>,
     pub is_eof: bool,
@@ -279,6 +280,7 @@ impl<'a> Lexer<'a> {
     }
 }
 
+#[derive(Clone)]
 pub struct TokStream<'a> {
     lexer: Lexer<'a>,
 }
@@ -302,6 +304,7 @@ impl<'a> IntoIterator for Lexer<'a> {
 }
 
 /// Peekable iterator over the characters of a source
+#[derive(Clone)]
 pub struct Cursor<'a> {
     chars: Peekable<Chars<'a>>,
     pos: u32,
