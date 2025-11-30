@@ -155,24 +155,22 @@ impl<'a> Parser<'a> {
             match op_kind {
                 // Function
                 // TODO: Support `=>` functions e.g. `const fn = () => "Hello World".print;`
-                OpKind::MinusGt => {
-                    match lhs.kind {
-                        ExprKind::TupleOrParameterList(exprs) => {
-                            lhs = self.fn_decl(exprs, lhs.span, op_span)?;
-                            continue;
-                        }
-                        ExprKind::ParenthesisedExpression(expr) => {
-                            lhs = self.fn_decl(vec![*expr], lhs.span, op_span)?;
-                            continue;
-                        }
-                        _ => {
-                            return Err(Diagnostic::new_error(
-                                ErrorKind::UnexpectedToken(TokKind::Op(op_kind)),
-                                op_span,
-                            ));
-                        }
+                OpKind::MinusGt => match lhs.kind {
+                    ExprKind::TupleOrParameterList(exprs) => {
+                        lhs = self.fn_decl(exprs, lhs.span, op_span)?;
+                        continue;
                     }
-                }
+                    ExprKind::ParenthesisedExpression(expr) => {
+                        lhs = self.fn_decl(vec![*expr], lhs.span, op_span)?;
+                        continue;
+                    }
+                    _ => {
+                        return Err(Diagnostic::new_error(
+                            ErrorKind::UnexpectedToken(TokKind::Op(op_kind)),
+                            op_span,
+                        ));
+                    }
+                },
                 _ => (),
             }
             let rhs = self.expr_prec(prec)?;
@@ -340,4 +338,11 @@ impl<'a> Parser<'a> {
     fn next_tok(&mut self) -> Option<Tok> {
         self.tok_stream.next()
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParseCtx {
+    ListExpr,
+    FnParamList,
+    Tuple,
 }
