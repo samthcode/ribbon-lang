@@ -17,9 +17,8 @@ pub enum PrecOrd {
     ListTerminator,
     ArgTerminator,
     ListSeparator,
-    // This is just to appease the need for all binary operators to have precedences
-    FunctionDef,
     Assign,
+    FunctionDef,
     Pipe,
     Range,
     Or,
