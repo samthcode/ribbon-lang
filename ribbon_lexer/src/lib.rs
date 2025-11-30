@@ -63,7 +63,14 @@ impl<'a> Lexer<'a> {
                 self.is_eof = true;
                 // Cursor position is beyond the end of the source file so we want to bring it back
                 // n.b. The Eof token is only needed to give a better Span for diagnostics
-                Some(tok!(Eof, self.cursor.pos - 1))
+                Some(tok!(
+                    Eof,
+                    if self.cursor.pos == 0 {
+                        self.cursor.pos
+                    } else {
+                        self.cursor.pos - 1
+                    }
+                ))
             }
         };
         self.next_char();
@@ -407,7 +414,7 @@ mod test {
         ($source:literal, $($tok:expr),* $(,)?) => {
             assert_eq!(Lexer::new($source).into_iter().collect::<Vec<Tok>>(), vec![
                 $($tok,)*
-                tok!(Eof, $source.len() as u32 - 1)
+                tok!(Eof, if $source.len() == 0 {0} else {$source.len() as u32 - 1})
             ])
         }
     }
@@ -529,5 +536,10 @@ mod test {
             tok!(Lit(LitKind::Int(123)), 18, 20),
             tok!(Lit(LitKind::Int(123)), 44, 46)
         );
+    }
+
+    #[test]
+    fn empty_source() {
+        test!("",)
     }
 }
