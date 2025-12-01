@@ -5,7 +5,7 @@ use ribbon_lexer::{OpKind, TokKind, span::Span, tok::InvalidStrKind};
 #[derive(Debug)]
 pub struct Diagnostic {
     kind: DiagnosticKind,
-    span: Span,
+    pub span: Span,
     subdiagnostics: Vec<Diagnostic>,
 }
 

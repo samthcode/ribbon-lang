@@ -66,6 +66,8 @@ pub enum ExprKind {
     },
     UnitType,
     Block(Vec<Expr>),
+    /// Represents an invalid portion of code
+    Invalid,
 }
 
 impl ExprKind {
@@ -147,6 +149,7 @@ impl ExprKind {
                     format!("{acc}\n    {}", elem.sexpr())
                 }) + &format!("{})", if exprs.len() == 0 { "" } else { "\n" })
             }
+            ExprKind::Invalid => "(<invalid>)".to_string(),
         }
     }
 }

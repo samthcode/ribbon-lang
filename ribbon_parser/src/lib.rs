@@ -294,10 +294,24 @@ impl<'a> Parser<'a> {
                 break t.span;
             }
 
-            exprs.push(self.expr_prec_with_first(binary_prec(&OpKind::Comma), Some(t))?);
+            let expr = self.expr_prec_with_first(binary_prec(&OpKind::Comma), Some(t))?;
 
-            let ending =
-                self.expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(closing_delim)])?;
+            let ending = match self
+                .expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(closing_delim)])
+            {
+                Ok(t) => {
+                    exprs.push(expr);
+                    t
+                }
+                Err(e) => {
+                    exprs.push(Expr::new(ExprKind::Invalid, expr.span.to(&e.span)));
+                    self.report_and_recover_err(
+                        e,
+                        ParseCtx::DelimitedList(closing_delim.try_into().unwrap()),
+                    );
+                    continue;
+                }
+            };
             if ending.kind.is_op(&closing_delim) {
                 trailing_comma = false;
                 break ending.span;
@@ -305,6 +319,31 @@ impl<'a> Parser<'a> {
             trailing_comma = true
         };
         Ok((exprs, begin_span.to(&end_span), trailing_comma))
+    }
+
+    fn report_and_recover_err(&mut self, e: Diagnostic, ctx: ParseCtx) {
+        self.program.diagnostics.push(e);
+        match ctx {
+            ParseCtx::DelimitedList(delim) => {
+                self.skip_while(|t| !t.kind.is_op(&OpKind::Comma) && !t.kind.is_op(&delim));
+                if let Err(err) =
+                    self.expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(delim)])
+                {
+                    self.program.diagnostics.push(err);
+                }
+            }
+        }
+    }
+
+    /// Skip until the first token which matches the predicate is reached
+    /// n.b. the first token matching the predicate is not consumed
+    fn skip_while(&mut self, pred: impl Fn(&Tok) -> bool) {
+        while let Some(t) = self.peek_tok() {
+            if !pred(t) {
+                break;
+            }
+            self.next_tok();
+        }
     }
 
     fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<Tok, Diagnostic> {
@@ -340,9 +379,7 @@ impl<'a> Parser<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub enum ParseCtx {
-    ListExpr,
-    FnParamList,
-    Tuple,
+    DelimitedList(OpKind),
 }
