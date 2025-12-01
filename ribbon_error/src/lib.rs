@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display};
+use std::fmt::Display;
 
 use ribbon_lexer::{OpKind, TokKind, span::Span, tok::InvalidStrKind};
 
@@ -91,6 +91,7 @@ pub enum ErrorKind {
     InvalidUnaryOperator(OpKind),
     InvalidBinaryOperator(OpKind),
     InvalidStringLiteral(InvalidStrKind),
+    UnexpectedDelimiter(OpKind),
 }
 
 impl Display for ErrorKind {
@@ -124,6 +125,8 @@ impl Display for ErrorKind {
                     InvalidStrKind::UnterminatedEscape =>
                         "unterminated escape sequence in string literal".to_string(),
                 },
+                ErrorKind::UnexpectedDelimiter(delim) =>
+                    format!("unexpected delimiter `{}`", delim.str()),
             }
         )
     }

@@ -340,6 +340,11 @@ impl OpKind {
             _ => None,
         }
     }
+
+    pub fn is_delim(&self) -> bool {
+        use OpKind::*;
+        matches!(self, LCurly | RCurly | LParen | RParen | LSquare | RSquare)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
