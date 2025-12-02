@@ -470,21 +470,18 @@ impl<'a> Parser<'a> {
             ParseCtx::Root => &[TokKind::Op(OpKind::Semi), TokKind::Eof],
         };
         let span = match self.skip_while(|t| !ends.contains(&t.kind)) {
-            Some(s) => s,
+            Some(s) => err_span.to(&s),
             None => err_span,
         };
-        // We've consumed the Eof token so we simply need to leave
-        // The Eof should have already been handled
-        if self.peek_tok().is_none() {
-            return err_span;
-        }
-        match self.expect_one_of(ends) {
-            Err(err) => {
-                self.program.diagnostics.push(err);
-                span
+        if !self.peek_tok().is_none() {
+            match self.expect_one_of(ends) {
+                Err(err) => {
+                    self.program.diagnostics.push(err);
+                }
+                Ok(_) => (),
             }
-            Ok(_) => span,
         }
+        span
     }
 
     /// Skip until the first token which matches the predicate is reached
