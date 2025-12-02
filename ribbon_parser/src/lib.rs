@@ -13,14 +13,6 @@ mod test;
 
 use crate::prec::Prec;
 
-macro_rules! next_or_eof {
-    ($self:tt) => {
-        $self
-            .next_tok()
-            .unwrap_or(Tok::new(TokKind::Eof, $self.eof_span()))
-    };
-}
-
 /// The parser for the Ribbon programming language.
 ///
 /// This takes a source string (temporary) and first lexes it, and then turns
@@ -98,11 +90,9 @@ impl<'a> Parser<'a> {
         let lhs = if let Some(t) = first {
             t
         } else {
-            // The Eof token could have already been consumed, in which case
-            // we don't want a panic! to occur
-            next_or_eof!(self)
+            self.safe_next_tok()
         };
-        assert!(!lhs.is_eof());
+        debug_assert!(!lhs.is_eof());
         let mut lhs = if let TokKind::Op(kind) = lhs.kind {
             match kind {
                 // Block expression
@@ -260,13 +250,21 @@ impl<'a> Parser<'a> {
         param_span: Span,
         arrow_span: Span,
     ) -> Result<Expr, Diagnostic> {
-        let n_tok = self.peek_tok().unwrap();
-        if n_tok.is_eof() {
-            return Err(Diagnostic::new_error(
-                ErrorKind::UnexpectedToken(n_tok.kind.clone()),
-                n_tok.span,
-            ));
-        }
+        let n_tok = match self.peek_tok() {
+            Some(eof) if eof.is_eof() => {
+                return Err(Diagnostic::new_error(
+                    ErrorKind::UnexpectedToken(eof.kind.clone()),
+                    eof.span,
+                ));
+            }
+            None => {
+                return Err(Diagnostic::new_error(
+                    ErrorKind::UnexpectedToken(TokKind::Eof),
+                    self.eof_span(),
+                ));
+            }
+            Some(t) => t,
+        };
         let mut lcurly_span = n_tok.span;
         let ret_type = if let TokKind::Op(OpKind::LCurly) = n_tok.kind {
             // No return type
@@ -376,7 +374,7 @@ impl<'a> Parser<'a> {
         // This is necessary for the differentiation of parenthesised expressions and tuples
         let mut trailing_comma = false;
         let end_span = loop {
-            let t = next_or_eof!(self);
+            let t = self.safe_next_tok();
             if t.kind.is_eof() {
                 // We don't want to simply return the error as we want to keep as much valid code as possible
                 // We also don't need to perform error recovery as we are at Eof - there is nothing to recover to
@@ -499,9 +497,7 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<Tok, Diagnostic> {
-        let t = self
-            .next_tok()
-            .unwrap_or(Tok::new(TokKind::Eof, self.eof_span()));
+        let t = self.safe_next_tok();
         if toks.iter().any(|tok| tok.is(&t.kind)) {
             Ok(t)
         } else {
@@ -521,8 +517,8 @@ impl<'a> Parser<'a> {
     }
 
     fn expect(&mut self, tok: TokKind) -> Result<Tok, Diagnostic> {
-        // This should never be called when Eof has been consumed
-        let t = self.next_tok().unwrap();
+        debug_assert!(!tok.is_eof());
+        let t = self.safe_next_tok();
         if t.kind.is(&tok) {
             Ok(t)
         } else {
@@ -537,8 +533,15 @@ impl<'a> Parser<'a> {
         self.tok_stream.peek()
     }
 
-    fn next_tok(&mut self) -> Option<Tok> {
-        self.tok_stream.next()
+    /// Returns the next token or Eof if we have passed the designated Eof token
+    fn safe_next_tok(&mut self) -> Tok {
+        self.tok_stream
+            .next()
+            .unwrap_or(Tok::new(TokKind::Eof, self.eof_span()))
+    }
+
+    fn next_tok(&mut self) {
+        self.tok_stream.next();
     }
 }
 
