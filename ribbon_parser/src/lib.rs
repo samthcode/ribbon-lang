@@ -154,12 +154,8 @@ impl<'a> Parser<'a> {
                         ExprKind::UnaryOp {
                             rhs: Box::new(rhs),
                             kind: UnaryOp::new(
-                                op.try_into().map_err(|_| {
-                                    Diagnostic::new_error(
-                                        ErrorKind::InvalidUnaryOperator(op),
-                                        lhs.span,
-                                    )
-                                })?,
+                                // If this fails it is an internal error given we match a hardcoded set of unary ops
+                                op.try_into().unwrap(),
                                 lhs.span,
                             ),
                         },
@@ -168,7 +164,7 @@ impl<'a> Parser<'a> {
                 }
                 k => {
                     return Err(Diagnostic::new_error(
-                        ErrorKind::InvalidUnaryOperator(k),
+                        ErrorKind::UnexpectedOperator(k),
                         lhs.span,
                     ));
                 }

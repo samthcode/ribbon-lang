@@ -88,7 +88,7 @@ pub enum ErrorKind {
     ExpectedOneOfXFoundY(Vec<TokKind>, TokKind),
     UnclosedDelimitedExpression,
     UnexpectedToken(TokKind),
-    InvalidUnaryOperator(OpKind),
+    UnexpectedOperator(OpKind),
     InvalidBinaryOperator(OpKind),
     UnexpectedEofAfterBinaryOperator,
     InvalidStringLiteral(InvalidStrKind),
@@ -117,8 +117,7 @@ impl Display for ErrorKind {
                 ErrorKind::UnclosedDelimitedExpression =>
                     "unclosed delimited expression".to_string(),
                 ErrorKind::UnexpectedToken(tok) => format!("unexpected token {}", tok),
-                ErrorKind::InvalidUnaryOperator(op) =>
-                    format!("invalid unary operator `{}`", op.str()),
+                ErrorKind::UnexpectedOperator(op) => format!("unexpected operator {}", op.str()),
                 ErrorKind::InvalidBinaryOperator(op) =>
                     format!("invalid binary operator {}", op.str()),
                 ErrorKind::InvalidStringLiteral(k) => match k {
