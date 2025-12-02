@@ -90,6 +90,7 @@ pub enum ErrorKind {
     UnexpectedToken(TokKind),
     InvalidUnaryOperator(OpKind),
     InvalidBinaryOperator(OpKind),
+    UnexpectedEofAfterBinaryOperator,
     InvalidStringLiteral(InvalidStrKind),
     UnexpectedDelimiter(OpKind),
 }
@@ -127,6 +128,8 @@ impl Display for ErrorKind {
                 },
                 ErrorKind::UnexpectedDelimiter(delim) =>
                     format!("unexpected delimiter `{}`", delim.str()),
+                ErrorKind::UnexpectedEofAfterBinaryOperator =>
+                    "unexpected end of file after binary operator".to_string(),
             }
         )
     }
