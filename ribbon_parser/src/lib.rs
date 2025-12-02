@@ -98,10 +98,8 @@ impl<'a> Parser<'a> {
         let lhs = if let Some(t) = first {
             t
         } else {
-            // The Eof token has already been consumed
-            // TODO: We should probably have a mechanism not to consume Eof unless it's needed
-            // This would, however, require everything to peek before consuming
-            // which isn't great for performance
+            // The Eof token could have already been consumed, in which case
+            // we don't want a panic! to occur
             next_or_eof!(self)
         };
         assert!(!lhs.is_eof());
