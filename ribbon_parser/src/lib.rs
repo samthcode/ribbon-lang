@@ -45,27 +45,23 @@ impl<'a> Parser<'a> {
     /// This will need its own error struct/trait & result type
     pub fn parse(mut self) -> Program {
         loop {
-            let maybe_expr = match self.peek_tok().cloned() {
-                Some(t) if !t.is_eof() => match self.expr() {
-                    Ok(expr) => {
-                        match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Eof]) {
-                            Ok(_) => Some(expr),
-                            Err(e) => Some(Expr::new(
-                                ExprKind::Invalid,
-                                t.clone()
-                                    .span
-                                    .to(&self.report_and_recover_err(e, ParseCtx::Root)),
-                            )),
-                        }
-                    }
+            let t = self.safe_next_tok();
+            if t.is_eof() {
+                break;
+            }
+            let t_span = t.span;
+            let maybe_expr = match self.expr_prec_with_first(binary_prec(&OpKind::Semi), Some(t)) {
+                Ok(expr) => match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Eof]) {
+                    Ok(_) => Some(expr),
                     Err(e) => Some(Expr::new(
                         ExprKind::Invalid,
-                        t.clone()
-                            .span
-                            .to(&self.report_and_recover_err(e, ParseCtx::Root)),
+                        t_span.to(&self.report_and_recover_err(e, ParseCtx::Root)),
                     )),
                 },
-                _ => break,
+                Err(e) => Some(Expr::new(
+                    ExprKind::Invalid,
+                    t_span.to(&self.report_and_recover_err(e, ParseCtx::Root)),
+                )),
             };
             if let Some(expr) = maybe_expr {
                 self.program.body.push(expr)
