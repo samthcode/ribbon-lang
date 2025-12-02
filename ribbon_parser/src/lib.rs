@@ -7,7 +7,7 @@ use ribbon_lexer::{self as lexer, Lexer, OpKind, TokKind, TokStream, span::Span,
 use ast::Program;
 
 mod prec;
-use prec::{Fixity, PrecOrd, binary_prec, unary_prec};
+use prec::{binary_prec, unary_prec};
 #[cfg(test)]
 mod test;
 
@@ -83,7 +83,7 @@ impl<'a> Parser<'a> {
     }
 
     fn expr(&mut self) -> Result<ast::Expr, Diagnostic> {
-        self.expr_prec(Prec::new(PrecOrd::Semi, Fixity::None))
+        self.expr_prec(binary_prec(&OpKind::Semi))
     }
 
     fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Diagnostic> {
@@ -139,7 +139,7 @@ impl<'a> Parser<'a> {
                 op @ (OpKind::Minus | OpKind::Bang | OpKind::Mul | OpKind::Amp) => {
                     if let Tok {
                         kind: TokKind::Eof,
-                        span,
+                        span: _,
                     } = self
                         .peek_tok()
                         // Span here can't be eof_span() yet due to mutable self borrow in peek_tok()
@@ -227,7 +227,7 @@ impl<'a> Parser<'a> {
             }
             if let Tok {
                 kind: TokKind::Eof,
-                span,
+                span: _,
             } = self
                 .peek_tok()
                 // Span here can't be eof_span() yet due to mutable self borrow in peek_tok()
@@ -314,10 +314,10 @@ impl<'a> Parser<'a> {
     fn block_expr(&mut self, begin_span: Span) -> Expr {
         let mut exprs = Vec::<Expr>::new();
         let mut end_span = begin_span;
-        let mut unclosed_span = None;
+        let mut unclosed = false;
         while let Some(t) = self.peek_tok() {
             if t.is_eof() {
-                unclosed_span = Some(t.span);
+                unclosed = true;
                 break;
             }
             if t.kind.is(&TokKind::Op(OpKind::RCurly)) {
@@ -327,35 +327,46 @@ impl<'a> Parser<'a> {
                 self.next_tok();
                 continue;
             }
-            let expr = match self.expr() {
-                Ok(expr) => expr,
-                Err(e) => {
-                    let span = self.report_and_recover_err(e, ParseCtx::Block);
-                    exprs.push(Expr::new(ExprKind::Invalid, span));
-                    continue;
-                }
-            };
+            let expr = self.expr_or_invalid(ParseCtx::Block);
+            if expr.is(ExprKind::Invalid) {
+                end_span = expr.span;
+                exprs.push(expr);
+                continue;
+            }
+            let eof = matches!(self.peek_tok().unwrap_or(&Tok::new(TokKind::Eof, Span::new(0,0))), t if t.is_eof());
             match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Op(OpKind::RCurly)]) {
-                Ok(Tok { span, .. }) => {
+                Ok(Tok { span, kind }) => {
+                    end_span = span;
                     exprs.push(expr);
-                    end_span = span
+                    if matches!(self.peek_tok().unwrap_or(&Tok::new(TokKind::Eof, Span::new(0,0))), t if t.is_eof())
+                    {
+                        if !kind.is_op(&OpKind::RCurly) {
+                            unclosed = true;
+                        }
+                        break;
+                    }
                 }
                 Err(e) => {
+                    end_span = e.span;
                     exprs.push(Expr::new(
                         ExprKind::Invalid,
                         expr.span
                             .to(&self.report_and_recover_err(e, ParseCtx::Block)),
                     ));
+                    unclosed = eof
                 }
             }
         }
-        if let Some(s) = unclosed_span {
+        if unclosed {
             self.program.diagnostics.push(
-                Diagnostic::new_error(ErrorKind::UnclosedDelimitedExpression, s)
-                    .with_subdiagnostics(vec![Diagnostic::new_info(
-                        InfoKind::DelimitedExpressionBeginsHere,
-                        begin_span,
-                    )]),
+                Diagnostic::new_error(
+                    ErrorKind::UnclosedDelimitedExpression,
+                    begin_span.to(&self.eof_span()),
+                )
+                .with_subdiagnostics(vec![Diagnostic::new_info(
+                    InfoKind::DelimitedExpressionBeginsHere,
+                    begin_span,
+                )]),
             );
         }
         Expr::new(ExprKind::Block(exprs), begin_span.to(&end_span))
@@ -391,16 +402,16 @@ impl<'a> Parser<'a> {
                 break t.span;
             }
 
-            let expr = match self.expr_prec_with_first(binary_prec(&OpKind::Comma), Some(t)) {
-                Ok(expr) => expr,
-                Err(e) => {
-                    let span = self.report_and_recover_err(e, ParseCtx::Block);
-                    exprs.push(Expr::new(ExprKind::Invalid, span));
-                    continue;
-                }
-            };
-            let eof = matches!(self.peek_tok().unwrap_or(&Tok::new(TokKind::Eof, Span::new(0,0))), t if t.is_eof());
-            let ending = match self
+            let mut expr = self.expr_prec_with_first_or_invalid(
+                binary_prec(&OpKind::Comma),
+                Some(t),
+                ParseCtx::DelimitedList(closing_delim),
+            );
+            if expr.is(ExprKind::Invalid) {
+                exprs.push(expr);
+                continue;
+            }
+            let Tok { kind, span } = match self
                 .expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(closing_delim)])
             {
                 Ok(t) => {
@@ -408,14 +419,8 @@ impl<'a> Parser<'a> {
                     t
                 }
                 Err(e) => {
-                    // If we have reached Eof, we still want the last expression to be parsed
-                    // TODO: need to determine whether we want an Invalid expr to be pushed
-                    // this could be useful for error handling
-                    if eof {
-                        exprs.push(expr)
-                    } else {
-                        exprs.push(Expr::new(ExprKind::Invalid, expr.span.to(&e.span)))
-                    }
+                    expr.span = expr.span.to(&e.span);
+                    exprs.push(expr);
                     self.report_and_recover_err(
                         e,
                         ParseCtx::DelimitedList(closing_delim.try_into().unwrap()),
@@ -423,13 +428,35 @@ impl<'a> Parser<'a> {
                     continue;
                 }
             };
-            if ending.kind.is_op(&closing_delim) {
+            if kind.is_op(&closing_delim) {
                 trailing_comma = false;
-                break ending.span;
+                break span;
             }
             trailing_comma = true
         };
         Ok((exprs, begin_span.to(&end_span), trailing_comma))
+    }
+
+    fn expr_or_invalid(&mut self, error_ctx: ParseCtx) -> Expr {
+        self.expr_prec_or_invalid(binary_prec(&OpKind::Semi), error_ctx)
+    }
+
+    fn expr_prec_or_invalid(&mut self, min_prec: Prec, error_ctx: ParseCtx) -> Expr {
+        self.expr_prec_with_first_or_invalid(min_prec, None, error_ctx)
+    }
+
+    /// Parses an expression or reports and recovers an error
+    /// Returns the valid expression or an ExprKind::Invalid with span equal to the error Span
+    fn expr_prec_with_first_or_invalid(
+        &mut self,
+        prec: Prec,
+        first: Option<Tok>,
+        error_ctx: ParseCtx,
+    ) -> Expr {
+        match self.expr_prec_with_first(prec, first) {
+            Ok(expr) => expr,
+            Err(e) => Expr::new(ExprKind::Invalid, self.report_and_recover_err(e, error_ctx)),
+        }
     }
 
     /// Reports an error and attempts to recover based on the current context

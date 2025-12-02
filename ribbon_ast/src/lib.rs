@@ -30,6 +30,10 @@ impl Expr {
     pub fn new(kind: ExprKind, span: Span) -> Self {
         Expr { kind, span }
     }
+
+    pub fn is(&self, other: ExprKind) -> bool {
+        self.kind.is(other)
+    }
 }
 
 impl Expr {
@@ -150,6 +154,27 @@ impl ExprKind {
                 }) + &format!("{})", if exprs.len() == 0 { "" } else { "\n" })
             }
             ExprKind::Invalid => "(<invalid>)".to_string(),
+        }
+    }
+
+    pub fn is(&self, other: Self) -> bool {
+        match self {
+            ExprKind::BinOp { .. } => matches!(other, ExprKind::BinOp { .. }),
+            ExprKind::UnaryOp { .. } => matches!(other, ExprKind::UnaryOp { .. }),
+            ExprKind::Ident(_) => matches!(other, ExprKind::Ident(_)),
+            ExprKind::Lit(_) => matches!(other, ExprKind::Lit(_)),
+            ExprKind::List(_) => matches!(other, ExprKind::List(_)),
+            ExprKind::TupleOrParameterList(_) => matches!(other, ExprKind::TupleOrParameterList(_)),
+            ExprKind::ParenthesisedExpression(_) => {
+                matches!(other, ExprKind::ParenthesisedExpression(_))
+            }
+            ExprKind::Tuple(_) => matches!(other, ExprKind::Tuple(_)),
+            ExprKind::FunctionDeclaration { .. } => {
+                matches!(other, ExprKind::FunctionDeclaration { .. })
+            }
+            ExprKind::UnitType => matches!(other, ExprKind::UnitType),
+            ExprKind::Block(_) => matches!(other, ExprKind::Block(_)),
+            ExprKind::Invalid => matches!(other, ExprKind::Invalid),
         }
     }
 }
