@@ -108,7 +108,7 @@ impl<'a> Parser<'a> {
         let mut lhs = if let TokKind::Op(kind) = lhs.kind {
             match kind {
                 // Block expression
-                OpKind::LCurly => self.block_expr(lhs.span)?,
+                OpKind::LCurly => self.block_expr(lhs.span),
                 // List expression
                 OpKind::LSquare => {
                     let (exprs, span, _) = self.delimited_list(lhs.span, OpKind::RSquare)?;
@@ -295,7 +295,7 @@ impl<'a> Parser<'a> {
         let Expr {
             kind: ExprKind::Block(body),
             span: end_span,
-        } = self.block_expr(lcurly_span)?
+        } = self.block_expr(lcurly_span)
         else {
             panic!()
         };
@@ -311,11 +311,13 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn block_expr(&mut self, begin_span: Span) -> Result<Expr, Diagnostic> {
+    fn block_expr(&mut self, begin_span: Span) -> Expr {
         let mut exprs = Vec::<Expr>::new();
         let mut end_span = begin_span;
+        let mut unclosed_span = None;
         while let Some(t) = self.peek_tok() {
             if t.is_eof() {
+                unclosed_span = Some(t.span);
                 break;
             }
             if t.kind.is(&TokKind::Op(OpKind::RCurly)) {
@@ -347,7 +349,16 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        Ok(Expr::new(ExprKind::Block(exprs), begin_span.to(&end_span)))
+        if let Some(s) = unclosed_span {
+            self.program.diagnostics.push(
+                Diagnostic::new_error(ErrorKind::UnclosedDelimitedExpression, s)
+                    .with_subdiagnostics(vec![Diagnostic::new_info(
+                        InfoKind::DelimitedExpressionBeginsHere,
+                        begin_span,
+                    )]),
+            );
+        }
+        Expr::new(ExprKind::Block(exprs), begin_span.to(&end_span))
     }
 
     fn delimited_list(
