@@ -320,6 +320,7 @@ impl<'a> Parser<'a> {
                 unclosed = true;
                 break;
             }
+            end_span = t.span;
             if t.kind.is(&TokKind::Op(OpKind::RCurly)) {
                 self.next_tok();
                 break;
@@ -361,7 +362,7 @@ impl<'a> Parser<'a> {
             self.program.diagnostics.push(
                 Diagnostic::new_error(
                     ErrorKind::UnclosedDelimitedExpression,
-                    begin_span.to(&self.eof_span()),
+                    begin_span.to(&end_span),
                 )
                 .with_subdiagnostics(vec![Diagnostic::new_info(
                     InfoKind::DelimitedExpressionBeginsHere,
