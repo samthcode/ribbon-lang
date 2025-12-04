@@ -93,6 +93,7 @@ pub enum ErrorKind {
     UnexpectedEofAfterBinaryOperator,
     InvalidStringLiteral(InvalidStrKind),
     UnexpectedDelimiter(OpKind),
+    UnexpectedEofAfterUnaryOperator,
 }
 
 impl Display for ErrorKind {
@@ -129,6 +130,8 @@ impl Display for ErrorKind {
                     format!("unexpected delimiter `{}`", delim.str()),
                 ErrorKind::UnexpectedEofAfterBinaryOperator =>
                     "unexpected end of file after binary operator".to_string(),
+                ErrorKind::UnexpectedEofAfterUnaryOperator =>
+                    "unexpected end of file after unary operator".to_string(),
             }
         )
     }

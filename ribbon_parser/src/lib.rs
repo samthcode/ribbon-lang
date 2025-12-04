@@ -50,28 +50,24 @@ impl<'a> Parser<'a> {
                 break;
             }
             let t_span = t.span;
-            let maybe_expr = match self.expr_prec_with_first(binary_prec(&OpKind::Semi), Some(t)) {
-                Ok(expr) => match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Eof]) {
-                    Ok(_) => Some(expr),
-                    Err(e) => Some(Expr::new(
-                        ExprKind::Invalid,
-                        t_span.to(&self.report_and_recover_err(e, ParseCtx::Root)),
-                    )),
-                },
-                Err(e) => Some(Expr::new(
+            let expr = match self.expr_prec_with_first(binary_prec(&OpKind::Semi), Some(t)) {
+                Ok(expr) => self
+                    .expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Eof])
+                    .map(|_| expr)
+                    .unwrap_or_else(|e| {
+                        Expr::new(
+                            ExprKind::Invalid,
+                            t_span.to(&self.report_and_recover_err(e, ParseCtx::Root)),
+                        )
+                    }),
+                Err(e) => Expr::new(
                     ExprKind::Invalid,
                     t_span.to(&self.report_and_recover_err(e, ParseCtx::Root)),
-                )),
+                ),
             };
-            if let Some(expr) = maybe_expr {
-                self.program.body.push(expr)
-            }
+            self.program.body.push(expr)
         }
         self.program
-    }
-
-    fn expr(&mut self) -> Result<ast::Expr, Diagnostic> {
-        self.expr_prec(binary_prec(&OpKind::Semi))
     }
 
     fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Diagnostic> {
@@ -83,34 +79,19 @@ impl<'a> Parser<'a> {
         min_prec: Prec,
         first: Option<Tok>,
     ) -> Result<ast::Expr, Diagnostic> {
-        let lhs = if let Some(t) = first {
-            t
-        } else {
-            self.safe_next_tok()
-        };
+        let lhs = first.unwrap_or_else(|| self.safe_next_tok());
         debug_assert!(!lhs.is_eof());
         let mut lhs = if let TokKind::Op(kind) = lhs.kind {
             match kind {
                 // Block expression
                 OpKind::LCurly => self.block_expr(lhs.span),
                 // List expression
-                OpKind::LSquare => {
-                    let (exprs, span, _) = self.delimited_list(lhs.span, OpKind::RSquare)?;
-                    Expr::new(ExprKind::List(exprs), span)
-                }
+                OpKind::LSquare => self.list_expr(lhs.span),
                 // Tuple/unit type/function parameter list
-                OpKind::LParen => {
-                    let (exprs, span, trailing_comma) =
-                        self.delimited_list(lhs.span, OpKind::RParen)?;
-                    if exprs.len() == 1 && !trailing_comma {
-                        // We need the ParenthesisedExpression variant to ensure single-parameter functions are parsed correctly
-                        Expr::new(
-                            ExprKind::ParenthesisedExpression(Box::new(exprs[0].clone())),
-                            span,
-                        )
-                    } else {
-                        Expr::new(ExprKind::TupleOrParameterList(exprs), span)
-                    }
+                OpKind::LParen => self.tuple_like_expr(lhs.span),
+                // Unary operator
+                op @ (OpKind::Minus | OpKind::Bang | OpKind::Mul | OpKind::Amp) => {
+                    self.unary_expr(op, lhs.span)?
                 }
                 // Unexpected (closing) delimiter
                 op if op.is_delim() => {
@@ -118,35 +99,6 @@ impl<'a> Parser<'a> {
                         ErrorKind::UnexpectedDelimiter(op),
                         lhs.span,
                     ));
-                }
-                // Unary operator
-                op @ (OpKind::Minus | OpKind::Bang | OpKind::Mul | OpKind::Amp) => {
-                    if let Tok {
-                        kind: TokKind::Eof,
-                        span: _,
-                    } = self
-                        .peek_tok()
-                        // Span here can't be eof_span() yet due to mutable self borrow in peek_tok()
-                        .unwrap_or(&Tok::new(TokKind::Eof, Span::new(0, 0)))
-                    {
-                        return Err(Diagnostic::new_error(
-                            ErrorKind::UnexpectedEofAfterBinaryOperator,
-                            self.eof_span(),
-                        ));
-                    }
-                    let rhs = self.expr_prec(unary_prec(&op))?;
-                    let span = lhs.span.to(&rhs.span);
-                    Expr::new(
-                        ExprKind::UnaryOp {
-                            rhs: Box::new(rhs),
-                            kind: UnaryOp::new(
-                                // If this fails it is an internal error given we match a hardcoded set of unary ops
-                                op.try_into().unwrap(),
-                                lhs.span,
-                            ),
-                        },
-                        span,
-                    )
                 }
                 k => {
                     return Err(Diagnostic::new_error(
@@ -205,13 +157,11 @@ impl<'a> Parser<'a> {
                 },
                 _ => (),
             }
-            if let Tok {
-                kind: TokKind::Eof,
-                span: _,
-            } = self
+            if self
                 .peek_tok()
                 // Span here can't be eof_span() yet due to mutable self borrow in peek_tok()
                 .unwrap_or(&Tok::new(TokKind::Eof, Span::new(0, 0)))
+                .is_eof()
             {
                 return Err(Diagnostic::new_error(
                     ErrorKind::UnexpectedEofAfterBinaryOperator,
@@ -246,37 +196,25 @@ impl<'a> Parser<'a> {
         param_span: Span,
         arrow_span: Span,
     ) -> Result<Expr, Diagnostic> {
-        let n_tok = match self.peek_tok() {
-            Some(eof) if eof.is_eof() => {
-                return Err(Diagnostic::new_error(
-                    ErrorKind::UnexpectedToken(eof.kind.clone()),
-                    eof.span,
-                ));
-            }
-            None => {
-                return Err(Diagnostic::new_error(
-                    ErrorKind::UnexpectedToken(TokKind::Eof),
-                    self.eof_span(),
-                ));
-            }
-            Some(t) => t,
-        };
+        let n_tok = self.peek_tok();
+        if n_tok.is_none_or(|t| t.is_eof()) {
+            return Err(Diagnostic::new_error(
+                ErrorKind::UnexpectedToken(TokKind::Eof),
+                self.eof_span(),
+            ));
+        }
+        let n_tok = n_tok.unwrap();
+
         let mut lcurly_span = n_tok.span;
         let ret_type = if let TokKind::Op(OpKind::LCurly) = n_tok.kind {
             // No return type
             self.next_tok();
+            // TODO: This shouldn't be added in here, return type should be an option
             Expr::new(ExprKind::UnitType, arrow_span)
         } else {
             // Parse the return type up to the block
             let res = self.expr_prec(binary_prec(&OpKind::RCurly))?;
-            lcurly_span = self
-                .peek_tok()
-                .unwrap_or(&Tok::new(
-                    TokKind::Ident(Box::new("dummy".to_string())),
-                    lcurly_span,
-                ))
-                .span;
-            self.expect(TokKind::Op(OpKind::LCurly))?;
+            lcurly_span = self.expect(TokKind::Op(OpKind::LCurly))?.span;
             res
         };
         // TODO: Support functions with fat arrow blocks
@@ -297,6 +235,53 @@ impl<'a> Parser<'a> {
             },
             param_span.to(&end_span),
         ))
+    }
+
+    fn unary_expr(&mut self, op: OpKind, span: Span) -> Result<Expr, Diagnostic> {
+        if let Tok {
+            kind: TokKind::Eof,
+            span: _,
+        } = self
+            .peek_tok()
+            // Span here can't be eof_span() yet due to mutable self borrow in peek_tok()
+            .unwrap_or(&Tok::new(TokKind::Eof, Span::new(0, 0)))
+        {
+            return Err(Diagnostic::new_error(
+                ErrorKind::UnexpectedEofAfterUnaryOperator,
+                self.eof_span(),
+            ));
+        }
+        let rhs = self.expr_prec(unary_prec(&op))?;
+        let span = span.to(&rhs.span);
+        Ok(Expr::new(
+            ExprKind::UnaryOp {
+                rhs: Box::new(rhs),
+                kind: UnaryOp::new(
+                    // If this fails it is an internal error given we match a hardcoded set of unary ops
+                    op.try_into().unwrap(),
+                    span,
+                ),
+            },
+            span,
+        ))
+    }
+
+    fn tuple_like_expr(&mut self, span: Span) -> Expr {
+        let (exprs, n_span, trailing_comma) = self.delimited_list(span, OpKind::RParen);
+        if exprs.len() == 1 && !trailing_comma {
+            // We need the ParenthesisedExpression variant to ensure single-parameter functions are parsed correctly
+            Expr::new(
+                ExprKind::ParenthesisedExpression(Box::new(exprs[0].clone())),
+                n_span,
+            )
+        } else {
+            Expr::new(ExprKind::TupleOrParameterList(exprs), n_span)
+        }
+    }
+
+    fn list_expr(&mut self, span: Span) -> Expr {
+        let (exprs, span, _) = self.delimited_list(span, OpKind::RSquare);
+        Expr::new(ExprKind::List(exprs), span)
     }
 
     fn block_expr(&mut self, begin_span: Span) -> Expr {
@@ -365,7 +350,7 @@ impl<'a> Parser<'a> {
         &mut self,
         begin_span: Span,
         closing_delim: OpKind,
-    ) -> Result<(Vec<Expr>, Span, bool), Diagnostic> {
+    ) -> (Vec<Expr>, Span, bool) {
         let mut exprs: Vec<Expr> = vec![];
         // This is necessary for the differentiation of parenthesised expressions and tuples
         let mut trailing_comma = false;
@@ -423,7 +408,7 @@ impl<'a> Parser<'a> {
             }
             trailing_comma = true
         };
-        Ok((exprs, begin_span.to(&end_span), trailing_comma))
+        (exprs, begin_span.to(&end_span), trailing_comma)
     }
 
     fn expr_or_invalid(&mut self, error_ctx: ParseCtx) -> Expr {
