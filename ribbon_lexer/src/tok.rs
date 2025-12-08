@@ -75,7 +75,15 @@ impl<'a> Tok<'a> {
 
 impl<'a> Display for Tok<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}-{}] {}", self.span.low, self.span.hi, self.source)
+        write!(
+            f,
+            "{}",
+            if self.kind.is_eof() {
+                "EOF"
+            } else {
+                self.source
+            }
+        )
     }
 }
 
@@ -112,12 +120,6 @@ impl KwKind {
             For => "for",
             While => "while",
         }
-    }
-}
-
-impl Display for KwKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "kw:{}", self.str())
     }
 }
 
@@ -425,27 +427,19 @@ impl TokKind {
     }
 }
 
-// macro_rules! tok {
-//     ($tok_kind:ident, $start:expr$(, $end:expr)?) => {
-//         tok::Tok::new(tok::TokKind::$tok_kind, ($start$(, $end)?).into())
-//     };
-
-//     (Ident($str:expr), $start:expr$(, $end:expr)?) => {
-//         tok::Tok::new(tok::TokKind::Ident(Box::new($str)), ($start$(, $end)?).into())
-//     };
-//     (@maybe_conv Ident($str:expr), $start:expr$(, $end:expr)?) => {
-//         tok::Tok::new(
-//             tok::TokKind::Ident(Box::new($str)).maybe_ident_to_kw_or_bool(),
-//             ($start$(, $end)?).into(),
-//         )
-//     };
-//     (Lit(Str($str:expr)), $start:expr$(, $end:expr)?) => {
-//         tok::Tok::new(tok::TokKind::Lit(tok::LitKind::Str(Box::new($str))), ($start$(, $end)?).into())
-//     };
-//     (Lit(InvalidStr($str:expr, $kind:ident)), $start:expr$(, $end:expr)?) => {
-//         tok::Tok::new(tok::TokKind::Lit(tok::LitKind::InvalidStr(Box::new($str), tok::InvalidStrKind::$kind)), ($start$(, $end)?).into())
-//     };
-//     ($tok_kind:ident($e:expr), $start:expr$(, $end:expr)?) => {
-//         tok::Tok::new(TokKind::$tok_kind($e), ($start$(, $end)?).into())
-//     }
-// }
+impl Display for TokKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                TokKind::Ident => "ident".to_string(),
+                TokKind::Kw(kw) => format!("kw:`{}`", kw.str()),
+                TokKind::Lit(_) => "lit".to_string(),
+                TokKind::Op(op) => format!("`{}`", op.str()),
+                TokKind::Eof => "EOF".to_string(),
+                TokKind::Dummy => panic!("internal: tried to display dummy token"),
+            }
+        )
+    }
+}

@@ -20,7 +20,7 @@ fn main() {
             let toks = Lexer::new(source.as_str()).into_iter();
             if run.source_opts.toks {
                 for t in toks.clone() {
-                    println!("{t}")
+                    println!("[{}-{}] {t}", t.span.low, t.span.hi)
                 }
             }
 

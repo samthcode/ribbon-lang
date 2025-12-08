@@ -104,14 +104,13 @@ impl<'a> Display for ErrorKind<'a> {
             match self {
                 // FIXME: Replace use of Debug
                 ErrorKind::ExpectedXFoundY(expected, found) =>
-                    format!("expected {expected:?}, found {found}"),
+                    format!("expected {}, found {}", expected, found.source),
                 ErrorKind::ExpectedOneOfXFoundY(expected, found) => {
                     format!(
                         "expected one of {}, found {}",
                         expected
                             .iter()
-                            // FIXME: Replace use of Debug
-                            .map(|e| format!("{e:?}"))
+                            .map(|e| format!("{e}"))
                             .reduce(|acc, e| format!("{acc}, {e}"))
                             .unwrap(),
                         found
@@ -119,10 +118,10 @@ impl<'a> Display for ErrorKind<'a> {
                 }
                 ErrorKind::UnclosedDelimitedExpression =>
                     "unclosed delimited expression".to_string(),
-                ErrorKind::UnexpectedToken(tok) => format!("unexpected token {}", tok),
-                ErrorKind::UnexpectedOperator(op) => format!("unexpected operator {}", op.str()),
+                ErrorKind::UnexpectedToken(tok) => format!("unexpected token `{}`", tok.source),
+                ErrorKind::UnexpectedOperator(op) => format!("unexpected operator `{}`", op.str()),
                 ErrorKind::InvalidBinaryOperator(op) =>
-                    format!("invalid binary operator {}", op.str()),
+                    format!("invalid binary operator `{}`", op.str()),
                 ErrorKind::InvalidStringLiteral(k) => match k {
                     InvalidStrKind::Unclosed => "unclosed string literal".to_string(),
                     InvalidStrKind::UnterminatedEscape =>

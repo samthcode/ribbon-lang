@@ -418,6 +418,10 @@ impl<'a> Parser<'a> {
             Some(s) => err_span.to(s),
             None => err_span,
         };
+        // We assume here that EOF will be handled further up the chain, so this avoids duplicate errors
+        if self.peek().is_eof() {
+            return span;
+        }
         match self.expect_one_of(ends) {
             Err(err) => {
                 self.program.diagnostics.push(err);
@@ -434,7 +438,7 @@ impl<'a> Parser<'a> {
         let mut m_start = None;
         loop {
             let t = self.peek();
-            if !pred(t) {
+            if !pred(t) || t.is_eof() {
                 break;
             }
             if m_start.is_none() {
