@@ -2,36 +2,84 @@ use std::fmt::Display;
 
 use crate::span::Span;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Tok {
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct Tok<'a> {
     pub kind: TokKind,
+    pub source: &'a str,
     pub span: Span,
 }
 
-impl Tok {
-    pub fn new(kind: TokKind, span: Span) -> Self {
-        Tok { kind, span }
+impl<'a> Tok<'a> {
+    pub fn new(kind: TokKind, source: &'a str, span: Span) -> Self {
+        Tok { kind, source, span }
+    }
+
+    pub fn dummy() -> Self {
+        Self {
+            kind: TokKind::Dummy,
+            source: "",
+            span: Span::default(),
+        }
+    }
+
+    pub fn eof(pos: usize) -> Self {
+        Self {
+            kind: TokKind::Eof,
+            source: "",
+            span: pos.into(),
+        }
     }
 
     pub fn is_eof(&self) -> bool {
         self.kind.is_eof()
     }
 
-    pub fn dummy() -> Self {
-        Self {
-            kind: TokKind::Dummy,
-            span: Span::default(),
+    pub fn is_op(&self) -> bool {
+        self.kind.is_op()
+    }
+
+    pub fn is_op_kind(&self, kind: OpKind) -> bool {
+        self.kind.is_op_kind(kind)
+    }
+
+    pub fn is_kw_kind(&self, kind: KwKind) -> bool {
+        self.kind.is_kw(kind)
+    }
+
+    pub fn maybe_ident_to_kw_or_bool(&mut self) -> Self {
+        use KwKind::*;
+        use TokKind::*;
+        if self.kind == Ident {
+            Self {
+                kind: match self.source {
+                    "const" => Kw(Const),
+                    "struct" => Kw(Struct),
+                    "trait" => Kw(Trait),
+                    "enum" => Kw(Enum),
+                    "return" => Kw(Return),
+                    "use" => Kw(Use),
+                    "for" => Kw(For),
+                    "while" => Kw(While),
+                    "true" => Lit(LitKind::Bool),
+                    "false" => Lit(LitKind::Bool),
+                    _ => self.kind,
+                },
+                source: self.source,
+                span: self.span,
+            }
+        } else {
+            panic!("called `maybe_ident_to_kw_or_bool` on non-identifier")
         }
     }
 }
 
-impl Display for Tok {
+impl<'a> Display for Tok<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}-{}] {}", self.span.low, self.span.hi, self.kind)
+        write!(f, "[{}-{}] {}", self.span.low, self.span.hi, self.source)
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum KwKind {
     /// `const`
     Const,
@@ -73,48 +121,34 @@ impl Display for KwKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum InvalidStrKind {
     Unclosed,
     UnterminatedEscape,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum LitKind {
     /// e.g. `42`
-    Int(i64),
-    /// e.g. `"Hello World!"`
-    Str(Box<String>),
+    ///       ^^
+    Int,
+    /// e.g. `"Hello\n World!"`
+    ///       ^^^^^^^^^^^^^^^^
+    /// Represents the string as it is in the source code. Does not process escape characters etc.
+    UnprocessedStr,
     /// e.g. `"Hello World`
+    ///       ^^^^^^^^^^^^
     /// This is given to the parser so that it can provide better error messages
-    InvalidStr(Box<String>, InvalidStrKind),
+    InvalidStr(InvalidStrKind),
     /// e.g. `42.0`
-    Float(f64),
-    /// true or false
-    Bool(bool),
+    ///       ^^^^
+    Float,
+    /// `true` or `false`
+    ///  ^^^^      ^^^^^
+    Bool,
 }
 
-impl LitKind {
-    fn string(&self) -> String {
-        use LitKind::*;
-        match self {
-            Int(i) => format!("{}", i),
-            Str(s) => format!("\"{}\"", *s),
-            InvalidStr(s, k) => format!(
-                "\"{}\"({})",
-                *s,
-                match k {
-                    InvalidStrKind::Unclosed => "unclosed",
-                    InvalidStrKind::UnterminatedEscape => "unterminated escape",
-                }
-            ),
-            Float(f) => format!("{}", f),
-            Bool(b) => format!("{}", b),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum OpKind {
     // Single-Character Operators
     /// `+`
@@ -354,9 +388,9 @@ impl OpKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokKind {
-    Ident(Box<String>),
+    Ident,
 
     Kw(KwKind),
 
@@ -370,90 +404,48 @@ pub enum TokKind {
     Dummy,
 }
 
-impl Display for TokKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                TokKind::Ident(i) => format!("ident:`{}`", *i),
-                TokKind::Kw(kw) => format!("kw:`{}`", kw.str()),
-                TokKind::Lit(lit) => format!("lit:`{}`", lit.string()),
-                TokKind::Op(op) => format!("`{}`", op.str()),
-                TokKind::Eof => "EOF".to_string(),
-                TokKind::Dummy => panic!("internal: tried to display dummy token"),
-            }
-        )
-    }
-}
-
 impl TokKind {
-    pub fn maybe_ident_to_kw_or_bool(self) -> Self {
-        use KwKind::*;
-        use TokKind::*;
-        if let Ident(ref str) = self {
-            match (*str).as_str() {
-                "const" => Kw(Const),
-                "struct" => Kw(Struct),
-                "trait" => Kw(Trait),
-                "enum" => Kw(Enum),
-                "return" => Kw(Return),
-                "use" => Kw(Use),
-                "for" => Kw(For),
-                "while" => Kw(While),
-                "true" => Lit(LitKind::Bool(true)),
-                "false" => Lit(LitKind::Bool(false)),
-                _ => self,
-            }
-        } else {
-            panic!("Called maybe_ident_to_kw_or_bool on non-identifier.")
-        }
+    pub fn is_kw(&self, kind: KwKind) -> bool {
+        matches!(self, TokKind::Kw(k) if k == &kind)
     }
 
-    pub fn is(&self, other: &TokKind) -> bool {
-        match self {
-            TokKind::Ident(_) => matches!(other, TokKind::Ident(_)),
-            TokKind::Kw(kw_kind) => matches!(other, TokKind::Kw(n_kind) if kw_kind == n_kind),
-            TokKind::Lit(lit_kind) => matches!(other, TokKind::Lit(n_kind) if lit_kind == n_kind),
-            TokKind::Op(op_kind) => matches!(other, TokKind::Op(n_kind) if op_kind == n_kind),
-            TokKind::Eof => self.is_eof(),
-            TokKind::Dummy => panic!("internal: called `is` with dummy token")
-        }
+    pub fn is_op(&self) -> bool {
+        matches!(self, TokKind::Op(_))
     }
 
-    pub fn is_op(&self, other: &OpKind) -> bool {
+    pub fn is_op_kind(&self, other: OpKind) -> bool {
         match self {
-            TokKind::Op(op_kind) => op_kind == other,
+            TokKind::Op(op_kind) => op_kind == &other,
             _ => false,
         }
     }
 
     pub fn is_eof(&self) -> bool {
-        matches!(self, TokKind::Eof)
+        self == &TokKind::Eof
     }
 }
 
-macro_rules! tok {
-    ($tok_kind:ident, $start:expr$(, $end:expr)?) => {
-        tok::Tok::new(tok::TokKind::$tok_kind, ($start$(, $end)?).into())
-    };
+// macro_rules! tok {
+//     ($tok_kind:ident, $start:expr$(, $end:expr)?) => {
+//         tok::Tok::new(tok::TokKind::$tok_kind, ($start$(, $end)?).into())
+//     };
 
-    (Ident($str:expr), $start:expr$(, $end:expr)?) => {
-        tok::Tok::new(tok::TokKind::Ident(Box::new($str)), ($start$(, $end)?).into())
-    };
-    (@maybe_conv Ident($str:expr), $start:expr$(, $end:expr)?) => {
-        tok::Tok::new(
-            tok::TokKind::Ident(Box::new($str)).maybe_ident_to_kw_or_bool(),
-            ($start$(, $end)?).into(),
-        )
-    };
-    (Lit(Str($str:expr)), $start:expr$(, $end:expr)?) => {
-        tok::Tok::new(tok::TokKind::Lit(tok::LitKind::Str(Box::new($str))), ($start$(, $end)?).into())
-    };
-    (Lit(InvalidStr($str:expr, $kind:ident)), $start:expr$(, $end:expr)?) => {
-        tok::Tok::new(tok::TokKind::Lit(tok::LitKind::InvalidStr(Box::new($str), tok::InvalidStrKind::$kind)), ($start$(, $end)?).into())
-    };
-    ($tok_kind:ident($e:expr), $start:expr$(, $end:expr)?) => {
-        tok::Tok::new(TokKind::$tok_kind($e), ($start$(, $end)?).into())
-    }
-}
+//     (Ident($str:expr), $start:expr$(, $end:expr)?) => {
+//         tok::Tok::new(tok::TokKind::Ident(Box::new($str)), ($start$(, $end)?).into())
+//     };
+//     (@maybe_conv Ident($str:expr), $start:expr$(, $end:expr)?) => {
+//         tok::Tok::new(
+//             tok::TokKind::Ident(Box::new($str)).maybe_ident_to_kw_or_bool(),
+//             ($start$(, $end)?).into(),
+//         )
+//     };
+//     (Lit(Str($str:expr)), $start:expr$(, $end:expr)?) => {
+//         tok::Tok::new(tok::TokKind::Lit(tok::LitKind::Str(Box::new($str))), ($start$(, $end)?).into())
+//     };
+//     (Lit(InvalidStr($str:expr, $kind:ident)), $start:expr$(, $end:expr)?) => {
+//         tok::Tok::new(tok::TokKind::Lit(tok::LitKind::InvalidStr(Box::new($str), tok::InvalidStrKind::$kind)), ($start$(, $end)?).into())
+//     };
+//     ($tok_kind:ident($e:expr), $start:expr$(, $end:expr)?) => {
+//         tok::Tok::new(TokKind::$tok_kind($e), ($start$(, $end)?).into())
+//     }
+// }

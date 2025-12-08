@@ -1,16 +1,16 @@
 use std::fmt::Display;
 
-use ribbon_lexer::{OpKind, TokKind, span::Span, tok::InvalidStrKind};
+use ribbon_lexer::{OpKind, Tok, TokKind, span::Span, tok::InvalidStrKind};
 
 #[derive(Debug)]
-pub struct Diagnostic {
-    kind: DiagnosticKind,
+pub struct Diagnostic<'a> {
+    kind: DiagnosticKind<'a>,
     pub span: Span,
-    subdiagnostics: Vec<Diagnostic>,
+    subdiagnostics: Vec<Diagnostic<'a>>,
 }
 
-impl Diagnostic {
-    pub fn new(kind: DiagnosticKind, span: Span) -> Self {
+impl<'a> Diagnostic<'a> {
+    pub fn new(kind: DiagnosticKind<'a>, span: Span) -> Self {
         Self {
             kind,
             span,
@@ -18,9 +18,9 @@ impl Diagnostic {
         }
     }
 
-    pub fn new_error(kind: ErrorKind, span: Span) -> Self {
+    pub fn new_error(kind: ErrorKind<'a>, span: Span) -> Self {
         Self {
-            kind: DiagnosticKind::Error(kind),
+            kind: DiagnosticKind::<'a>::Error(kind),
             span,
             subdiagnostics: vec![],
         }
@@ -42,7 +42,7 @@ impl Diagnostic {
         }
     }
 
-    pub fn with_subdiagnostics(self, subdiagnostics: Vec<Diagnostic>) -> Self {
+    pub fn with_subdiagnostics(self, subdiagnostics: Vec<Diagnostic<'a>>) -> Self {
         Self {
             subdiagnostics,
             ..self
@@ -50,7 +50,7 @@ impl Diagnostic {
     }
 }
 
-impl Display for Diagnostic {
+impl<'a> Display for Diagnostic<'a> {
     // TODO: This is temporary
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.span, self.kind)?;
@@ -62,13 +62,13 @@ impl Display for Diagnostic {
 }
 
 #[derive(Debug)]
-pub enum DiagnosticKind {
-    Error(ErrorKind),
+pub enum DiagnosticKind<'a> {
+    Error(ErrorKind<'a>),
     Warning(WarningKind),
     Info(InfoKind),
 }
 
-impl Display for DiagnosticKind {
+impl<'a> Display for DiagnosticKind<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -83,11 +83,11 @@ impl Display for DiagnosticKind {
 }
 
 #[derive(Debug)]
-pub enum ErrorKind {
-    ExpectedXFoundY(TokKind, TokKind),
-    ExpectedOneOfXFoundY(Vec<TokKind>, TokKind),
+pub enum ErrorKind<'a> {
+    ExpectedXFoundY(TokKind, Tok<'a>),
+    ExpectedOneOfXFoundY(Vec<TokKind>, Tok<'a>),
     UnclosedDelimitedExpression,
-    UnexpectedToken(TokKind),
+    UnexpectedToken(Tok<'a>),
     UnexpectedOperator(OpKind),
     InvalidBinaryOperator(OpKind),
     UnexpectedEofAfterBinaryOperator,
@@ -96,20 +96,22 @@ pub enum ErrorKind {
     UnexpectedEofAfterUnaryOperator,
 }
 
-impl Display for ErrorKind {
+impl<'a> Display for ErrorKind<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match self {
+                // FIXME: Replace use of Debug
                 ErrorKind::ExpectedXFoundY(expected, found) =>
-                    format!("expected {expected}, found {found}"),
+                    format!("expected {expected:?}, found {found}"),
                 ErrorKind::ExpectedOneOfXFoundY(expected, found) => {
                     format!(
                         "expected one of {}, found {}",
                         expected
                             .iter()
-                            .map(|e| format!("{e}"))
+                            // FIXME: Replace use of Debug
+                            .map(|e| format!("{e:?}"))
                             .reduce(|acc, e| format!("{acc}, {e}"))
                             .unwrap(),
                         found

@@ -6,12 +6,12 @@ use ribbon_lexer::{OpKind, Tok, TokKind, span::Span};
 /// This contains a list of expressions which make up all of the functions, structs, enums, and
 /// constants at the top level of a program, as well as all of the expressions contained within those expressions.
 #[derive(Debug)]
-pub struct Program {
+pub struct Program<'a> {
     pub body: Vec<Expr>,
-    pub diagnostics: Vec<Diagnostic>,
+    pub diagnostics: Vec<Diagnostic<'a>>,
 }
 
-impl Default for Program {
+impl<'a> Default for Program<'a> {
     fn default() -> Self {
         Self {
             body: vec![],
@@ -477,27 +477,69 @@ pub fn tok_to_expr(tok: Tok) -> Result<Expr, Diagnostic> {
     use ribbon_lexer::LitKind as LLK;
     Ok(Expr::new(
         match tok.kind {
-            TokKind::Ident(s) => Ident(s),
+            TokKind::Ident => Ident(Box::new(tok.source.to_string())),
             TokKind::Lit(kind) => match kind {
                 // TODO: At some point, we need to find the true size of the integer
-                LLK::Int(i) => Lit(LitKind::Int(i)),
-                LLK::Str(s) => Lit(LitKind::Str(s)),
-                LLK::InvalidStr(_, invalid_str_kind) => {
+                LLK::Int => Lit(LitKind::Int(
+                    tok.source
+                        .replace("_", "")
+                        .parse()
+                        .expect("internal: failed to parse int literal"),
+                )),
+                LLK::UnprocessedStr => Lit(LitKind::Str(Box::new(process_str(tok.source)))),
+                LLK::InvalidStr(invalid_str_kind) => {
                     return Err(Diagnostic::new_error(
                         ErrorKind::InvalidStringLiteral(invalid_str_kind),
                         tok.span,
                     ));
                 }
-                LLK::Float(f) => Lit(LitKind::Float(f)),
-                LLK::Bool(b) => Lit(LitKind::Bool(b)),
+                LLK::Float => Lit(LitKind::Float(
+                    tok.source
+                        .replace("_", "")
+                        .parse()
+                        .expect("internal: failed to parse float literal"),
+                )),
+                LLK::Bool => Lit(LitKind::Bool(
+                    tok.source
+                        .parse()
+                        .expect("interal: failed to parse boolean literal"),
+                )),
             },
             _ => {
                 return Err(Diagnostic::new_error(
-                    ErrorKind::UnexpectedToken(tok.kind),
+                    ErrorKind::UnexpectedToken(tok),
                     tok.span,
                 ));
             }
         },
         tok.span,
     ))
+}
+
+pub fn process_str(source: &str) -> String {
+    let mut res = String::new();
+    let mut chars = source.chars();
+    // Skip the starting `"`
+    chars.next();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => {
+                return res;
+            }
+            '\\' => match chars.next() {
+                Some('\\') => res.push('\\'),
+                Some('"') => res.push('"'),
+                Some('n') => res.push('\n'),
+                Some('r') => res.push('\r'),
+                Some('t') => res.push('\t'),
+                Some('0') => res.push('\0'),
+                None => {
+                    panic!("called `process_str` on invalid string literal")
+                }
+                _ => res.push(c),
+            },
+            _ => res.push(c),
+        }
+    }
+    panic!("called `process_str` on invalid string literal")
 }

@@ -20,8 +20,8 @@ use crate::prec::Prec;
 pub struct Parser<'a> {
     source: &'a str,
     tok_stream: Peekable<TokStream<'a>>,
-    program: Program,
-    curr: Tok,
+    program: Program<'a>,
+    curr: Tok<'a>,
 }
 
 impl<'a> Parser<'a> {
@@ -46,7 +46,7 @@ impl<'a> Parser<'a> {
     /// The method that turns the tok_stream into a root Program node
     ///
     /// This will need its own error struct/trait & result type
-    pub fn parse(mut self) -> Program {
+    pub fn parse(mut self) -> Program<'a> {
         loop {
             let t = self.next();
             if t.is_eof() {
@@ -54,18 +54,16 @@ impl<'a> Parser<'a> {
             }
             let t_span = t.span;
             let expr = match self.expr_prec(binary_prec(&OpKind::Semi)) {
-                Ok(expr) => self
-                    .expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Eof])
-                    .map(|_| expr)
-                    .unwrap_or_else(|e| {
-                        Expr::new(
-                            ExprKind::Invalid,
-                            t_span.to(&self.report_and_recover_err(e, ParseCtx::Root)),
-                        )
-                    }),
+                Ok(expr) => match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Eof]) {
+                    Ok(_) => expr,
+                    Err(e) => Expr::new(
+                        ExprKind::Invalid,
+                        t_span.to(self.report_and_recover_err(e, ParseCtx::Root)),
+                    ),
+                },
                 Err(e) => Expr::new(
                     ExprKind::Invalid,
-                    t_span.to(&self.report_and_recover_err(e, ParseCtx::Root)),
+                    t_span.to(self.report_and_recover_err(e, ParseCtx::Root)),
                 ),
             };
             self.program.body.push(expr)
@@ -73,7 +71,7 @@ impl<'a> Parser<'a> {
         self.program
     }
 
-    fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Diagnostic> {
+    fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Diagnostic<'a>> {
         let lhs = &self.curr;
         let lhs_span = lhs.span;
         debug_assert!(!lhs.is_eof());
@@ -104,53 +102,52 @@ impl<'a> Parser<'a> {
                 }
             }
         } else {
-            // TODO: Remove this clone. Most likely by making TokKind able to be
-            //       copied (string slices to represent token state)
-            tok_to_expr(lhs.clone())?
+            tok_to_expr(*lhs)?
         };
 
         loop {
-            let (op_kind, prec, op_span) = match self.peek() {
-                Tok {
-                    kind: TokKind::Op(op_kind),
+            let n_tok = self.peek();
+            let span = n_tok.span;
+            if n_tok.is_eof() {
+                break;
+            }
+            let TokKind::Op(op_kind) = n_tok.kind else {
+                return Err(Diagnostic::new_error(
+                    ErrorKind::UnexpectedToken(n_tok.clone()),
                     span,
-                } => {
-                    let prec = binary_prec(op_kind);
-                    if prec <= min_prec {
-                        break;
-                    }
-                    (*op_kind, prec, *span)
-                }
-                t if t.is_eof() => break,
-                t => {
-                    return Err(Diagnostic::new_error(
-                        ErrorKind::UnexpectedToken(t.kind.clone()),
-                        t.span,
-                    ));
-                }
+                ));
             };
-            self.next();
+            let prec = binary_prec(&op_kind);
+            if prec <= min_prec {
+                break;
+            }
             // There are a few special cases that we need to parse differently
             match op_kind {
                 // Function
                 // TODO: Support `=>` functions e.g. `const fn = () => "Hello World".print;`
                 OpKind::MinusGt => match lhs.kind {
                     ExprKind::TupleOrParameterList(exprs) => {
-                        lhs = self.fn_decl(exprs, lhs.span, op_span)?;
+                        self.next();
+                        lhs = self.fn_decl(exprs, lhs.span, span)?;
                         continue;
                     }
                     ExprKind::ParenthesisedExpression(expr) => {
-                        lhs = self.fn_decl(vec![*expr], lhs.span, op_span)?;
+                        self.next();
+                        lhs = self.fn_decl(vec![*expr], lhs.span, span)?;
                         continue;
                     }
                     _ => {
+                        let n_tok = n_tok.clone();
+                        self.next();
                         return Err(Diagnostic::new_error(
-                            ErrorKind::UnexpectedToken(TokKind::Op(op_kind)),
-                            op_span,
+                            ErrorKind::UnexpectedToken(n_tok),
+                            span,
                         ));
                     }
                 },
-                _ => (),
+                _ => {
+                    self.next();
+                }
             }
             if self.next().is_eof() {
                 return Err(Diagnostic::new_error(
@@ -159,19 +156,16 @@ impl<'a> Parser<'a> {
                 ));
             }
             let rhs = self.expr_prec(prec)?;
-            let span = lhs.span.to(&rhs.span);
+            let span = lhs.span.to(rhs.span);
             lhs = Expr::new(
                 ExprKind::BinOp {
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
                     kind: BinOp::new(
                         op_kind.try_into().map_err(|_| {
-                            Diagnostic::new_error(
-                                ErrorKind::InvalidBinaryOperator(op_kind),
-                                op_span,
-                            )
+                            Diagnostic::new_error(ErrorKind::InvalidBinaryOperator(op_kind), span)
                         })?,
-                        op_span,
+                        span,
                     ),
                 },
                 span,
@@ -185,11 +179,11 @@ impl<'a> Parser<'a> {
         parameters: Vec<Expr>,
         param_span: Span,
         arrow_span: Span,
-    ) -> Result<Expr, Diagnostic> {
+    ) -> Result<Expr, Diagnostic<'a>> {
         let n_tok = self.next();
         if n_tok.is_eof() {
             return Err(Diagnostic::new_error(
-                ErrorKind::UnexpectedToken(TokKind::Eof),
+                ErrorKind::UnexpectedToken(n_tok.clone()),
                 self.eof_span(),
             ));
         }
@@ -222,11 +216,11 @@ impl<'a> Parser<'a> {
                 return_type: Box::new(ret_type),
                 body,
             },
-            param_span.to(&end_span),
+            param_span.to(end_span),
         ))
     }
 
-    fn unary_expr(&mut self, op: OpKind, span: Span) -> Result<Expr, Diagnostic> {
+    fn unary_expr(&mut self, op: OpKind, span: Span) -> Result<Expr, Diagnostic<'a>> {
         if self.next().is_eof() {
             return Err(Diagnostic::new_error(
                 ErrorKind::UnexpectedEofAfterUnaryOperator,
@@ -234,7 +228,7 @@ impl<'a> Parser<'a> {
             ));
         }
         let rhs = self.expr_prec(unary_prec(&op))?;
-        let span = span.to(&rhs.span);
+        let span = span.to(rhs.span);
         Ok(Expr::new(
             ExprKind::UnaryOp {
                 rhs: Box::new(rhs),
@@ -276,11 +270,11 @@ impl<'a> Parser<'a> {
                 break;
             }
             end_span = t.span;
-            if t.kind.is_op(&OpKind::RCurly) {
+            if t.kind.is_op_kind(OpKind::RCurly) {
                 unclosed = false;
                 break;
             }
-            if t.kind.is_op(&OpKind::Semi) {
+            if t.kind.is_op_kind(OpKind::Semi) {
                 continue;
             }
             let expr = self.expr_or_invalid(ParseCtx::Block);
@@ -291,10 +285,14 @@ impl<'a> Parser<'a> {
             }
             let eof = self.peek().is_eof();
             match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Op(OpKind::RCurly)]) {
-                Ok(Tok { span, kind }) => {
+                Ok(Tok {
+                    span,
+                    kind,
+                    source: _,
+                }) => {
                     end_span = *span;
                     exprs.push(expr);
-                    if kind.is_op(&OpKind::RCurly) {
+                    if kind.is_op_kind(OpKind::RCurly) {
                         unclosed = false;
                         break;
                     }
@@ -304,7 +302,7 @@ impl<'a> Parser<'a> {
                     exprs.push(Expr::new(
                         ExprKind::Invalid,
                         expr.span
-                            .to(&self.report_and_recover_err(e, ParseCtx::Block)),
+                            .to(self.report_and_recover_err(e, ParseCtx::Block)),
                     ));
                     unclosed = eof
                 }
@@ -314,7 +312,7 @@ impl<'a> Parser<'a> {
             self.program.diagnostics.push(
                 Diagnostic::new_error(
                     ErrorKind::UnclosedDelimitedExpression,
-                    begin_span.to(&end_span),
+                    begin_span.to(end_span),
                 )
                 .with_subdiagnostics(vec![Diagnostic::new_info(
                     InfoKind::DelimitedExpressionBeginsHere,
@@ -322,7 +320,7 @@ impl<'a> Parser<'a> {
                 )]),
             );
         }
-        Expr::new(ExprKind::Block(exprs), begin_span.to(&end_span))
+        Expr::new(ExprKind::Block(exprs), begin_span.to(end_span))
     }
 
     fn delimited_list(
@@ -342,7 +340,7 @@ impl<'a> Parser<'a> {
                 self.program.diagnostics.push(
                     Diagnostic::new_error(
                         ErrorKind::UnclosedDelimitedExpression,
-                        begin_span.to(&t_span),
+                        begin_span.to(t_span),
                     )
                     .with_subdiagnostics(vec![Diagnostic::new_info(
                         InfoKind::DelimitedExpressionBeginsHere,
@@ -352,7 +350,7 @@ impl<'a> Parser<'a> {
                 break t_span;
             };
 
-            if t.kind.is_op(&closing_delim) {
+            if t.kind.is_op_kind(closing_delim) {
                 break t.span;
             }
 
@@ -364,15 +362,18 @@ impl<'a> Parser<'a> {
                 exprs.push(expr);
                 continue;
             }
-            let Tok { kind, span } = match self
-                .expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(closing_delim)])
+            let Tok {
+                kind,
+                span,
+                source: _,
+            } = match self.expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(closing_delim)])
             {
                 Ok(t) => {
                     exprs.push(expr);
                     t
                 }
                 Err(e) => {
-                    expr.span = expr.span.to(&e.span);
+                    expr.span = expr.span.to(e.span);
                     exprs.push(expr);
                     self.report_and_recover_err(
                         e,
@@ -381,13 +382,13 @@ impl<'a> Parser<'a> {
                     continue;
                 }
             };
-            if kind.is_op(&closing_delim) {
+            if kind.is_op_kind(closing_delim) {
                 trailing_comma = false;
                 break *span;
             }
             trailing_comma = true
         };
-        (exprs, begin_span.to(&end_span), trailing_comma)
+        (exprs, begin_span.to(end_span), trailing_comma)
     }
 
     fn expr_or_invalid(&mut self, error_ctx: ParseCtx) -> Expr {
@@ -405,7 +406,7 @@ impl<'a> Parser<'a> {
 
     /// Reports an error and attempts to recover based on the current context
     /// Returns the Span of the recovered section, not including a closing delimiter
-    fn report_and_recover_err(&mut self, e: Diagnostic, ctx: ParseCtx) -> Span {
+    fn report_and_recover_err(&mut self, e: Diagnostic<'a>, ctx: ParseCtx) -> Span {
         let err_span = e.span;
         self.program.diagnostics.push(e);
         let ends = match ctx {
@@ -414,7 +415,7 @@ impl<'a> Parser<'a> {
             ParseCtx::Root => &[TokKind::Op(OpKind::Semi), TokKind::Eof],
         };
         let span = match self.skip_while(|t| !ends.contains(&t.kind)) {
-            Some(s) => err_span.to(&s),
+            Some(s) => err_span.to(s),
             None => err_span,
         };
         match self.expect_one_of(ends) {
@@ -439,20 +440,20 @@ impl<'a> Parser<'a> {
             if m_start.is_none() {
                 m_start = Some(t.span)
             } else {
-                m_start = m_start.map(|s| s.to(&t.span))
+                m_start = m_start.map(|s| s.to(t.span))
             }
             self.next();
         }
         m_start
     }
 
-    fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<&Tok, Diagnostic> {
+    fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<&Tok<'a>, Diagnostic<'a>> {
         let t = self.next();
-        if toks.iter().any(|tok| tok.is(&t.kind)) {
+        if toks.iter().any(|kind| kind == &t.kind) {
             Ok(t)
         } else {
             Err(Diagnostic::new_error(
-                ErrorKind::ExpectedOneOfXFoundY(Vec::from(toks), t.kind.clone()),
+                ErrorKind::ExpectedOneOfXFoundY(Vec::from(toks), *t),
                 t.span,
             ))
         }
@@ -462,25 +463,25 @@ impl<'a> Parser<'a> {
         if self.source.len() == 0 {
             Span::new(0, 0)
         } else {
-            (self.source.len() as u32 - 1).into()
+            (self.source.len() - 1).into()
         }
     }
 
-    fn expect(&mut self, tok: TokKind) -> Result<&Tok, Diagnostic> {
-        debug_assert!(!tok.is_eof());
+    fn expect(&mut self, kind: TokKind) -> Result<&Tok<'a>, Diagnostic<'a>> {
+        debug_assert!(!kind.is_eof());
         let t = self.next();
-        if t.kind.is(&tok) {
+        if t.kind == kind {
             Ok(t)
         } else {
             Err(Diagnostic::new_error(
-                ErrorKind::ExpectedXFoundY(tok, t.kind.clone()),
+                ErrorKind::ExpectedXFoundY(kind, *t),
                 t.span,
             ))
         }
     }
 
     /// Returns the next token in the token stream without consuming
-    fn peek(&mut self) -> &Tok {
+    fn peek(&mut self) -> &Tok<'a> {
         if self.curr.is_eof() {
             return &self.curr;
         }
@@ -489,7 +490,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Consumes the next token in the iterator, stalling once the Eof token is reached
-    fn next(&mut self) -> &Tok {
+    fn next(&mut self) -> &Tok<'a> {
         if !self.curr.is_eof() {
             self.curr = self.tok_stream.next().unwrap();
         }

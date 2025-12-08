@@ -1,19 +1,27 @@
 use super::*;
 
+use tok::{Tok, TokKind::*};
+
 macro_rules! test {
-    ($source:literal, $($tok:expr),* $(,)?) => {
+    ($source:literal$(,($tok:expr, $low:expr, $hi:expr))*) => {
+        assert_eq!(Lexer::new($source).into_iter().collect::<Vec<Tok>>(), vec![
+            $(Tok::new($tok,&$source[$low..=$hi], ($low, $hi).into())),*,
+            Tok::eof(if $source.len() == 0 {0} else {$source.len() - 1})
+        ])
+    };
+    ($source:literal, $($tok:expr),*) => {
         assert_eq!(Lexer::new($source).into_iter().collect::<Vec<Tok>>(), vec![
             $($tok,)*
-            tok!(Eof, if $source.len() == 0 {0} else {$source.len() as u32 - 1})
+            Tok::eof(if $source.len() == 0 {0} else {$source.len() - 1})
         ])
     }
 }
 
 #[test]
 fn ident() {
-    test!("hello", tok!(Ident("hello".to_string()), 0, 4));
-    test!("_hello", tok!(Ident("_hello".to_string()), 0, 5));
-    test!("t1_var_?", tok!(Ident("t1_var_?".to_string()), 0, 7));
+    test!("hello", Tok::new(Ident, "hello", Span::new(0, 4)));
+    test!("_hello", Tok::new(Ident, "_hello", Span::new(0, 5)));
+    test!("t1_var_?", Tok::new(Ident, "t1_var_?", Span::new(0, 7)));
 }
 
 #[test]
@@ -21,34 +29,34 @@ fn operators() {
     use OpKind::*;
     test!(
         "+=+-/~?<<=",
-        tok!(Op(PlusEq), 0, 1),
-        tok!(Op(Plus), 2),
-        tok!(Op(Minus), 3),
-        tok!(Op(Div), 4),
-        tok!(Op(TildeQuestion), 5, 6),
-        tok!(Op(ShiftLEq), 7, 9)
+        Tok::new(Op(PlusEq), "+=", (0, 1).into()),
+        Tok::new(Op(Plus), "+", 2.into()),
+        Tok::new(Op(Minus), "-", 3.into()),
+        Tok::new(Op(Div), "/", 4.into()),
+        Tok::new(Op(TildeQuestion), "~?", (5, 6).into()),
+        Tok::new(Op(ShiftLEq), "<<=", (7, 9).into())
     );
-    test!("^", tok!(Op(Caret), 0));
-    test!("^=", tok!(Op(CaretEq), 0, 1))
+    test!("^", Tok::new(Op(Caret), "^", 0.into()));
+    test!("^=", Tok::new(Op(CaretEq), "^=", (0, 1).into()))
 }
 
 #[test]
 fn whitespace() {
-    test!(" 123", tok!(Lit(LitKind::Int(123)), 1, 3));
-    test!("     ident", tok!(Ident("ident".to_string()), 5, 9));
+    test!(" 123", Tok::new(Lit(LitKind::Int), "123", (1, 3).into()));
+    test!("     ident", Tok::new(Ident, "ident", (5, 9).into()));
     test!(
         "     ident ()",
-        tok!(Ident("ident".to_string()), 5, 9),
-        tok!(Op(OpKind::LParen), 11),
-        tok!(Op(OpKind::RParen), 12)
+        Tok::new(Ident, "ident", (5, 9).into()),
+        Tok::new(Op(OpKind::LParen), "(", 11.into()),
+        Tok::new(Op(OpKind::RParen), ")", 12.into())
     );
-    test!("     \n\r\tident", tok!(Ident("ident".to_string()), 8, 12));
+    test!("     \n\r\tident", Tok::new(Ident, "ident", (8, 12).into()));
     test!(
         "!ident + 10",
-        tok!(Op(OpKind::Bang), 0, 0),
-        tok!(Ident("ident".to_string()), 1, 5),
-        tok!(Op(OpKind::Plus), 7, 7),
-        tok!(Lit(LitKind::Int(10)), 9, 10)
+        Tok::new(Op(OpKind::Bang), "!", (0, 0).into()),
+        Tok::new(Ident, "ident", (1, 5).into()),
+        Tok::new(Op(OpKind::Plus), "+", (7, 7).into()),
+        Tok::new(Lit(LitKind::Int), "10", (9, 10).into())
     )
 }
 
@@ -56,40 +64,54 @@ fn whitespace() {
 fn strings() {
     test!(
         "\"Hello World\"",
-        tok!(Lit(Str("Hello World".to_string())), 0, 12)
+        Tok::new(
+            Lit(LitKind::UnprocessedStr),
+            "\"Hello World\"",
+            (0, 12).into()
+        )
     );
     test!(
         "\"Hello World",
-        tok!(Lit(InvalidStr("Hello World".to_string(), Unclosed)), 0, 11)
+        Tok::new(
+            Lit(LitKind::InvalidStr(InvalidStrKind::Unclosed)),
+            "\"Hello World",
+            (0, 11).into()
+        )
     );
-    test!("\"\\t\"", tok!(Lit(Str("\t".to_string())), 0, 3))
+    test!(
+        "\"\\t\"",
+        Tok::new(Lit(LitKind::UnprocessedStr), "\"\\t\"", (0, 3).into())
+    )
 }
 
 #[test]
 fn bools() {
-    test!("true", tok!(Lit(LitKind::Bool(true)), 0, 3));
-    test!("false", tok!(Lit(LitKind::Bool(false)), 0, 4))
+    test!("true", Tok::new(Lit(LitKind::Bool), "true", (0, 3).into()));
+    test!(
+        "false",
+        Tok::new(Lit(LitKind::Bool), "false", (0, 4).into())
+    )
 }
 
 #[test]
 fn numbers() {
-    test!("100", tok!(Lit(LitKind::Int(100)), 0, 2));
+    test!("100", (Lit(LitKind::Int), 0, 2));
     test!(
         "100..",
-        tok!(Lit(LitKind::Int(100)), 0, 2),
-        tok!(Op(OpKind::DotDot), 3, 4)
+        (Lit(LitKind::Int), 0, 2),
+        (Op(OpKind::DotDot), 3, 4)
     );
-    test!("100.1", tok!(Lit(LitKind::Float(100.1)), 0, 4));
+    test!("100.1", (Lit(LitKind::Float), 0, 4));
     test!(
         "100.func",
-        tok!(Lit(LitKind::Int(100)), 0, 2),
-        tok!(Op(OpKind::Dot), 3),
-        tok!(Ident("func".to_string()), 4, 7)
+        (Lit(LitKind::Int), 0, 2),
+        (Op(OpKind::Dot), 3, 3),
+        (Ident, 4, 7)
     );
-    test!("1.", tok!(Lit(LitKind::Float(1.0)), 0, 1));
-    test!("100_000_000", tok!(Lit(LitKind::Int(100000000)), 0, 10));
-    test!("9", tok!(Lit(LitKind::Int(9)), 0, 0));
-    test!("9876543210", tok!(Lit(LitKind::Int(9876543210)), 0, 9))
+    test!("1.", (Lit(LitKind::Float), 0, 1));
+    test!("100_000_000", (Lit(LitKind::Int), 0, 10));
+    test!("9", (Lit(LitKind::Int), 0, 0));
+    test!("9876543210", (Lit(LitKind::Int), 0, 9))
 }
 
 #[test]
@@ -97,7 +119,7 @@ fn line_comments() {
     test!("//hello this is a comment\r\n",);
     test!(
         "//hello this is a comment\r\n101",
-        tok!(Lit(LitKind::Int(101)), 27, 29)
+        (Lit(LitKind::Int), 27, 29)
     )
 }
 
@@ -105,26 +127,18 @@ fn line_comments() {
 fn block_comments() {
     test!("/*block comment*/",);
     test!("/*block*comment*/",);
-    test!(
-        "hello/**/123",
-        tok!(Ident("hello".to_string()), 0, 4),
-        tok!(Lit(LitKind::Int(123)), 9, 11)
-    );
-    test!(
-        "hello/***/123",
-        tok!(Ident("hello".to_string()), 0, 4),
-        tok!(Lit(LitKind::Int(123)), 10, 12)
-    );
+    test!("hello/**/123", (Ident, 0, 4), (Lit(LitKind::Int), 9, 11));
+    test!("hello/***/123", (Ident, 0, 4), (Lit(LitKind::Int), 10, 12));
     test!(
         "hello/*****/123",
-        tok!(Ident("hello".to_string()), 0, 4),
-        tok!(Lit(LitKind::Int(123)), 12, 14)
+        (Ident, 0, 4),
+        (Lit(LitKind::Int), 12, 14)
     );
-    test!("hello/*****123*/", tok!(Ident("hello".to_string()), 0, 4));
+    test!("hello/*****123*/", (Ident, 0, 4));
     test!(
         "/*block comment*/\n123 // Line comment\n /**/ 123",
-        tok!(Lit(LitKind::Int(123)), 18, 20),
-        tok!(Lit(LitKind::Int(123)), 44, 46)
+        (Lit(LitKind::Int), 18, 20),
+        (Lit(LitKind::Int), 44, 46)
     );
 }
 

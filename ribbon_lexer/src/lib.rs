@@ -3,7 +3,8 @@ use std::str::Chars;
 
 #[macro_use]
 pub mod tok;
-pub use tok::{LitKind, OpKind, Tok, TokKind};
+use span::Span;
+pub use tok::{InvalidStrKind, LitKind, OpKind, Tok, TokKind};
 
 pub mod span;
 #[cfg(test)]
@@ -25,8 +26,8 @@ impl<'a> Lexer<'a> {
 
     /// Returns the next lexed token
     /// The Lexer is lazy so it only lexes one token at a time as needed
-    fn next_token(&mut self) -> Option<Tok> {
-        let res = if let Some(c) = self.curr_char() {
+    fn next_token(&mut self) -> Option<Tok<'a>> {
+        let res: Option<Tok<'a>> = if let Some(c) = self.curr_char() {
             match c {
                 // Whitespace
                 c if is_whitespace(&c) => {
@@ -65,18 +66,23 @@ impl<'a> Lexer<'a> {
                 self.is_eof = true;
                 // Cursor position is beyond the end of the source file so we want to bring it back
                 // n.b. The Eof token is only needed to give a better Span for diagnostics
-                Some(tok!(
-                    Eof,
-                    if self.cursor.pos == 0 {
-                        self.cursor.pos
-                    } else {
-                        self.cursor.pos - 1
-                    }
-                ))
+                Some(Tok::eof(if self.cursor.pos == 0 {
+                    self.cursor.pos
+                } else {
+                    self.cursor.pos - 1
+                }))
             }
         };
         self.next_char();
         res
+    }
+
+    fn new_tok(&self, kind: TokKind, start_pos: usize) -> Tok<'a> {
+        Tok::new(
+            kind,
+            self.cursor.source_from(start_pos),
+            self.cursor.span_from(start_pos),
+        )
     }
 
     /// Skips while the predicate is true, leaving the cursor on the first character which doesn't match the predicate.
@@ -124,7 +130,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Creates an identifier or keyword token
-    fn tok_ident(&mut self) -> Tok {
+    fn tok_ident(&mut self) -> Tok<'a> {
         let mut res = self.curr_char().unwrap().to_string();
         let start = self.cursor.pos;
         while let Some(c) = self.peek_char() {
@@ -140,67 +146,58 @@ impl<'a> Lexer<'a> {
             }
             self.next_char();
         }
-        tok!(@maybe_conv Ident(res), start, self.cursor.pos)
+        self.new_tok(TokKind::Ident, start)
+            .maybe_ident_to_kw_or_bool()
     }
 
-    fn tok_str(&mut self) -> Tok {
+    fn tok_str(&mut self) -> Tok<'a> {
         assert!(
             matches!(self.curr_char(), Some('"')),
             "Called tok_str while cursor not over double quote"
         );
-        let mut res = String::new();
         let start = self.cursor.pos;
         while let Some(c) = self.next_char() {
             match c {
-                '"' => return tok!(Lit(Str(res)), start, self.cursor.pos),
-                '\\' => match self.next_char() {
-                    Some('\\') => res.push('\\'),
-                    Some('"') => res.push('"'),
-                    Some('n') => res.push('\n'),
-                    Some('r') => res.push('\r'),
-                    Some('t') => res.push('\t'),
-                    Some('0') => res.push('\0'),
-                    None => {
-                        // Note that the first `\` of the escape isn't appended to the string
-                        // This may be changed in the future depending on what we need
-                        return tok!(
-                            Lit(InvalidStr(res, UnterminatedEscape)),
+                '"' => {
+                    return self.new_tok(TokKind::Lit(LitKind::UnprocessedStr), start);
+                }
+                '\\' => {
+                    if let None = self.next_char() {
+                        return self.new_tok(
+                            TokKind::Lit(LitKind::InvalidStr(InvalidStrKind::UnterminatedEscape)),
                             start,
-                            self.cursor.pos
                         );
                     }
-                    _ => res.push(c),
-                },
-                _ => res.push(c),
+                }
+                _ => (),
             }
         }
         // We want to bring the cursor back to the end of the file since it lies beyond it
         // This is a bit of a hack but it avoids having to call peek_char then only advance if not at Eof
         // If we didn't set the cursor itself back then the Eof token would be in the wrong position
         self.cursor.pos -= 1;
-        tok!(Lit(InvalidStr(res, Unclosed)), start, self.cursor.pos)
+        self.new_tok(
+            TokKind::Lit(LitKind::InvalidStr(InvalidStrKind::Unclosed)),
+            start,
+        )
     }
 
     /// Creates an integer or float
     ///
     /// Ensure to only call this method with the cursor over the first digit of the number
     /// TODO: Support exponents
-    fn tok_num(&mut self) -> Tok {
-        let mut res = self.curr_char().unwrap().to_string();
+    fn tok_num(&mut self) -> Tok<'a> {
         let start = self.cursor.pos;
 
-        macro_rules! collect_digits {
+        macro_rules! consume_digits {
             () => {
-                while let Some(c @ '0'..='9' | c @ '_') = self.peek_char() {
-                    if *c != '_' {
-                        res.push(*c);
-                    }
+                while let Some('0'..='9' | '_') = self.peek_char() {
                     self.next_char();
                 }
             };
         }
 
-        collect_digits!();
+        consume_digits!();
 
         if let Some('.') = self.peek_char() {
             // We need to peek twice here as we could have a range or .(ident)
@@ -210,36 +207,27 @@ impl<'a> Lexer<'a> {
             //  We have something like 1. followed by EOF which counts as the float 1.0
             if let None = two_ahead {
                 self.next_char();
-                let float = res
-                    .parse::<f64>()
-                    .expect("Unable to parse float in tok_num");
-                return tok!(Lit(LitKind::Float(float)), start, self.cursor.pos);
+                return self.new_tok(TokKind::Lit(LitKind::Float), start);
             }
             // Is followed by a range or identifier therefore is not a float
             if matches!(two_ahead, Some('.')) || is_ident_head(two_ahead.unwrap()) {
-                let int: i64 = res.parse().expect("Unable to parse integer in tok_num");
-                return tok!(Lit(LitKind::Int(int)), start, self.cursor.pos);
+                return self.new_tok(TokKind::Lit(LitKind::Int), start);
             }
-            res.push('.');
             self.next_char();
 
             // Get the next part of the float if there is one
-            collect_digits!();
+            consume_digits!();
 
-            let float = res
-                .parse::<f64>()
-                .expect("Unable to parse float in tok_num");
-            return tok!(Lit(LitKind::Float(float)), start, self.cursor.pos);
+            return self.new_tok(TokKind::Lit(LitKind::Float), start);
         }
         // Not followed by a dot therefore is an integer
-        let int: i64 = res.parse().expect("Unable to parse integer in tok_num");
-        return tok!(Lit(LitKind::Int(int)), start, self.cursor.pos);
+        return self.new_tok(TokKind::Lit(LitKind::Int), start);
     }
 
     /// Creates an operator
     /// This function is greedy, it takes the largest valid operator it can make
     /// - these may need to be split up once there is more context.
-    fn tok_op(&mut self) -> Tok {
+    fn tok_op(&mut self) -> Tok<'a> {
         if let Some(c) = self.curr_char() {
             use OpKind::*;
             let mut kind = match c {
@@ -282,7 +270,7 @@ impl<'a> Lexer<'a> {
                     break;
                 }
             }
-            Tok::new(TokKind::Op(kind), (start, self.cursor.pos).into())
+            self.new_tok(TokKind::Op(kind), start)
         } else {
             panic!("Called tok_op when cursor is not on a character.")
         }
@@ -295,7 +283,7 @@ pub struct TokStream<'a> {
 }
 
 impl<'a> Iterator for TokStream<'a> {
-    type Item = Tok;
+    type Item = Tok<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.lexer.next_token()
@@ -303,7 +291,7 @@ impl<'a> Iterator for TokStream<'a> {
 }
 
 impl<'a> IntoIterator for Lexer<'a> {
-    type Item = Tok;
+    type Item = Tok<'a>;
 
     type IntoIter = TokStream<'a>;
 
@@ -315,14 +303,16 @@ impl<'a> IntoIterator for Lexer<'a> {
 /// Peekable iterator over the characters of a source
 #[derive(Clone)]
 pub struct Cursor<'a> {
+    source: &'a str,
     chars: Peekable<Chars<'a>>,
-    pos: u32,
+    pos: usize,
     curr: Option<char>,
 }
 
 impl<'a> Cursor<'a> {
     fn new(source: &'a str) -> Self {
         let mut cursor = Cursor {
+            source,
             chars: source.chars().peekable(),
             pos: 0,
             curr: None,
@@ -336,6 +326,15 @@ impl<'a> Cursor<'a> {
 
     fn peek(&mut self) -> Option<&char> {
         self.chars.peek()
+    }
+
+    /// Returns a slice of the source code from the given position up to the current position
+    fn source_from(&self, pos: usize) -> &'a str {
+        &self.source[pos..=self.pos]
+    }
+
+    fn span_from(&self, pos: usize) -> Span {
+        Span::new(pos, self.pos)
     }
 }
 

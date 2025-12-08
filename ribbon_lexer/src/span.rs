@@ -2,16 +2,16 @@ use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Span {
-    pub low: u32,
-    pub hi: u32,
+    pub low: usize,
+    pub hi: usize,
 }
 
 impl Span {
-    pub fn new(low: u32, hi: u32) -> Self {
+    pub fn new(low: usize, hi: usize) -> Self {
         Span { low, hi }
     }
 
-    pub fn to(&self, other: &Self) -> Self {
+    pub fn to(&self, other: Self) -> Self {
         Span {
             low: self.low,
             hi: other.hi,
@@ -19,14 +19,14 @@ impl Span {
     }
 }
 
-impl From<u32> for Span {
-    fn from(value: u32) -> Self {
+impl From<usize> for Span {
+    fn from(value: usize) -> Self {
         Span::new(value, value)
     }
 }
 
-impl From<(u32, u32)> for Span {
-    fn from(value: (u32, u32)) -> Self {
+impl From<(usize, usize)> for Span {
+    fn from(value: (usize, usize)) -> Self {
         Span::new(value.0, value.1)
     }
 }
