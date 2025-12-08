@@ -36,3 +36,9 @@ impl Display for Span {
         write!(f, "{}:{}", self.low, self.hi)
     }
 }
+
+impl Default for Span {
+    fn default() -> Self {
+        Self { low: 0, hi: 0 }
+    }
+}

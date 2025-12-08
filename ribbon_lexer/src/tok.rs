@@ -16,6 +16,13 @@ impl Tok {
     pub fn is_eof(&self) -> bool {
         self.kind.is_eof()
     }
+
+    pub fn dummy() -> Self {
+        Self {
+            kind: TokKind::Dummy,
+            span: Span::default(),
+        }
+    }
 }
 
 impl Display for Tok {
@@ -358,6 +365,9 @@ pub enum TokKind {
     Op(OpKind),
 
     Eof,
+
+    /// For internal use only
+    Dummy,
 }
 
 impl Display for TokKind {
@@ -371,6 +381,7 @@ impl Display for TokKind {
                 TokKind::Lit(lit) => format!("lit:`{}`", lit.string()),
                 TokKind::Op(op) => format!("`{}`", op.str()),
                 TokKind::Eof => "EOF".to_string(),
+                TokKind::Dummy => panic!("internal: tried to display dummy token"),
             }
         )
     }
@@ -406,6 +417,7 @@ impl TokKind {
             TokKind::Lit(lit_kind) => matches!(other, TokKind::Lit(n_kind) if lit_kind == n_kind),
             TokKind::Op(op_kind) => matches!(other, TokKind::Op(n_kind) if op_kind == n_kind),
             TokKind::Eof => self.is_eof(),
+            TokKind::Dummy => panic!("internal: called `is` with dummy token")
         }
     }
 
