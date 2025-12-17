@@ -87,30 +87,26 @@ impl ExprKind {
             ExprKind::Lit(lit_kind) => lit_kind.repr(),
             ExprKind::List(elems) => {
                 format!(
-                    "(list{})",
-                    elems.iter().fold("".to_string(), |acc, elem| format!(
-                        "{acc} {}",
-                        elem.sexpr()
-                    ))
+                    "(list{}{})",
+                    if elems.is_empty() { "" } else { " " },
+                    space_sexprs(elems, " ")
                 )
             }
             ExprKind::TupleOrParameterList(exprs) => {
                 format!(
-                    "(tuple-param-list{})",
-                    exprs.iter().fold("".to_string(), |acc, elem| format!(
-                        "{acc} {}",
-                        elem.sexpr()
-                    ))
+                    "(tuple-param-list{}{})",
+                    if exprs.is_empty() { "" } else { " " },
+                    space_sexprs(exprs, " ")
                 )
             }
             ExprKind::ParenthesisedExpression(expr) => expr.sexpr(),
-            ExprKind::Tuple(exprs) => format!(
-                "(tuple{})",
-                exprs.iter().fold("".to_string(), |acc, elem| format!(
-                    "{acc} {}",
-                    elem.sexpr()
-                ))
-            ),
+            ExprKind::Tuple(exprs) => {
+                format!(
+                    "(tuple{}{})",
+                    if exprs.is_empty() { "" } else { " " },
+                    space_sexprs(exprs, " ")
+                )
+            }
             ExprKind::FunctionDeclaration {
                 parameters,
                 generic_parameters,
@@ -118,40 +114,30 @@ impl ExprKind {
                 return_type,
                 body,
             } => format!(
-                "(fn {}(params{}) (ret {}) (body{})",
+                "(fn {}(params{}) (ret {}) {})",
                 if generic_parameters.len() > 0 {
-                    generic_parameters
-                        .iter()
-                        .fold("(generics ".to_string(), |acc, elem| {
-                            format!(
-                                "{acc}{ }{}",
-                                if acc == String::from("(generics ") {
-                                    ""
-                                } else {
-                                    " "
-                                },
-                                elem.sexpr()
-                            )
-                        })
-                        + ") "
+                    format!("(generics {}) ", space_sexprs(generic_parameters, " "))
                 } else {
                     "".to_string()
                 },
-                parameters.iter().fold("".to_string(), |acc, elem| format!(
-                    "{acc} {}",
-                    elem.sexpr()
-                )),
+                format!(
+                    "{}{}",
+                    if parameters.len() > 0 { " " } else { "" },
+                    space_sexprs(parameters, " ")
+                ),
                 return_type.sexpr(),
-                body.iter().fold("".to_string(), |acc, elem| format!(
-                    "{acc}\n    {}",
-                    elem.sexpr()
-                )) + &format!("{})", if body.len() == 0 { "" } else { "\n" })
+                if body.len() > 0 {
+                    format!("(body\n    {}\n)", space_sexprs(body, "\n    "))
+                } else {
+                    "(body)".to_string()
+                }
             ),
             ExprKind::UnitType => "()".to_string(),
             ExprKind::Block(exprs) => {
-                exprs.iter().fold("(block".to_string(), |acc, elem| {
-                    format!("{acc}\n    {}", elem.sexpr())
-                }) + &format!("{})", if exprs.len() == 0 { "" } else { "\n" })
+                if exprs.len() == 0 {
+                    return "(block)".to_string();
+                }
+                format!("(block\n    {}\n)", space_sexprs(exprs, "\n    "))
             }
             ExprKind::Invalid => "(<invalid>)".to_string(),
         }
@@ -177,6 +163,14 @@ impl ExprKind {
             ExprKind::Invalid => matches!(other, ExprKind::Invalid),
         }
     }
+}
+
+fn space_sexprs(exprs: &Vec<Expr>, sep: &str) -> String {
+    exprs
+        .iter()
+        .map(|e| e.sexpr())
+        .collect::<Vec<String>>()
+        .join(sep)
 }
 
 #[derive(Debug, Clone)]
