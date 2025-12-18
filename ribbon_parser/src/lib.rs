@@ -107,14 +107,14 @@ impl<'a> Parser<'a> {
 
         loop {
             let n_tok = self.peek();
-            let span = n_tok.span;
+            let op_span = n_tok.span;
             if n_tok.is_eof() {
                 break;
             }
             let TokKind::Op(op_kind) = n_tok.kind else {
                 return Err(Diagnostic::new_error(
                     ErrorKind::UnexpectedToken(n_tok.clone()),
-                    span,
+                    op_span,
                 ));
             };
             let prec = binary_prec(&op_kind);
@@ -128,12 +128,12 @@ impl<'a> Parser<'a> {
                 OpKind::MinusGt => match lhs.kind {
                     ExprKind::TupleOrParameterList(exprs) => {
                         self.next();
-                        lhs = self.fn_decl(exprs, lhs.span, span)?;
+                        lhs = self.fn_decl(exprs, lhs.span, op_span)?;
                         continue;
                     }
                     ExprKind::ParenthesisedExpression(expr) => {
                         self.next();
-                        lhs = self.fn_decl(vec![*expr], lhs.span, span)?;
+                        lhs = self.fn_decl(vec![*expr], lhs.span, op_span)?;
                         continue;
                     }
                     _ => {
@@ -141,7 +141,7 @@ impl<'a> Parser<'a> {
                         self.next();
                         return Err(Diagnostic::new_error(
                             ErrorKind::UnexpectedToken(n_tok),
-                            span,
+                            op_span,
                         ));
                     }
                 },
@@ -158,16 +158,9 @@ impl<'a> Parser<'a> {
             let rhs = self.expr_prec(prec)?;
             let span = lhs.span.to(rhs.span);
             lhs = Expr::new(
-                ExprKind::BinOp {
-                    lhs: Box::new(lhs),
-                    rhs: Box::new(rhs),
-                    kind: BinOp::new(
-                        op_kind.try_into().map_err(|_| {
-                            Diagnostic::new_error(ErrorKind::InvalidBinaryOperator(op_kind), span)
-                        })?,
-                        span,
-                    ),
-                },
+                ExprKind::BinOp(Box::new(BinOp::try_from_op_kind(
+                    op_kind, op_span, lhs, rhs,
+                )?)),
                 span,
             )
         }
