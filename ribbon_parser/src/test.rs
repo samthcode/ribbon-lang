@@ -1,6 +1,3 @@
-#[allow(unused)]
-use insta::assert_yaml_snapshot;
-
 use crate::Parser;
 
 macro_rules! create_tests {
@@ -9,7 +6,12 @@ macro_rules! create_tests {
             #[test]
             fn $name() {
                 let program = Parser::new($test_string).parse();
-                insta::assert_yaml_snapshot!(&program)
+                insta::with_settings!({
+                    description => $test_string,
+                    omit_expression => true
+                }, {
+                    insta::assert_yaml_snapshot!(&program)
+                })
             }
         )+
     };
@@ -32,5 +34,7 @@ create_tests! {
     tuple: "(1,2)", // TODO: Or param list at the moment
     unclosed_tuple: "(1,2",
     fn_decl_start_or_unit_type: "()",
-    parenthesised_expression: "(10)"
+    parenthesised_expression: "(10)",
+    plain_function: "() => {}",
+    function_with_return_type: "() -> i32 {}"
 }

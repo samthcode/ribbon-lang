@@ -1,0 +1,25 @@
+---
+source: ribbon_parser/src/test.rs
+description: "() -> i32 {}"
+---
+body:
+  - kind:
+      FunctionDeclaration:
+        parameters: []
+        generic_parameters: []
+        return_type:
+          kind:
+            Ident: i32
+          span:
+            low: 6
+            hi: 8
+        body:
+          kind:
+            Block: []
+          span:
+            low: 10
+            hi: 11
+    span:
+      low: 0
+      hi: 11
+diagnostics: []

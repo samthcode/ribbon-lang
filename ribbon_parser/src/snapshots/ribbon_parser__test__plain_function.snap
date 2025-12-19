@@ -1,0 +1,21 @@
+---
+source: ribbon_parser/src/test.rs
+description: "() => {}"
+expression: "& program"
+---
+body:
+  - kind:
+      FunctionDeclaration:
+        parameters: []
+        generic_parameters: []
+        return_type: ~
+        body:
+          kind:
+            Block: []
+          span:
+            low: 6
+            hi: 7
+    span:
+      low: 0
+      hi: 7
+diagnostics: []
