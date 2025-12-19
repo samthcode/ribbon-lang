@@ -115,7 +115,7 @@ pub fn binary_prec(kind: &OpKind) -> Prec {
         Eq | AmpEq | CaretEq | PipeEq | PlusEq | MinusEq | MulEq | DivEq | ModEq | DotEq
         | ShiftLEq | ShiftREq | AndEq | OrEq => Prec::new(PrecOrd::Assign, Right),
         // Function definition
-        MinusGt => Prec::new(PrecOrd::FunctionDef, Fixity::None),
+        MinusGt | EqGt => Prec::new(PrecOrd::FunctionDef, Fixity::None),
         // List separator
         Comma => Prec::new(PrecOrd::ListSeparator, Fixity::None),
         // Argument list terminator
@@ -132,6 +132,5 @@ pub fn binary_prec(kind: &OpKind) -> Prec {
         Hash => todo!(),
         Bang => todo!(),
         Dollar => todo!(),
-        EqGt => todo!(),
     }
 }

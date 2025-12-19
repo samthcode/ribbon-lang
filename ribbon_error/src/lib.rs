@@ -94,6 +94,7 @@ pub enum ErrorKind<'a> {
     InvalidStringLiteral(InvalidStrKind),
     UnexpectedDelimiter(OpKind),
     UnexpectedEofAfterUnaryOperator,
+    ExpectedTypeFoundOperator(OpKind),
 }
 
 impl<'a> Display for ErrorKind<'a> {
@@ -133,6 +134,8 @@ impl<'a> Display for ErrorKind<'a> {
                     "unexpected end of file after binary operator".to_string(),
                 ErrorKind::UnexpectedEofAfterUnaryOperator =>
                     "unexpected end of file after unary operator".to_string(),
+                ErrorKind::ExpectedTypeFoundOperator(op) =>
+                    format!("expected type, found operator `{}`", op.str()),
             }
         )
     }

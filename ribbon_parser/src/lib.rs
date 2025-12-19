@@ -1,6 +1,8 @@
 use std::iter::Peekable;
 
-use ribbon_ast::{self as ast, BinOp, Expr, ExprKind, FunctionDeclaration, UnaryOp, tok_to_expr};
+use ribbon_ast::{
+    self as ast, BinOp, Expr, ExprKind, FunctionDeclaration, FunctionTypeLike, UnaryOp, tok_to_expr,
+};
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
 use ribbon_lexer::{self as lexer, Lexer, OpKind, TokKind, TokStream, span::Span, tok::Tok};
 
@@ -71,7 +73,8 @@ impl<'a> Parser<'a> {
         self.program
     }
 
-    fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Diagnostic<'a>> {
+    fn expr_prec(&mut self, min_prec: Prec) -> Result<Expr, Diagnostic<'a>> {
+        // Get the left-hand side of the current expression
         let mut lhs = self.expr_lhs()?;
 
         loop {
@@ -93,18 +96,27 @@ impl<'a> Parser<'a> {
             }
             // There are a few special cases that we need to parse differently
             match op_kind {
-                // Function
-                // TODO: Support `=>` functions e.g. `const fn = () => "Hello World".print;`
+                // Thin-arrow function type or declaration (`->`)
                 OpKind::MinusGt => {
-                    lhs = match lhs.kind {
-                        ExprKind::TupleOrParameterList(exprs) => {
-                            self.next();
-                            self.fn_decl(exprs, lhs.span)?
+                    let parameters = match lhs.kind {
+                        ExprKind::TupleOrParameterList(exprs) => exprs,
+                        ExprKind::ParenthesisedExpression(expr) => vec![*expr],
+                        _ => {
+                            return Err(Diagnostic::new_error(
+                                ErrorKind::UnexpectedToken(*n_tok),
+                                op_span,
+                            ));
                         }
-                        ExprKind::ParenthesisedExpression(expr) => {
-                            self.next();
-                            self.fn_decl(vec![*expr], lhs.span)?
-                        }
+                    };
+                    self.next();
+                    lhs = self.fn_type_like_expr(parameters, lhs.span)?;
+                    continue;
+                }
+                // Fat-arrow function declaration
+                OpKind::EqGt => {
+                    let parameters = match lhs.kind {
+                        ExprKind::TupleOrParameterList(exprs) => exprs,
+                        ExprKind::ParenthesisedExpression(expr) => vec![*expr],
                         _ => {
                             let n_tok = n_tok.clone();
                             self.next();
@@ -114,6 +126,21 @@ impl<'a> Parser<'a> {
                             ));
                         }
                     };
+                    // Consume `=>`
+                    self.next();
+                    // `expr_prec` works on the current token so we need to advance again
+                    self.next();
+                    let body = self.expr_prec(binary_prec(&OpKind::MinusGt))?;
+                    let span = lhs.span.to(body.span);
+                    lhs = Expr::new(
+                        ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
+                            parameters,
+                            vec![],
+                            None,
+                            body,
+                        ))),
+                        span,
+                    );
                     continue;
                 }
                 _ => {
@@ -171,43 +198,69 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn fn_decl(&mut self, parameters: Vec<Expr>, param_span: Span) -> Result<Expr, Diagnostic<'a>> {
-        let n_tok = self.next();
-        if n_tok.is_eof() {
+    /// Parses an expression such as `(a: i32, b: i32) -> i32`
+    ///                                                ^^ `self.curr` required to be here
+    fn fn_type_like_expr(
+        &mut self,
+        parameters: Vec<Expr>,
+        param_span: Span,
+    ) -> Result<Expr, Diagnostic<'a>> {
+        debug_assert!(self.curr.is_op_kind(OpKind::MinusGt));
+        self.next();
+
+        // Expect a type after the arrow
+        let return_type = self.expr_prec(binary_prec(&OpKind::EqGt))?;
+        // TODO: Properly validate that it is actually a type
+        if matches!(return_type.kind, ExprKind::Block(_)) {
             return Err(Diagnostic::new_error(
-                ErrorKind::UnexpectedToken(n_tok.clone()),
-                self.eof_span(),
+                ErrorKind::ExpectedTypeFoundOperator(OpKind::LCurly),
+                return_type.span.low.into(),
             ));
         }
+        let span = param_span.to(return_type.span);
 
-        let mut lcurly_span = n_tok.span;
-        let ret_type = if let TokKind::Op(OpKind::LCurly) = n_tok.kind {
-            // No return type
-            None
+        if self.peek().is_op_kind(OpKind::EqGt) {
+            // Parse either an expression or a block
+            // Consume `=>`
+            self.next();
+            // `expr_prec` works on the current token so we need to advance again
+            self.next();
+            let body = self.expr_prec(binary_prec(&OpKind::MinusGt))?;
+            let span = param_span.to(body.span);
+            Ok(Expr::new(
+                ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
+                    parameters,
+                    vec![],
+                    Some(return_type),
+                    body,
+                ))),
+                span,
+            ))
+        } else if self.peek().is_op_kind(OpKind::LCurly) {
+            // Consume `{`
+            let t = self.next();
+            let begin_span = t.span;
+            let body = self.block_expr(begin_span);
+            let span = param_span.to(body.span);
+            Ok(Expr::new(
+                ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
+                    parameters,
+                    vec![],
+                    Some(return_type),
+                    body,
+                ))),
+                span,
+            ))
         } else {
-            // Parse the return type up to the block
-            let res = self.expr_prec(binary_prec(&OpKind::RCurly))?;
-            lcurly_span = self.expect(TokKind::Op(OpKind::LCurly))?.span;
-            Some(res)
-        };
-
-        // TODO: Support functions with fat arrow blocks
-        let Expr {
-            kind: ExprKind::Block(body),
-            span: end_span,
-        } = self.block_expr(lcurly_span)
-        else {
-            panic!()
-        };
-        Ok(Expr::new(
-            ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
-                parameters,
-                vec![],
-                ret_type,
-                body,
-            ))),
-            param_span.to(end_span),
-        ))
+            Ok(Expr::new(
+                ExprKind::FunctionTypeLike(Box::new(FunctionTypeLike::new(
+                    parameters,
+                    vec![],
+                    return_type,
+                ))),
+                span,
+            ))
+        }
     }
 
     fn unary_expr(&mut self, op: OpKind, op_span: Span) -> Result<Expr, Diagnostic<'a>> {

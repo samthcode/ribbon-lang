@@ -59,6 +59,10 @@ pub enum ExprKind {
     ParenthesisedExpression(Box<Expr>),
     Tuple(Vec<Expr>),
     FunctionDeclaration(Box<FunctionDeclaration>),
+    /// A function type (or the start of a function definition) such as `(i32, i32) -> i32`
+    /// This could also be `(a: i32, b: i32) -> i32` which is not a valid function type
+    /// but could be a function declaration if followed by `=>`
+    FunctionTypeLike(Box<FunctionTypeLike>),
     Block(Vec<Expr>),
     /// Represents an invalid portion of code
     Invalid,
@@ -94,6 +98,7 @@ impl ExprKind {
                 )
             }
             ExprKind::FunctionDeclaration(fn_decl) => fn_decl.sexpr(),
+            ExprKind::FunctionTypeLike(fn_ty_like) => fn_ty_like.sexpr(),
             ExprKind::Block(exprs) => {
                 if exprs.len() == 0 {
                     return "(block)".to_string();
@@ -116,9 +121,10 @@ impl ExprKind {
                 matches!(other, ExprKind::ParenthesisedExpression(_))
             }
             ExprKind::Tuple(_) => matches!(other, ExprKind::Tuple(_)),
-            ExprKind::FunctionDeclaration { .. } => {
-                matches!(other, ExprKind::FunctionDeclaration { .. })
+            ExprKind::FunctionDeclaration(_) => {
+                matches!(other, ExprKind::FunctionDeclaration(_))
             }
+            ExprKind::FunctionTypeLike(_) => matches!(other, ExprKind::FunctionTypeLike(_)),
             ExprKind::Block(_) => matches!(other, ExprKind::Block(_)),
             ExprKind::Invalid => matches!(other, ExprKind::Invalid),
         }
@@ -138,7 +144,8 @@ pub struct FunctionDeclaration {
     parameters: Vec<Expr>,
     generic_parameters: Vec<Expr>,
     return_type: Option<Expr>,
-    body: Vec<Expr>,
+    /// Can be either a single expression or a block
+    body: Expr,
 }
 
 impl FunctionDeclaration {
@@ -146,7 +153,7 @@ impl FunctionDeclaration {
         parameters: Vec<Expr>,
         generic_parameters: Vec<Expr>,
         return_type: Option<Expr>,
-        body: Vec<Expr>,
+        body: Expr,
     ) -> Self {
         Self {
             parameters,
@@ -158,7 +165,7 @@ impl FunctionDeclaration {
 
     pub fn sexpr(&self) -> String {
         format!(
-            "(fn {}(params{}) (ret {}) {})",
+            "(fn {}(params{}) (ret {}) (body {}))",
             if self.generic_parameters.len() > 0 {
                 format!(
                     "(generics {}) ",
@@ -176,11 +183,44 @@ impl FunctionDeclaration {
                 Some(ty) => ty.sexpr(),
                 None => "()".to_string(),
             },
-            if self.body.len() > 0 {
-                format!("(body\n    {}\n)", space_sexprs(&self.body, "\n    "))
+            self.body.sexpr()
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionTypeLike {
+    pub parameters: Vec<Expr>,
+    pub generic_parameters: Vec<Expr>,
+    pub return_type: Expr,
+}
+
+impl FunctionTypeLike {
+    pub fn new(parameters: Vec<Expr>, generic_parameters: Vec<Expr>, return_type: Expr) -> Self {
+        Self {
+            parameters,
+            generic_parameters,
+            return_type,
+        }
+    }
+
+    pub fn sexpr(&self) -> String {
+        format!(
+            "(fn-type {}(params{}) (ret {}))",
+            if self.generic_parameters.len() > 0 {
+                format!(
+                    "(generics {}) ",
+                    space_sexprs(&self.generic_parameters, " ")
+                )
             } else {
-                "(body)".to_string()
-            }
+                "".to_string()
+            },
+            format!(
+                "{}{}",
+                if self.parameters.len() > 0 { " " } else { "" },
+                space_sexprs(&self.parameters, " ")
+            ),
+            self.return_type.sexpr()
         )
     }
 }
