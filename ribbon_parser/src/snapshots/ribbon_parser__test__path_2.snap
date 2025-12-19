@@ -1,0 +1,22 @@
+---
+source: ribbon_parser/src/test.rs
+description: "hello::world"
+---
+body:
+  - kind:
+      Path:
+        parts:
+          - kind:
+              Ident: hello
+            span:
+              low: 0
+              hi: 4
+          - kind:
+              Ident: world
+            span:
+              low: 7
+              hi: 11
+    span:
+      low: 0
+      hi: 11
+diagnostics: []

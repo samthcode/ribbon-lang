@@ -1,0 +1,27 @@
+---
+source: ribbon_parser/src/test.rs
+description: "a::b::c"
+---
+body:
+  - kind:
+      Path:
+        parts:
+          - kind:
+              Ident: a
+            span:
+              low: 0
+              hi: 0
+          - kind:
+              Ident: b
+            span:
+              low: 3
+              hi: 3
+          - kind:
+              Ident: c
+            span:
+              low: 6
+              hi: 6
+    span:
+      low: 0
+      hi: 6
+diagnostics: []

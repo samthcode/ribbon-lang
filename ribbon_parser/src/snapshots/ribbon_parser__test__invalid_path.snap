@@ -1,0 +1,23 @@
+---
+source: ribbon_parser/src/test.rs
+description: "hello::"
+---
+body:
+  - kind: Invalid
+    span:
+      low: 0
+      hi: 6
+diagnostics:
+  - kind:
+      Error:
+        ExpectedXFoundY:
+          - Ident
+          - kind: Eof
+            source: ""
+            span:
+              low: 6
+              hi: 6
+    span:
+      low: 6
+      hi: 6
+    subdiagnostics: []

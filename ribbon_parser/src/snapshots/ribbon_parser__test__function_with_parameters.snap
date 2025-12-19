@@ -1,0 +1,78 @@
+---
+source: ribbon_parser/src/test.rs
+description: "(a: i32, b: i32) => a + b"
+---
+body:
+  - kind:
+      FunctionDeclaration:
+        parameters:
+          - kind:
+              BinOp:
+                lhs:
+                  kind:
+                    Ident: a
+                  span:
+                    low: 1
+                    hi: 1
+                rhs:
+                  kind:
+                    Ident: i32
+                  span:
+                    low: 4
+                    hi: 6
+                kind: MethodNoParen
+                op_span:
+                  low: 2
+                  hi: 2
+            span:
+              low: 1
+              hi: 6
+          - kind:
+              BinOp:
+                lhs:
+                  kind:
+                    Ident: b
+                  span:
+                    low: 9
+                    hi: 9
+                rhs:
+                  kind:
+                    Ident: i32
+                  span:
+                    low: 12
+                    hi: 14
+                kind: MethodNoParen
+                op_span:
+                  low: 10
+                  hi: 10
+            span:
+              low: 9
+              hi: 14
+        generic_parameters: []
+        return_type: ~
+        body:
+          kind:
+            BinOp:
+              lhs:
+                kind:
+                  Ident: a
+                span:
+                  low: 20
+                  hi: 20
+              rhs:
+                kind:
+                  Ident: b
+                span:
+                  low: 24
+                  hi: 24
+              kind: Add
+              op_span:
+                low: 22
+                hi: 22
+          span:
+            low: 20
+            hi: 24
+    span:
+      low: 0
+      hi: 24
+diagnostics: []

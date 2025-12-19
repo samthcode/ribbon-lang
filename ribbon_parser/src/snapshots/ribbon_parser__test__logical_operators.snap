@@ -1,0 +1,53 @@
+---
+source: ribbon_parser/src/test.rs
+description: a && b || !d
+---
+body:
+  - kind:
+      BinOp:
+        lhs:
+          kind:
+            BinOp:
+              lhs:
+                kind:
+                  Ident: a
+                span:
+                  low: 0
+                  hi: 0
+              rhs:
+                kind:
+                  Ident: b
+                span:
+                  low: 5
+                  hi: 5
+              kind: LogicalAnd
+              op_span:
+                low: 2
+                hi: 3
+          span:
+            low: 0
+            hi: 5
+        rhs:
+          kind:
+            UnaryOp:
+              kind: Not
+              op_span:
+                low: 10
+                hi: 10
+              rhs:
+                kind:
+                  Ident: d
+                span:
+                  low: 11
+                  hi: 11
+          span:
+            low: 10
+            hi: 11
+        kind: LogicalOr
+        op_span:
+          low: 7
+          hi: 8
+    span:
+      low: 0
+      hi: 11
+diagnostics: []

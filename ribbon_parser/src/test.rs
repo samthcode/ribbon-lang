@@ -18,6 +18,7 @@ macro_rules! create_tests {
 }
 
 create_tests! {
+    empty_source: "",
     line_comment: "// Hello World",
     block_comment: "/* Hello there\nHow do you do*/",
     addition: "1+2",
@@ -25,6 +26,7 @@ create_tests! {
     multiplication: "3*3",
     division: "10/2",
     basic_precedence: "10+2/2-3*4",
+    logical_operators: "a && b || !d",
     list: "[1,2,\"test\",ident]",
     unclosed_list: "[1,2,3",
     unary_minus: "-10",
@@ -36,5 +38,11 @@ create_tests! {
     fn_decl_start_or_unit_type: "()",
     parenthesised_expression: "(10)",
     plain_function: "() => {}",
-    function_with_return_type: "() -> i32 {}"
+    function_with_return_type: "() -> i32 {}",
+    function_with_parameters: "(a: i32, b: i32) => a + b",
+    function_with_parameters_explicit_ret_type:
+        "(a: i32, b: i32) -> i32 => a + b;",
+    path: "a::b::c",
+    path_2: "hello::world",
+    invalid_path: "hello::",
 }
