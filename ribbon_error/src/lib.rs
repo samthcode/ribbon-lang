@@ -142,7 +142,7 @@ impl<'a> Display for ErrorKind<'a> {
 pub enum WarningKind {}
 
 impl Display for WarningKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }
