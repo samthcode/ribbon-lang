@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+use serde::Serialize;
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct Span {
     pub low: usize,
     pub hi: usize,

@@ -2,7 +2,9 @@ use std::fmt::Display;
 
 use ribbon_lexer::{OpKind, Tok, TokKind, span::Span, tok::InvalidStrKind};
 
-#[derive(Debug)]
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
 pub struct Diagnostic<'a> {
     kind: DiagnosticKind<'a>,
     pub span: Span,
@@ -61,7 +63,7 @@ impl<'a> Display for Diagnostic<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum DiagnosticKind<'a> {
     Error(ErrorKind<'a>),
     Warning(WarningKind),
@@ -82,7 +84,7 @@ impl<'a> Display for DiagnosticKind<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum ErrorKind<'a> {
     ExpectedXFoundY(TokKind, Tok<'a>),
     ExpectedOneOfXFoundY(Vec<TokKind>, Tok<'a>),
@@ -141,7 +143,7 @@ impl<'a> Display for ErrorKind<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum WarningKind {}
 
 impl Display for WarningKind {
@@ -150,7 +152,7 @@ impl Display for WarningKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum InfoKind {
     DelimitedExpressionBeginsHere,
 }

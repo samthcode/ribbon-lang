@@ -1,0 +1,80 @@
+---
+source: ribbon_parser/src/test.rs
+expression: "& program"
+---
+body:
+  - kind:
+      BinOp:
+        lhs:
+          kind:
+            BinOp:
+              lhs:
+                kind:
+                  Lit:
+                    Int: 10
+                span:
+                  low: 0
+                  hi: 1
+              rhs:
+                kind:
+                  BinOp:
+                    lhs:
+                      kind:
+                        Lit:
+                          Int: 2
+                      span:
+                        low: 3
+                        hi: 3
+                    rhs:
+                      kind:
+                        Lit:
+                          Int: 2
+                      span:
+                        low: 5
+                        hi: 5
+                    kind: Div
+                    op_span:
+                      low: 4
+                      hi: 4
+                span:
+                  low: 3
+                  hi: 5
+              kind: Add
+              op_span:
+                low: 2
+                hi: 2
+          span:
+            low: 0
+            hi: 5
+        rhs:
+          kind:
+            BinOp:
+              lhs:
+                kind:
+                  Lit:
+                    Int: 3
+                span:
+                  low: 7
+                  hi: 7
+              rhs:
+                kind:
+                  Lit:
+                    Int: 4
+                span:
+                  low: 9
+                  hi: 9
+              kind: Mul
+              op_span:
+                low: 8
+                hi: 8
+          span:
+            low: 7
+            hi: 9
+        kind: Sub
+        op_span:
+          low: 6
+          hi: 6
+    span:
+      low: 0
+      hi: 9
+diagnostics: []

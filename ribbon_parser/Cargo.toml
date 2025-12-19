@@ -7,3 +7,6 @@ edition = "2024"
 ribbon_lexer = { path = "../ribbon_lexer" }
 ribbon_ast = { path = "../ribbon_ast" }
 ribbon_error = { path = "../ribbon_error" }
+
+[dev-dependencies]
+insta = { version = "1.45.0", features = ["yaml"] }

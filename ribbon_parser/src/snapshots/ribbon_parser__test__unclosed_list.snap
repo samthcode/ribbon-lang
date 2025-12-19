@@ -1,0 +1,55 @@
+---
+source: ribbon_parser/src/test.rs
+expression: "& program"
+---
+body:
+  - kind:
+      List:
+        - kind:
+            Lit:
+              Int: 1
+          span:
+            low: 1
+            hi: 1
+        - kind:
+            Lit:
+              Int: 2
+          span:
+            low: 3
+            hi: 3
+        - kind:
+            Lit:
+              Int: 3
+          span:
+            low: 5
+            hi: 5
+    span:
+      low: 0
+      hi: 5
+diagnostics:
+  - kind:
+      Error:
+        ExpectedOneOfXFoundY:
+          - - Op: Comma
+            - Op: RSquare
+          - kind: Eof
+            source: ""
+            span:
+              low: 5
+              hi: 5
+    span:
+      low: 5
+      hi: 5
+    subdiagnostics: []
+  - kind:
+      Error: UnclosedDelimitedExpression
+    span:
+      low: 0
+      hi: 5
+    subdiagnostics:
+      - kind:
+          Info: DelimitedExpressionBeginsHere
+        span:
+          low: 0
+          hi: 0
+        subdiagnostics: []

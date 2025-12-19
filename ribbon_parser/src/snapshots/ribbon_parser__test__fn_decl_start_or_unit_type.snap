@@ -1,0 +1,11 @@
+---
+source: ribbon_parser/src/test.rs
+expression: "& program"
+---
+body:
+  - kind:
+      TupleOrParameterList: []
+    span:
+      low: 0
+      hi: 1
+diagnostics: []

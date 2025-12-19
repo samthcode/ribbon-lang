@@ -1,0 +1,22 @@
+---
+source: ribbon_parser/src/test.rs
+expression: "& program"
+---
+body:
+  - kind:
+      UnaryOp:
+        kind: Not
+        op_span:
+          low: 0
+          hi: 0
+        rhs:
+          kind:
+            Lit:
+              Bool: true
+          span:
+            low: 1
+            hi: 4
+    span:
+      low: 0
+      hi: 4
+diagnostics: []

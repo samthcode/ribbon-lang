@@ -1,0 +1,29 @@
+---
+source: ribbon_parser/src/test.rs
+expression: "& program"
+---
+body:
+  - kind:
+      BinOp:
+        lhs:
+          kind:
+            Lit:
+              Int: 10
+          span:
+            low: 0
+            hi: 1
+        rhs:
+          kind:
+            Lit:
+              Int: 2
+          span:
+            low: 3
+            hi: 3
+        kind: Div
+        op_span:
+          low: 2
+          hi: 2
+    span:
+      low: 0
+      hi: 3
+diagnostics: []

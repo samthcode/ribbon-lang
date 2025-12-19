@@ -1,0 +1,6 @@
+---
+source: ribbon_parser/src/test.rs
+expression: "& program"
+---
+body: []
+diagnostics: []

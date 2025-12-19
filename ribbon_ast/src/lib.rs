@@ -1,3 +1,5 @@
+use serde::Serialize;
+
 use ribbon_error::{Diagnostic, ErrorKind};
 use ribbon_lexer::{Tok, TokKind, span::Span};
 
@@ -11,7 +13,7 @@ pub use unary_op::*;
 ///
 /// This contains a list of expressions which make up all of the functions, structs, enums, and
 /// constants at the top level of a program, as well as all of the expressions contained within those expressions.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Program<'a> {
     pub body: Vec<Expr>,
     pub diagnostics: Vec<Diagnostic<'a>>,
@@ -26,7 +28,7 @@ impl<'a> Default for Program<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
@@ -46,7 +48,7 @@ impl Expr {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ExprKind {
     BinOp(Box<BinOp>),
     UnaryOp(Box<UnaryOp>),
@@ -143,7 +145,7 @@ fn space_sexprs(exprs: &Vec<Expr>, sep: &str) -> String {
         .join(sep)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Path {
     parts: Vec<Expr>,
 }
@@ -162,7 +164,7 @@ impl Path {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FunctionDeclaration {
     parameters: Vec<Expr>,
     generic_parameters: Vec<Expr>,
@@ -211,7 +213,7 @@ impl FunctionDeclaration {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FunctionTypeLike {
     pub parameters: Vec<Expr>,
     pub generic_parameters: Vec<Expr>,
@@ -248,7 +250,7 @@ impl FunctionTypeLike {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum LitKind {
     /// e.g. `42`
     Int(i64),

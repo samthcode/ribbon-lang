@@ -1,0 +1,21 @@
+---
+source: ribbon_parser/src/test.rs
+expression: "& program"
+---
+body:
+  - kind:
+      UnaryOp:
+        kind: Deref
+        op_span:
+          low: 0
+          hi: 0
+        rhs:
+          kind:
+            Ident: ident
+          span:
+            low: 1
+            hi: 5
+    span:
+      low: 0
+      hi: 5
+diagnostics: []

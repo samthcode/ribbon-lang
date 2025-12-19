@@ -1,0 +1,17 @@
+---
+source: ribbon_parser/src/test.rs
+expression: "& program"
+---
+body:
+  - kind:
+      ParenthesisedExpression:
+        kind:
+          Lit:
+            Int: 10
+        span:
+          low: 1
+          hi: 2
+    span:
+      low: 0
+      hi: 3
+diagnostics: []

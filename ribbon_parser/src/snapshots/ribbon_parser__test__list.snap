@@ -1,0 +1,34 @@
+---
+source: ribbon_parser/src/test.rs
+expression: "& program"
+---
+body:
+  - kind:
+      List:
+        - kind:
+            Lit:
+              Int: 1
+          span:
+            low: 1
+            hi: 1
+        - kind:
+            Lit:
+              Int: 2
+          span:
+            low: 3
+            hi: 3
+        - kind:
+            Lit:
+              Str: test
+          span:
+            low: 5
+            hi: 10
+        - kind:
+            Ident: ident
+          span:
+            low: 12
+            hi: 16
+    span:
+      low: 0
+      hi: 17
+diagnostics: []

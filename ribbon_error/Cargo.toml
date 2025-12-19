@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 ribbon_lexer = { path = "../ribbon_lexer" }
+serde = { version = "1.0.228", features = ["derive"] }

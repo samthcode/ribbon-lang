@@ -12,6 +12,8 @@ use ast::Program;
 mod prec;
 use prec::{binary_prec, unary_prec};
 #[cfg(test)]
+mod sexpr_test;
+#[cfg(test)]
 mod test;
 
 use crate::prec::Prec;

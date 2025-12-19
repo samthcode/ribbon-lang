@@ -1,8 +1,10 @@
 use std::fmt::Display;
 
+use serde::Serialize;
+
 use crate::span::Span;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize)]
 pub struct Tok<'a> {
     pub kind: TokKind,
     pub source: &'a str,
@@ -87,7 +89,7 @@ impl<'a> Display for Tok<'a> {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize)]
 pub enum KwKind {
     /// `const`
     Const,
@@ -123,13 +125,13 @@ impl KwKind {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize)]
 pub enum InvalidStrKind {
     Unclosed,
     UnterminatedEscape,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize)]
 pub enum LitKind {
     /// e.g. `42`
     ///       ^^
@@ -150,7 +152,7 @@ pub enum LitKind {
     Bool,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize)]
 pub enum OpKind {
     // Single-Character Operators
     /// `+`
@@ -390,7 +392,7 @@ impl OpKind {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize)]
 pub enum TokKind {
     Ident,
 

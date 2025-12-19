@@ -1,9 +1,10 @@
 use ribbon_error::{Diagnostic, ErrorKind};
 use ribbon_lexer::{OpKind, span::Span};
+use serde::Serialize;
 
 use crate::Expr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct BinOp {
     lhs: Expr,
     rhs: Expr,
@@ -47,7 +48,7 @@ impl BinOp {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum BinOpKind {
     /// `+`
     Add,
