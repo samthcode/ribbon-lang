@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use crate::Expr;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct UnaryOp {
     kind: UnaryOpKind,
     op_span: Span,
@@ -24,8 +24,9 @@ impl UnaryOp {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub enum UnaryOpKind {
+    #[default]
     Minus,
     Not,
     Deref,

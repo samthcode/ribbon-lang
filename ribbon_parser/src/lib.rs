@@ -9,14 +9,16 @@ use ribbon_lexer::{self as lexer, Lexer, OpKind, TokKind, TokStream, span::Span,
 
 use ast::Program;
 
+mod narrow;
 mod prec;
-use prec::{binary_prec, unary_prec};
+
 #[cfg(test)]
 mod sexpr_test;
 #[cfg(test)]
 mod test;
 
-use crate::prec::Prec;
+use narrow::TryNarrow;
+use prec::{Prec, binary_prec, unary_prec};
 
 /// The parser for the Ribbon programming language.
 ///
@@ -129,6 +131,7 @@ impl<'a> Parser<'a> {
                             ));
                         }
                     };
+                    let parameters = self.validate_function_parameters(parameters);
                     // Consume `=>`
                     self.next();
                     // `expr_prec` works on the current token so we need to advance again
@@ -244,14 +247,11 @@ impl<'a> Parser<'a> {
         self.next();
 
         // Expect a type after the arrow
-        let return_type = self.expr_prec(binary_prec(&OpKind::EqGt))?;
-        // TODO: Properly validate that it is actually a type
-        if matches!(return_type.kind, ExprKind::Block(_)) {
-            return Err(Diagnostic::new_error(
-                ErrorKind::ExpectedTypeFoundOperator(OpKind::LCurly),
-                return_type.span.low.into(),
-            ));
-        }
+        let return_type = self
+            .expr_prec(binary_prec(&OpKind::EqGt))?
+            .try_narrow_to_type();
+        let return_type = self.report_and_invalidate_or_pass_through(return_type);
+
         let span = param_span.to(return_type.span);
 
         if self.peek().is_op_kind(OpKind::EqGt) {
@@ -262,6 +262,7 @@ impl<'a> Parser<'a> {
             self.next();
             let body = self.expr_prec(binary_prec(&OpKind::MinusGt))?;
             let span = param_span.to(body.span);
+            let parameters = self.validate_function_parameters(parameters);
             Ok(Expr::new(
                 ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
                     parameters,
@@ -277,6 +278,8 @@ impl<'a> Parser<'a> {
             let begin_span = t.span;
             let body = self.block_expr(begin_span);
             let span = param_span.to(body.span);
+            let parameters = self.validate_function_parameters(parameters);
+
             Ok(Expr::new(
                 ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
                     parameters,
@@ -296,6 +299,13 @@ impl<'a> Parser<'a> {
                 span,
             ))
         }
+    }
+
+    fn validate_function_parameters(&mut self, parameters: Vec<Expr>) -> Vec<Expr> {
+        parameters
+            .into_iter()
+            .map(|p| self.report_and_invalidate_or_pass_through(p.try_narrow_to_param()))
+            .collect()
     }
 
     fn unary_expr(&mut self, op: OpKind, op_span: Span) -> Result<Expr, Diagnostic<'a>> {
@@ -500,6 +510,17 @@ impl<'a> Parser<'a> {
             Ok(_) => (),
         }
         span
+    }
+
+    fn report_and_invalidate_or_pass_through(&mut self, r: Result<Expr, Diagnostic<'a>>) -> Expr {
+        match r {
+            Ok(e) => e,
+            Err(err) => {
+                let span = err.span;
+                self.program.diagnostics.push(err);
+                Expr::new(ExprKind::Invalid, span)
+            }
+        }
     }
 
     /// Skip until the first token which matches the predicate is reached

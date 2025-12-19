@@ -9,7 +9,15 @@ body:
         generic_parameters: []
         return_type:
           kind:
-            Ident: i32
+            Type:
+              path:
+                parts:
+                  - kind:
+                      Ident: i32
+                    span:
+                      low: 6
+                      hi: 8
+              generic_parameters: []
           span:
             low: 6
             hi: 8

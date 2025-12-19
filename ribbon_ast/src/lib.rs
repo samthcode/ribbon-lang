@@ -28,7 +28,7 @@ impl<'a> Default for Program<'a> {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
@@ -48,7 +48,7 @@ impl Expr {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub enum ExprKind {
     BinOp(Box<BinOp>),
     UnaryOp(Box<UnaryOp>),
@@ -65,10 +65,14 @@ pub enum ExprKind {
     /// This could also be `(a: i32, b: i32) -> i32` which is not a valid function type
     /// but could be a function declaration if followed by `=>`
     FunctionTypeLike(Box<FunctionTypeLike>),
+    FunctionParameter(Box<FunctionParameter>),
     Block(Vec<Expr>),
     /// e.g. `a::b::c`
     Path(Path),
+    /// e.g. `i32, String Vec[i32]`
+    Type(Type),
     /// Represents an invalid portion of code
+    #[default]
     Invalid,
 }
 
@@ -103,6 +107,7 @@ impl ExprKind {
             }
             ExprKind::FunctionDeclaration(fn_decl) => fn_decl.sexpr(),
             ExprKind::FunctionTypeLike(fn_ty_like) => fn_ty_like.sexpr(),
+            ExprKind::FunctionParameter(fn_param) => fn_param.sexpr(),
             ExprKind::Block(exprs) => {
                 if exprs.len() == 0 {
                     return "(block)".to_string();
@@ -110,7 +115,28 @@ impl ExprKind {
                 format!("(block\n    {}\n)", space_sexprs(exprs, "\n    "))
             }
             ExprKind::Path(path) => path.sexpr(),
+            ExprKind::Type(ty) => ty.sexpr(),
             ExprKind::Invalid => "(<invalid>)".to_string(),
+        }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            ExprKind::BinOp(_) => "binary operator",
+            ExprKind::UnaryOp(_) => "unary operator",
+            ExprKind::Ident(_) => "identifier",
+            ExprKind::Lit(lit_kind) => lit_kind.description(),
+            ExprKind::List(_) => "list",
+            ExprKind::TupleOrParameterList(_) => "expression delimited by `()`",
+            ExprKind::ParenthesisedExpression(_) => "parenthesised expression",
+            ExprKind::Tuple(_) => "tuple",
+            ExprKind::FunctionDeclaration(_) => "function declaration",
+            ExprKind::FunctionTypeLike(_) => "function type or beginning of function declaration",
+            ExprKind::FunctionParameter(_) => "function parameter",
+            ExprKind::Block(_) => "block",
+            ExprKind::Path(_) => "path",
+            ExprKind::Type(_) => "type",
+            ExprKind::Invalid => "<invalid>",
         }
     }
 
@@ -130,8 +156,10 @@ impl ExprKind {
                 matches!(other, ExprKind::FunctionDeclaration(_))
             }
             ExprKind::FunctionTypeLike(_) => matches!(other, ExprKind::FunctionTypeLike(_)),
+            ExprKind::FunctionParameter(_) => matches!(other, ExprKind::FunctionParameter(_)),
             ExprKind::Block(_) => matches!(other, ExprKind::Block(_)),
             ExprKind::Path(_) => matches!(other, ExprKind::Path(_)),
+            ExprKind::Type(_) => matches!(other, ExprKind::Type(_)),
             ExprKind::Invalid => matches!(other, ExprKind::Invalid),
         }
     }
@@ -145,7 +173,68 @@ fn space_sexprs(exprs: &Vec<Expr>, sep: &str) -> String {
         .join(sep)
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct FunctionParameter {
+    // TODO: Pattern should be its own struct
+    pat: Expr,
+    ty: Expr,
+    default_value: Option<Expr>,
+}
+
+impl FunctionParameter {
+    pub fn new(pat: Expr, ty: Expr, default_value: Option<Expr>) -> Self {
+        Self {
+            pat,
+            ty,
+            default_value,
+        }
+    }
+
+    pub fn sexpr(&self) -> String {
+        format!(
+            "(param (pat {}) {}{})",
+            self.pat.sexpr(),
+            self.ty.sexpr(),
+            if let Some(v) = &self.default_value {
+                format!(" (default-value {})", v.sexpr())
+            } else {
+                "".to_string()
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct Type {
+    path: Path,
+    generic_parameters: Vec<Expr>,
+}
+
+impl Type {
+    pub fn new(path: Path, generic_parameters: Vec<Expr>) -> Self {
+        Self {
+            path,
+            generic_parameters,
+        }
+    }
+
+    pub fn sexpr(&self) -> String {
+        format!(
+            "(type (path {}){})",
+            self.path.sexpr(),
+            if self.generic_parameters.is_empty() {
+                "".to_string()
+            } else {
+                format!(
+                    "(generics {}) ",
+                    space_sexprs(&self.generic_parameters, " ")
+                )
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct Path {
     parts: Vec<Expr>,
 }
@@ -164,7 +253,7 @@ impl Path {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct FunctionDeclaration {
     parameters: Vec<Expr>,
     generic_parameters: Vec<Expr>,
@@ -213,7 +302,7 @@ impl FunctionDeclaration {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct FunctionTypeLike {
     pub parameters: Vec<Expr>,
     pub generic_parameters: Vec<Expr>,
@@ -270,6 +359,21 @@ impl LitKind {
             LitKind::Float(f) => f.to_string(),
             LitKind::Bool(b) => b.to_string(),
         }
+    }
+
+    pub fn description(&self) -> &'static str {
+        match self {
+            LitKind::Int(_) => "integer literal",
+            LitKind::Str(_) => "string literal",
+            LitKind::Float(_) => "float literal",
+            LitKind::Bool(_) => "boolean literal",
+        }
+    }
+}
+
+impl Default for LitKind {
+    fn default() -> Self {
+        Self::Int(0)
     }
 }
 

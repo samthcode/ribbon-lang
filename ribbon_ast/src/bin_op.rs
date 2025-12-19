@@ -4,12 +4,12 @@ use serde::Serialize;
 
 use crate::Expr;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct BinOp {
-    lhs: Expr,
-    rhs: Expr,
-    kind: BinOpKind,
-    op_span: Span,
+    pub lhs: Expr,
+    pub rhs: Expr,
+    pub kind: BinOpKind,
+    pub op_span: Span,
 }
 
 impl BinOp {
@@ -48,9 +48,10 @@ impl BinOp {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub enum BinOpKind {
     /// `+`
+    #[default]
     Add,
     /// `-`
     Sub,

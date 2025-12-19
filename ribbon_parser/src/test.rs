@@ -42,6 +42,7 @@ create_tests! {
     function_with_parameters: "(a: i32, b: i32) => a + b",
     function_with_parameters_explicit_ret_type:
         "(a: i32, b: i32) -> i32 => a + b;",
+    invalid_function_parameter: "(a:\"test\") => a",
     path: "a::b::c",
     path_2: "hello::world",
     invalid_path: "hello::",

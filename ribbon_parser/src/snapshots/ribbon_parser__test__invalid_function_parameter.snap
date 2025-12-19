@@ -1,0 +1,31 @@
+---
+source: ribbon_parser/src/test.rs
+description: "(a:\"test\") => a"
+---
+body:
+  - kind:
+      FunctionDeclaration:
+        parameters:
+          - kind: Invalid
+            span:
+              low: 1
+              hi: 8
+        generic_parameters: []
+        return_type: ~
+        body:
+          kind:
+            Ident: a
+          span:
+            low: 14
+            hi: 14
+    span:
+      low: 0
+      hi: 14
+diagnostics:
+  - kind:
+      Error:
+        ExpectedTypeFoundX: string literal
+    span:
+      low: 1
+      hi: 8
+    subdiagnostics: []

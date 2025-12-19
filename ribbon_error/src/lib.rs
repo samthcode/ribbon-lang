@@ -6,7 +6,7 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 pub struct Diagnostic<'a> {
-    kind: DiagnosticKind<'a>,
+    pub kind: DiagnosticKind<'a>,
     pub span: Span,
     subdiagnostics: Vec<Diagnostic<'a>>,
 }
@@ -97,6 +97,11 @@ pub enum ErrorKind<'a> {
     UnexpectedDelimiter(OpKind),
     UnexpectedEofAfterUnaryOperator,
     ExpectedTypeFoundOperator(OpKind),
+    // Unfortunately now we're getting to errors which involve `Expr`s.
+    // An `Expr` can't be held in this enum as it would require a circular dependency.
+    // TODO: Figure out the best solution.
+    ExpectedFunctionParameterFoundX(&'static str),
+    ExpectedTypeFoundX(&'static str),
 }
 
 impl<'a> Display for ErrorKind<'a> {
@@ -138,6 +143,9 @@ impl<'a> Display for ErrorKind<'a> {
                     "unexpected end of file after unary operator".to_string(),
                 ErrorKind::ExpectedTypeFoundOperator(op) =>
                     format!("expected type, found operator `{}`", op.str()),
+                ErrorKind::ExpectedFunctionParameterFoundX(s) =>
+                    format!("expected function parameter, found {s}"),
+                ErrorKind::ExpectedTypeFoundX(s) => format!("expected type, found {s}"),
             }
         )
     }

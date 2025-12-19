@@ -7,44 +7,54 @@ body:
       FunctionDeclaration:
         parameters:
           - kind:
-              BinOp:
-                lhs:
+              FunctionParameter:
+                pat:
                   kind:
                     Ident: a
                   span:
                     low: 1
                     hi: 1
-                rhs:
+                ty:
                   kind:
-                    Ident: i32
+                    Type:
+                      path:
+                        parts:
+                          - kind:
+                              Ident: i32
+                            span:
+                              low: 4
+                              hi: 6
+                      generic_parameters: []
                   span:
                     low: 4
                     hi: 6
-                kind: MethodNoParen
-                op_span:
-                  low: 2
-                  hi: 2
+                default_value: ~
             span:
               low: 1
               hi: 6
           - kind:
-              BinOp:
-                lhs:
+              FunctionParameter:
+                pat:
                   kind:
                     Ident: b
                   span:
                     low: 9
                     hi: 9
-                rhs:
+                ty:
                   kind:
-                    Ident: i32
+                    Type:
+                      path:
+                        parts:
+                          - kind:
+                              Ident: i32
+                            span:
+                              low: 12
+                              hi: 14
+                      generic_parameters: []
                   span:
                     low: 12
                     hi: 14
-                kind: MethodNoParen
-                op_span:
-                  low: 10
-                  hi: 10
+                default_value: ~
             span:
               low: 9
               hi: 14

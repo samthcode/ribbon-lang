@@ -54,8 +54,11 @@ fn expression_or_tuple_or_parameter_list() {
 
 #[test]
 fn function_types() {
-    sexpr_test!("() -> i32", "(fn-type (params) (ret i32))");
-    sexpr_test!("(i32) -> String;", "(fn-type (params i32) (ret String))")
+    sexpr_test!("() -> i32", "(fn-type (params) (ret (type (path i32))))");
+    sexpr_test!(
+        "(i32) -> String;",
+        "(fn-type (params i32) (ret (type (path String))))"
+    )
 }
 
 #[test]
@@ -63,7 +66,7 @@ fn functions() {
     sexpr_test!("() => {}", "(fn (params) (ret ()) (body (block)))");
     sexpr_test!(
         "(a:i32) -> i32 {a+10}",
-        "(fn (params (: a i32)) (ret i32) (body (block\n    (+ a 10)\n)))"
+        "(fn (params (param (pat a) (type (path i32)))) (ret (type (path i32))) (body (block\n    (+ a 10)\n)))"
     );
     sexpr_test!(
         "() => {a+10;;};",
@@ -71,7 +74,7 @@ fn functions() {
     );
     sexpr_test!(
         "() -> i32 => \"Hello\".print",
-        "(fn (params) (ret i32) (body (. \"Hello\" print)))"
+        "(fn (params) (ret (type (path i32))) (body (. \"Hello\" print)))"
     )
 }
 
