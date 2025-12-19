@@ -72,45 +72,15 @@ impl<'a> Parser<'a> {
     }
 
     fn expr_prec(&mut self, min_prec: Prec) -> Result<ast::Expr, Diagnostic<'a>> {
-        let lhs = &self.curr;
-        let lhs_span = lhs.span;
-        debug_assert!(!lhs.is_eof());
-        let mut lhs = if let TokKind::Op(kind) = &lhs.kind {
-            match kind {
-                // Block expression
-                OpKind::LCurly => self.block_expr(lhs_span),
-                // List expression
-                OpKind::LSquare => self.list_expr(lhs_span),
-                // Tuple/unit type/function parameter list
-                OpKind::LParen => self.tuple_like_expr(lhs_span),
-                // Unary operator
-                op @ (OpKind::Minus | OpKind::Bang | OpKind::Mul | OpKind::Amp) => {
-                    self.unary_expr(*op, lhs_span)?
-                }
-                // Unexpected (closing) delimiter
-                op if op.is_delim() => {
-                    return Err(Diagnostic::new_error(
-                        ErrorKind::UnexpectedDelimiter(*op),
-                        lhs_span,
-                    ));
-                }
-                k => {
-                    return Err(Diagnostic::new_error(
-                        ErrorKind::UnexpectedOperator(*k),
-                        lhs_span,
-                    ));
-                }
-            }
-        } else {
-            tok_to_expr(*lhs)?
-        };
+        let mut lhs = self.expr_lhs()?;
 
         loop {
             let n_tok = self.peek();
-            let op_span = n_tok.span;
             if n_tok.is_eof() {
                 break;
             }
+
+            let op_span = n_tok.span;
             let TokKind::Op(op_kind) = n_tok.kind else {
                 return Err(Diagnostic::new_error(
                     ErrorKind::UnexpectedToken(n_tok.clone()),
@@ -125,26 +95,27 @@ impl<'a> Parser<'a> {
             match op_kind {
                 // Function
                 // TODO: Support `=>` functions e.g. `const fn = () => "Hello World".print;`
-                OpKind::MinusGt => match lhs.kind {
-                    ExprKind::TupleOrParameterList(exprs) => {
-                        self.next();
-                        lhs = self.fn_decl(exprs, lhs.span)?;
-                        continue;
-                    }
-                    ExprKind::ParenthesisedExpression(expr) => {
-                        self.next();
-                        lhs = self.fn_decl(vec![*expr], lhs.span)?;
-                        continue;
-                    }
-                    _ => {
-                        let n_tok = n_tok.clone();
-                        self.next();
-                        return Err(Diagnostic::new_error(
-                            ErrorKind::UnexpectedToken(n_tok),
-                            op_span,
-                        ));
-                    }
-                },
+                OpKind::MinusGt => {
+                    lhs = match lhs.kind {
+                        ExprKind::TupleOrParameterList(exprs) => {
+                            self.next();
+                            self.fn_decl(exprs, lhs.span)?
+                        }
+                        ExprKind::ParenthesisedExpression(expr) => {
+                            self.next();
+                            self.fn_decl(vec![*expr], lhs.span)?
+                        }
+                        _ => {
+                            let n_tok = n_tok.clone();
+                            self.next();
+                            return Err(Diagnostic::new_error(
+                                ErrorKind::UnexpectedToken(n_tok),
+                                op_span,
+                            ));
+                        }
+                    };
+                    continue;
+                }
                 _ => {
                     self.next();
                 }
@@ -165,6 +136,39 @@ impl<'a> Parser<'a> {
             )
         }
         Ok(lhs)
+    }
+
+    fn expr_lhs(&mut self) -> Result<Expr, Diagnostic<'a>> {
+        let lhs = &self.curr;
+        if let TokKind::Op(kind) = &lhs.kind {
+            match kind {
+                // Block expression
+                OpKind::LCurly => Ok(self.block_expr(lhs.span)),
+                // List expression
+                OpKind::LSquare => Ok(self.list_expr(lhs.span)),
+                // Tuple/unit type/function parameter list
+                OpKind::LParen => Ok(self.tuple_like_expr(lhs.span)),
+                // Unary operator
+                op @ (OpKind::Minus | OpKind::Bang | OpKind::Mul | OpKind::Amp) => {
+                    self.unary_expr(*op, lhs.span)
+                }
+                // Unexpected (closing) delimiter
+                op if op.is_delim() => {
+                    return Err(Diagnostic::new_error(
+                        ErrorKind::UnexpectedDelimiter(*op),
+                        lhs.span,
+                    ));
+                }
+                k => {
+                    return Err(Diagnostic::new_error(
+                        ErrorKind::UnexpectedOperator(*k),
+                        lhs.span,
+                    ));
+                }
+            }
+        } else {
+            tok_to_expr(*lhs)
+        }
     }
 
     fn fn_decl(&mut self, parameters: Vec<Expr>, param_span: Span) -> Result<Expr, Diagnostic<'a>> {
