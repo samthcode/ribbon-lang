@@ -1,7 +1,8 @@
 use std::iter::Peekable;
 
 use ribbon_ast::{
-    self as ast, BinOp, Expr, ExprKind, FunctionDeclaration, FunctionTypeLike, UnaryOp, tok_to_expr,
+    self as ast, BinOp, Expr, ExprKind, FunctionDeclaration, FunctionTypeLike, Path, UnaryOp,
+    tok_to_expr,
 };
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
 use ribbon_lexer::{self as lexer, Lexer, OpKind, TokKind, TokStream, span::Span, tok::Tok};
@@ -143,6 +144,10 @@ impl<'a> Parser<'a> {
                     );
                     continue;
                 }
+                OpKind::Path => {
+                    lhs = self.path(lhs)?;
+                    continue;
+                }
                 _ => {
                     self.next();
                 }
@@ -195,6 +200,34 @@ impl<'a> Parser<'a> {
             }
         } else {
             tok_to_expr(*lhs)
+        }
+    }
+
+    /// Parses a path e.g. `a::b::c`
+    /// n.b. This does not parse any following generic arguments since they are ambiguous at this stage
+    fn path(&mut self, lhs: Expr) -> Result<Expr, Diagnostic<'a>> {
+        if let ExprKind::Ident(_) = lhs.kind {
+            // Consume `::`
+            self.next();
+            let mut span = lhs.span;
+            let mut parts = vec![lhs];
+            loop {
+                // `a::b`
+                //     ^
+                let t = tok_to_expr(*self.expect(TokKind::Ident)?).unwrap();
+                span = span.to(t.span);
+                parts.push(t);
+                if !self.peek().is_op_kind(OpKind::Path) {
+                    return Ok(Expr::new(ExprKind::Path(Path::new(parts)), span));
+                }
+                // Consume `::`
+                self.next();
+            }
+        } else {
+            Err(Diagnostic::new_error(
+                ErrorKind::UnexpectedToken(self.curr),
+                self.curr.span,
+            ))
         }
     }
 

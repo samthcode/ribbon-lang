@@ -74,3 +74,9 @@ fn functions() {
         "(fn (params) (ret i32) (body (. \"Hello\" print)))"
     )
 }
+
+#[test]
+fn paths() {
+    sexpr_test!("a::b::c", "a::b::c");
+    sexpr_test!("hello::world", "hello::world")
+}

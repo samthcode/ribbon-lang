@@ -64,6 +64,8 @@ pub enum ExprKind {
     /// but could be a function declaration if followed by `=>`
     FunctionTypeLike(Box<FunctionTypeLike>),
     Block(Vec<Expr>),
+    /// e.g. `a::b::c`
+    Path(Path),
     /// Represents an invalid portion of code
     Invalid,
 }
@@ -105,6 +107,7 @@ impl ExprKind {
                 }
                 format!("(block\n    {}\n)", space_sexprs(exprs, "\n    "))
             }
+            ExprKind::Path(path) => path.sexpr(),
             ExprKind::Invalid => "(<invalid>)".to_string(),
         }
     }
@@ -126,6 +129,7 @@ impl ExprKind {
             }
             ExprKind::FunctionTypeLike(_) => matches!(other, ExprKind::FunctionTypeLike(_)),
             ExprKind::Block(_) => matches!(other, ExprKind::Block(_)),
+            ExprKind::Path(_) => matches!(other, ExprKind::Path(_)),
             ExprKind::Invalid => matches!(other, ExprKind::Invalid),
         }
     }
@@ -137,6 +141,25 @@ fn space_sexprs(exprs: &Vec<Expr>, sep: &str) -> String {
         .map(|e| e.sexpr())
         .collect::<Vec<String>>()
         .join(sep)
+}
+
+#[derive(Debug, Clone)]
+pub struct Path {
+    parts: Vec<Expr>,
+}
+
+impl Path {
+    pub fn new(parts: Vec<Expr>) -> Self {
+        Self { parts }
+    }
+
+    pub fn sexpr(&self) -> String {
+        self.parts
+            .iter()
+            .map(|e| e.sexpr())
+            .collect::<Vec<String>>()
+            .join("::")
+    }
 }
 
 #[derive(Debug, Clone)]
