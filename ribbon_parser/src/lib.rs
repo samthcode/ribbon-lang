@@ -1,6 +1,6 @@
 use std::iter::Peekable;
 
-use ribbon_ast::{self as ast, BinOp, Expr, ExprKind, UnaryOp, tok_to_expr};
+use ribbon_ast::{self as ast, BinOp, Expr, ExprKind, FunctionDeclaration, UnaryOp, tok_to_expr};
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
 use ribbon_lexer::{self as lexer, Lexer, OpKind, TokKind, TokStream, span::Span, tok::Tok};
 
@@ -128,12 +128,12 @@ impl<'a> Parser<'a> {
                 OpKind::MinusGt => match lhs.kind {
                     ExprKind::TupleOrParameterList(exprs) => {
                         self.next();
-                        lhs = self.fn_decl(exprs, lhs.span, op_span)?;
+                        lhs = self.fn_decl(exprs, lhs.span)?;
                         continue;
                     }
                     ExprKind::ParenthesisedExpression(expr) => {
                         self.next();
-                        lhs = self.fn_decl(vec![*expr], lhs.span, op_span)?;
+                        lhs = self.fn_decl(vec![*expr], lhs.span)?;
                         continue;
                     }
                     _ => {
@@ -167,12 +167,7 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
-    fn fn_decl(
-        &mut self,
-        parameters: Vec<Expr>,
-        param_span: Span,
-        arrow_span: Span,
-    ) -> Result<Expr, Diagnostic<'a>> {
+    fn fn_decl(&mut self, parameters: Vec<Expr>, param_span: Span) -> Result<Expr, Diagnostic<'a>> {
         let n_tok = self.next();
         if n_tok.is_eof() {
             return Err(Diagnostic::new_error(
@@ -184,13 +179,12 @@ impl<'a> Parser<'a> {
         let mut lcurly_span = n_tok.span;
         let ret_type = if let TokKind::Op(OpKind::LCurly) = n_tok.kind {
             // No return type
-            // TODO: This shouldn't be added in here, return type should be an option
-            Expr::new(ExprKind::UnitType, arrow_span)
+            None
         } else {
             // Parse the return type up to the block
             let res = self.expr_prec(binary_prec(&OpKind::RCurly))?;
             lcurly_span = self.expect(TokKind::Op(OpKind::LCurly))?.span;
-            res
+            Some(res)
         };
 
         // TODO: Support functions with fat arrow blocks
@@ -202,18 +196,17 @@ impl<'a> Parser<'a> {
             panic!()
         };
         Ok(Expr::new(
-            ExprKind::FunctionDeclaration {
+            ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
                 parameters,
-                generic_parameters: vec![],
-                arrow_span,
-                return_type: Box::new(ret_type),
+                vec![],
+                ret_type,
                 body,
-            },
+            ))),
             param_span.to(end_span),
         ))
     }
 
-    fn unary_expr(&mut self, op: OpKind, span: Span) -> Result<Expr, Diagnostic<'a>> {
+    fn unary_expr(&mut self, op: OpKind, op_span: Span) -> Result<Expr, Diagnostic<'a>> {
         if self.next().is_eof() {
             return Err(Diagnostic::new_error(
                 ErrorKind::UnexpectedEofAfterUnaryOperator,
@@ -221,16 +214,9 @@ impl<'a> Parser<'a> {
             ));
         }
         let rhs = self.expr_prec(unary_prec(&op))?;
-        let span = span.to(rhs.span);
+        let span = op_span.to(rhs.span);
         Ok(Expr::new(
-            ExprKind::UnaryOp {
-                rhs: Box::new(rhs),
-                kind: UnaryOp::new(
-                    // If this fails it is an internal error given we match a hardcoded set of unary ops
-                    op.try_into().unwrap(),
-                    span,
-                ),
-            },
+            ExprKind::UnaryOp(Box::new(UnaryOp::new(op.try_into().unwrap(), op_span, rhs))),
             span,
         ))
     }

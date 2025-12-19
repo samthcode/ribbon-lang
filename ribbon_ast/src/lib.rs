@@ -1,8 +1,11 @@
 use ribbon_error::{Diagnostic, ErrorKind};
-use ribbon_lexer::{OpKind, Tok, TokKind, span::Span};
+use ribbon_lexer::{Tok, TokKind, span::Span};
 
 pub mod bin_op;
+pub mod unary_op;
+
 pub use bin_op::*;
+pub use unary_op::*;
 
 /// The root AST node for a Ribbon program
 ///
@@ -37,9 +40,7 @@ impl Expr {
     pub fn is(&self, other: ExprKind) -> bool {
         self.kind.is(other)
     }
-}
 
-impl Expr {
     pub fn sexpr(&self) -> String {
         self.kind.sexpr()
     }
@@ -48,10 +49,7 @@ impl Expr {
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     BinOp(Box<BinOp>),
-    UnaryOp {
-        rhs: Box<Expr>,
-        kind: UnaryOp,
-    },
+    UnaryOp(Box<UnaryOp>),
     Ident(Box<String>),
     Lit(LitKind),
     List(Vec<Expr>),
@@ -60,14 +58,7 @@ pub enum ExprKind {
     // (and no trailing comma inside the parameter list)
     ParenthesisedExpression(Box<Expr>),
     Tuple(Vec<Expr>),
-    FunctionDeclaration {
-        parameters: Vec<Expr>,
-        generic_parameters: Vec<Expr>,
-        arrow_span: Span,
-        return_type: Box<Expr>,
-        body: Vec<Expr>,
-    },
-    UnitType,
+    FunctionDeclaration(Box<FunctionDeclaration>),
     Block(Vec<Expr>),
     /// Represents an invalid portion of code
     Invalid,
@@ -77,9 +68,7 @@ impl ExprKind {
     pub fn sexpr(&self) -> String {
         match self {
             ExprKind::BinOp(bin_op) => bin_op.sexpr(),
-            ExprKind::UnaryOp { rhs, kind } => {
-                format!("({} {})", kind.str(), rhs.sexpr())
-            }
+            ExprKind::UnaryOp(unary_op) => unary_op.sexpr(),
             ExprKind::Ident(s) => s.to_string(),
             ExprKind::Lit(lit_kind) => lit_kind.repr(),
             ExprKind::List(elems) => {
@@ -104,32 +93,7 @@ impl ExprKind {
                     space_sexprs(exprs, " ")
                 )
             }
-            ExprKind::FunctionDeclaration {
-                parameters,
-                generic_parameters,
-                arrow_span: _,
-                return_type,
-                body,
-            } => format!(
-                "(fn {}(params{}) (ret {}) {})",
-                if generic_parameters.len() > 0 {
-                    format!("(generics {}) ", space_sexprs(generic_parameters, " "))
-                } else {
-                    "".to_string()
-                },
-                format!(
-                    "{}{}",
-                    if parameters.len() > 0 { " " } else { "" },
-                    space_sexprs(parameters, " ")
-                ),
-                return_type.sexpr(),
-                if body.len() > 0 {
-                    format!("(body\n    {}\n)", space_sexprs(body, "\n    "))
-                } else {
-                    "(body)".to_string()
-                }
-            ),
-            ExprKind::UnitType => "()".to_string(),
+            ExprKind::FunctionDeclaration(fn_decl) => fn_decl.sexpr(),
             ExprKind::Block(exprs) => {
                 if exprs.len() == 0 {
                     return "(block)".to_string();
@@ -155,7 +119,6 @@ impl ExprKind {
             ExprKind::FunctionDeclaration { .. } => {
                 matches!(other, ExprKind::FunctionDeclaration { .. })
             }
-            ExprKind::UnitType => matches!(other, ExprKind::UnitType),
             ExprKind::Block(_) => matches!(other, ExprKind::Block(_)),
             ExprKind::Invalid => matches!(other, ExprKind::Invalid),
         }
@@ -168,6 +131,58 @@ fn space_sexprs(exprs: &Vec<Expr>, sep: &str) -> String {
         .map(|e| e.sexpr())
         .collect::<Vec<String>>()
         .join(sep)
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionDeclaration {
+    parameters: Vec<Expr>,
+    generic_parameters: Vec<Expr>,
+    return_type: Option<Expr>,
+    body: Vec<Expr>,
+}
+
+impl FunctionDeclaration {
+    pub fn new(
+        parameters: Vec<Expr>,
+        generic_parameters: Vec<Expr>,
+        return_type: Option<Expr>,
+        body: Vec<Expr>,
+    ) -> Self {
+        Self {
+            parameters,
+            generic_parameters,
+            return_type,
+            body,
+        }
+    }
+
+    pub fn sexpr(&self) -> String {
+        format!(
+            "(fn {}(params{}) (ret {}) {})",
+            if self.generic_parameters.len() > 0 {
+                format!(
+                    "(generics {}) ",
+                    space_sexprs(&self.generic_parameters, " ")
+                )
+            } else {
+                "".to_string()
+            },
+            format!(
+                "{}{}",
+                if self.parameters.len() > 0 { " " } else { "" },
+                space_sexprs(&self.parameters, " ")
+            ),
+            match &self.return_type {
+                Some(ty) => ty.sexpr(),
+                None => "()".to_string(),
+            },
+            if self.body.len() > 0 {
+                format!("(body\n    {}\n)", space_sexprs(&self.body, "\n    "))
+            } else {
+                "(body)".to_string()
+            }
+        )
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -189,56 +204,6 @@ impl LitKind {
             LitKind::Str(s) => format!("\"{s}\""),
             LitKind::Float(f) => f.to_string(),
             LitKind::Bool(b) => b.to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct UnaryOp {
-    kind: UnaryOpKind,
-    span: Span,
-}
-
-impl UnaryOp {
-    pub fn new(kind: UnaryOpKind, span: Span) -> Self {
-        Self { kind, span }
-    }
-
-    pub fn str(&self) -> &str {
-        self.kind.str()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum UnaryOpKind {
-    Minus,
-    Not,
-    Deref,
-    Ref,
-}
-
-impl UnaryOpKind {
-    pub fn str(&self) -> &str {
-        match self {
-            UnaryOpKind::Minus => "-",
-            UnaryOpKind::Not => "!",
-            UnaryOpKind::Deref => "*",
-            UnaryOpKind::Ref => "&",
-        }
-    }
-}
-
-impl TryFrom<OpKind> for UnaryOpKind {
-    type Error = ();
-
-    fn try_from(value: OpKind) -> Result<Self, Self::Error> {
-        match value {
-            OpKind::Minus => Ok(UnaryOpKind::Minus),
-            OpKind::Bang => Ok(UnaryOpKind::Not),
-            OpKind::Mul => Ok(UnaryOpKind::Deref),
-            OpKind::Amp => Ok(UnaryOpKind::Ref),
-            // There's no convenient way of adding the span here
-            _ => Err(()),
         }
     }
 }
