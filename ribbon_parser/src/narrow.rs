@@ -21,6 +21,15 @@ impl TryNarrow for Expr {
         match self.kind {
             ExprKind::FunctionParameter(_) => Ok(self),
 
+            // Parameter with default value
+            ExprKind::Binding(binding) if binding.ty.is_some() => Ok(Expr::new(
+                ExprKind::FunctionParameter(Box::new(FunctionParameter::new(
+                    binding.pat,
+                    binding.ty.unwrap(),
+                    Some(binding.rhs),
+                ))),
+                self.span,
+            )),
             ExprKind::BinOp(bin_op) => match bin_op.kind {
                 // All variants given in the case that new ones are addded in the future
                 // TODO(maybe): case of default values for parameters
@@ -68,6 +77,7 @@ impl TryNarrow for Expr {
             | ExprKind::Block(_)
             | ExprKind::Path(_)
             | ExprKind::Type(_)
+            | ExprKind::Binding(_)
             | ExprKind::Invalid => Err(Diagnostic::new_error(
                 ErrorKind::ExpectedFunctionParameterFoundX(&self.kind.description()),
                 self.span,
@@ -103,6 +113,7 @@ impl TryNarrow for Expr {
             | ExprKind::FunctionTypeLike(_)
             | ExprKind::FunctionParameter(_)
             | ExprKind::Block(_)
+            | ExprKind::Binding(_)
             | ExprKind::Invalid => (),
         }
 

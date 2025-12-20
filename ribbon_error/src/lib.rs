@@ -91,6 +91,7 @@ pub enum ErrorKind<'a> {
     UnclosedDelimitedExpression,
     UnexpectedToken(Tok<'a>),
     UnexpectedOperator(OpKind),
+    UnexpectedBindingOperator,
     InvalidBinaryOperator(OpKind),
     UnexpectedEofAfterBinaryOperator,
     InvalidStringLiteral(InvalidStrKind),
@@ -128,6 +129,7 @@ impl<'a> Display for ErrorKind<'a> {
                     "unclosed delimited expression".to_string(),
                 ErrorKind::UnexpectedToken(tok) => format!("unexpected token `{}`", tok.source),
                 ErrorKind::UnexpectedOperator(op) => format!("unexpected operator `{}`", op.str()),
+                ErrorKind::UnexpectedBindingOperator => "unexpected binding operator".to_string(),
                 ErrorKind::InvalidBinaryOperator(op) =>
                     format!("invalid binary operator `{}`", op.str()),
                 ErrorKind::InvalidStringLiteral(k) => match k {
@@ -163,6 +165,7 @@ impl Display for WarningKind {
 #[derive(Debug, Serialize)]
 pub enum InfoKind {
     DelimitedExpressionBeginsHere,
+    TryModifyingThisPattern,
 }
 
 impl Display for InfoKind {
@@ -172,6 +175,7 @@ impl Display for InfoKind {
             "{}",
             match self {
                 InfoKind::DelimitedExpressionBeginsHere => "delimited expression begins here",
+                InfoKind::TryModifyingThisPattern => "try modifying this pattern",
             }
         )
     }

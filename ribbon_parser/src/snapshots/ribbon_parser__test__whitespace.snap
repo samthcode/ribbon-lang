@@ -1,0 +1,16 @@
+---
+source: ribbon_parser/src/test.rs
+description: "          \n\r\n      hello;           \n  world"
+---
+body:
+  - kind:
+      Ident: hello
+    span:
+      low: 19
+      hi: 23
+  - kind:
+      Ident: world
+    span:
+      low: 39
+      hi: 43
+diagnostics: []

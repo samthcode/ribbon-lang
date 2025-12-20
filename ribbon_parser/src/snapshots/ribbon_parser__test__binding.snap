@@ -1,0 +1,42 @@
+---
+source: ribbon_parser/src/test.rs
+description: "bound: type::path = value"
+---
+body:
+  - kind:
+      Binding:
+        pat:
+          kind:
+            Ident: bound
+          span:
+            low: 0
+            hi: 4
+        ty:
+          kind:
+            Type:
+              path:
+                parts:
+                  - kind:
+                      Ident: type
+                    span:
+                      low: 7
+                      hi: 10
+                  - kind:
+                      Ident: path
+                    span:
+                      low: 13
+                      hi: 16
+              generic_parameters: []
+          span:
+            low: 7
+            hi: 16
+        rhs:
+          kind:
+            Ident: value
+          span:
+            low: 20
+            hi: 24
+    span:
+      low: 0
+      hi: 24
+diagnostics: []

@@ -1,0 +1,24 @@
+---
+source: ribbon_parser/src/test.rs
+description: "bound_variable:=value"
+---
+body:
+  - kind:
+      Binding:
+        pat:
+          kind:
+            Ident: bound_variable
+          span:
+            low: 0
+            hi: 13
+        ty: ~
+        rhs:
+          kind:
+            Ident: value
+          span:
+            low: 16
+            hi: 20
+    span:
+      low: 0
+      hi: 20
+diagnostics: []

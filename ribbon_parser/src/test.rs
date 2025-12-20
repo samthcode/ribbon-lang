@@ -19,6 +19,10 @@ macro_rules! create_tests {
 
 create_tests! {
     empty_source: "",
+    newlines: "\n\n\n\r\n",
+    newlines_surrounding_code: "\n\na;\n\n100",
+    whitespace:
+        "          \n\r\n      hello;           \n  world",
     line_comment: "// Hello World",
     block_comment: "/* Hello there\nHow do you do*/",
     addition: "1+2",
@@ -46,4 +50,6 @@ create_tests! {
     path: "a::b::c",
     path_2: "hello::world",
     invalid_path: "hello::",
+    binding_with_type_inference: "bound_variable:=value",
+    binding: "bound: type::path = value"
 }

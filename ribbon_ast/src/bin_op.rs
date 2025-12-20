@@ -48,7 +48,7 @@ impl BinOp {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Default)]
+#[derive(Debug, Clone, Serialize, Default, PartialEq)]
 pub enum BinOpKind {
     /// `+`
     #[default]

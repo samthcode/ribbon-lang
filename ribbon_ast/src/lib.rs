@@ -50,6 +50,8 @@ impl Expr {
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub enum ExprKind {
+    /// A pattern-matching assignment through `:=`
+    Binding(Box<Binding>),
     BinOp(Box<BinOp>),
     UnaryOp(Box<UnaryOp>),
     Ident(Box<String>),
@@ -79,6 +81,7 @@ pub enum ExprKind {
 impl ExprKind {
     pub fn sexpr(&self) -> String {
         match self {
+            ExprKind::Binding(binding) => binding.sexpr(),
             ExprKind::BinOp(bin_op) => bin_op.sexpr(),
             ExprKind::UnaryOp(unary_op) => unary_op.sexpr(),
             ExprKind::Ident(s) => s.to_string(),
@@ -122,6 +125,7 @@ impl ExprKind {
 
     pub fn description(&self) -> &'static str {
         match self {
+            ExprKind::Binding(_) => "binding",
             ExprKind::BinOp(_) => "binary operator",
             ExprKind::UnaryOp(_) => "unary operator",
             ExprKind::Ident(_) => "identifier",
@@ -142,6 +146,7 @@ impl ExprKind {
 
     pub fn is(&self, other: Self) -> bool {
         match self {
+            ExprKind::Binding(_) => matches!(other, ExprKind::Binding(_)),
             ExprKind::BinOp { .. } => matches!(other, ExprKind::BinOp { .. }),
             ExprKind::UnaryOp { .. } => matches!(other, ExprKind::UnaryOp { .. }),
             ExprKind::Ident(_) => matches!(other, ExprKind::Ident(_)),
@@ -171,6 +176,32 @@ fn space_sexprs(exprs: &Vec<Expr>, sep: &str) -> String {
         .map(|e| e.sexpr())
         .collect::<Vec<String>>()
         .join(sep)
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct Binding {
+    pub pat: Expr,
+    pub ty: Option<Expr>,
+    pub rhs: Expr,
+}
+
+impl Binding {
+    pub fn new(pat: Expr, ty: Option<Expr>, rhs: Expr) -> Self {
+        Self { pat, ty, rhs }
+    }
+
+    pub fn sexpr(&self) -> String {
+        format!(
+            "(binding (pat {}){} (rhs {}))",
+            self.pat.sexpr(),
+            if let Some(ty) = &self.ty {
+                format!(" {}", ty.sexpr())
+            } else {
+                "".to_string()
+            },
+            self.rhs.sexpr()
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

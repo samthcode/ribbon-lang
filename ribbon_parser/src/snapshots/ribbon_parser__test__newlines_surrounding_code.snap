@@ -1,0 +1,17 @@
+---
+source: ribbon_parser/src/test.rs
+description: "\n\na;\n\n100"
+---
+body:
+  - kind:
+      Ident: a
+    span:
+      low: 2
+      hi: 2
+  - kind:
+      Lit:
+        Int: 100
+    span:
+      low: 6
+      hi: 8
+diagnostics: []

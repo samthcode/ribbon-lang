@@ -1,8 +1,8 @@
 use std::iter::Peekable;
 
 use ribbon_ast::{
-    self as ast, BinOp, Expr, ExprKind, FunctionDeclaration, FunctionTypeLike, Path, UnaryOp,
-    tok_to_expr,
+    self as ast, BinOp, BinOpKind, Binding, Expr, ExprKind, FunctionDeclaration, FunctionTypeLike,
+    Path, UnaryOp, tok_to_expr,
 };
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
 use ribbon_lexer::{self as lexer, Lexer, OpKind, TokKind, TokStream, span::Span, tok::Tok};
@@ -99,7 +99,47 @@ impl<'a> Parser<'a> {
             if prec <= min_prec {
                 break;
             }
+
             // There are a few special cases that we need to parse differently
+
+            // Binding with an explicit type
+            if let ExprKind::BinOp(b) = &lhs.kind
+                && b.kind == BinOpKind::MethodNoParen
+                && op_kind == OpKind::Eq
+            {
+                // This avoids the borrow-checker/a very large nested if-statement
+                let ExprKind::BinOp(b) = lhs.kind else {
+                    unreachable!()
+                };
+                // Basically we have `(something):(something)` on the left and an `=` in the middle
+                let BinOp {
+                    lhs: pat, rhs: ty, ..
+                } = *b;
+                // TODO: Better pattern narrowing
+                if !matches!(pat.kind, ExprKind::Ident(_)) {
+                    return Err(Diagnostic::new_error(
+                        ErrorKind::UnexpectedBindingOperator,
+                        self.curr.span,
+                    )
+                    .with_subdiagnostics(vec![Diagnostic::new_info(
+                        InfoKind::TryModifyingThisPattern,
+                        lhs.span,
+                    )]));
+                }
+                let ty = ty.try_narrow_to_type()?;
+                // Consume the `=`
+                self.next();
+                // Move onto the next token
+                self.next();
+                let rhs = self.expr_prec(binary_prec(&OpKind::Eq))?;
+                let span = pat.span.to(rhs.span);
+                lhs = Expr::new(
+                    ExprKind::Binding(Box::new(Binding::new(pat, Some(ty), rhs))),
+                    span,
+                );
+                continue;
+            }
+
             match op_kind {
                 // Thin-arrow function type or declaration (`->`)
                 OpKind::MinusGt => {
@@ -107,8 +147,10 @@ impl<'a> Parser<'a> {
                         ExprKind::TupleOrParameterList(exprs) => exprs,
                         ExprKind::ParenthesisedExpression(expr) => vec![*expr],
                         _ => {
+                            let n_tok = n_tok.clone();
+                            self.next();
                             return Err(Diagnostic::new_error(
-                                ErrorKind::UnexpectedToken(*n_tok),
+                                ErrorKind::UnexpectedToken(n_tok),
                                 op_span,
                             ));
                         }
@@ -157,11 +199,37 @@ impl<'a> Parser<'a> {
                     self.next();
                 }
             }
-            if self.next().is_eof() {
-                return Err(Diagnostic::new_error(
-                    ErrorKind::UnexpectedEofAfterBinaryOperator,
-                    self.eof_span(),
-                ));
+
+            match self.next().kind {
+                TokKind::Eof => {
+                    return Err(Diagnostic::new_error(
+                        ErrorKind::UnexpectedEofAfterBinaryOperator,
+                        self.eof_span(),
+                    ));
+                }
+                // Another special case - a binding with `:=` (type is inferred)
+                TokKind::Op(OpKind::Eq) if op_kind == OpKind::Colon => {
+                    // TODO: Proper pattern narrowing
+                    if !matches!(lhs.kind, ExprKind::Ident(_)) {
+                        return Err(Diagnostic::new_error(
+                            ErrorKind::UnexpectedBindingOperator,
+                            self.curr.span,
+                        )
+                        .with_subdiagnostics(vec![Diagnostic::new_info(
+                            InfoKind::TryModifyingThisPattern,
+                            lhs.span,
+                        )]));
+                    }
+                    self.next();
+                    let rhs = self.expr_prec(binary_prec(&OpKind::Eq))?;
+                    let span = lhs.span.to(rhs.span);
+                    lhs = Expr::new(
+                        ExprKind::Binding(Box::new(Binding::new(lhs, None, rhs))),
+                        span,
+                    );
+                    continue;
+                }
+                _ => (),
             }
             let rhs = self.expr_prec(prec)?;
             let span = lhs.span.to(rhs.span);
