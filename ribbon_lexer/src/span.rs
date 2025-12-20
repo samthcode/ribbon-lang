@@ -3,6 +3,7 @@ use std::fmt::Display;
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Default)]
 pub struct Span {
     pub low: usize,
     pub hi: usize,
@@ -39,8 +40,3 @@ impl Display for Span {
     }
 }
 
-impl Default for Span {
-    fn default() -> Self {
-        Self { low: 0, hi: 0 }
-    }
-}

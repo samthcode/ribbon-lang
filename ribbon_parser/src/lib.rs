@@ -91,7 +91,7 @@ impl<'a> Parser<'a> {
             let op_span = n_tok.span;
             let TokKind::Op(op_kind) = n_tok.kind else {
                 return Err(Diagnostic::new_error(
-                    ErrorKind::UnexpectedToken(n_tok.clone()),
+                    ErrorKind::UnexpectedToken(*n_tok),
                     op_span,
                 ));
             };
@@ -147,7 +147,7 @@ impl<'a> Parser<'a> {
                         ExprKind::TupleOrParameterList(exprs) => exprs,
                         ExprKind::ParenthesisedExpression(expr) => vec![*expr],
                         _ => {
-                            let n_tok = n_tok.clone();
+                            let n_tok = *n_tok;
                             self.next();
                             return Err(Diagnostic::new_error(
                                 ErrorKind::UnexpectedToken(n_tok),
@@ -165,7 +165,7 @@ impl<'a> Parser<'a> {
                         ExprKind::TupleOrParameterList(exprs) => exprs,
                         ExprKind::ParenthesisedExpression(expr) => vec![*expr],
                         _ => {
-                            let n_tok = n_tok.clone();
+                            let n_tok = *n_tok;
                             self.next();
                             return Err(Diagnostic::new_error(
                                 ErrorKind::UnexpectedToken(n_tok),
@@ -258,18 +258,14 @@ impl<'a> Parser<'a> {
                     self.unary_expr(*op, lhs.span)
                 }
                 // Unexpected (closing) delimiter
-                op if op.is_delim() => {
-                    return Err(Diagnostic::new_error(
-                        ErrorKind::UnexpectedDelimiter(*op),
-                        lhs.span,
-                    ));
-                }
-                k => {
-                    return Err(Diagnostic::new_error(
-                        ErrorKind::UnexpectedOperator(*k),
-                        lhs.span,
-                    ));
-                }
+                op if op.is_delim() => Err(Diagnostic::new_error(
+                    ErrorKind::UnexpectedDelimiter(*op),
+                    lhs.span,
+                )),
+                k => Err(Diagnostic::new_error(
+                    ErrorKind::UnexpectedOperator(*k),
+                    lhs.span,
+                )),
             }
         } else {
             tok_to_expr(*lhs)
@@ -524,10 +520,7 @@ impl<'a> Parser<'a> {
                 Err(e) => {
                     expr.span = expr.span.to(e.span);
                     exprs.push(expr);
-                    self.report_and_recover_err(
-                        e,
-                        ParseCtx::DelimitedList(closing_delim.try_into().unwrap()),
-                    );
+                    self.report_and_recover_err(e, ParseCtx::DelimitedList(closing_delim));
                     continue;
                 }
             };
@@ -571,11 +564,8 @@ impl<'a> Parser<'a> {
         if self.peek().is_eof() {
             return span;
         }
-        match self.expect_one_of(ends) {
-            Err(err) => {
-                self.program.diagnostics.push(err);
-            }
-            Ok(_) => (),
+        if let Err(err) = self.expect_one_of(ends) {
+            self.program.diagnostics.push(err);
         }
         span
     }
@@ -624,7 +614,7 @@ impl<'a> Parser<'a> {
     }
 
     fn eof_span(&self) -> Span {
-        if self.source.len() == 0 {
+        if self.source.is_empty() {
             Span::new(0, 0)
         } else {
             (self.source.len() - 1).into()

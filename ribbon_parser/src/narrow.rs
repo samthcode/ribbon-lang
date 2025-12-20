@@ -79,7 +79,7 @@ impl TryNarrow for Expr {
             | ExprKind::Type(_)
             | ExprKind::Binding(_)
             | ExprKind::Invalid => Err(Diagnostic::new_error(
-                ErrorKind::ExpectedFunctionParameterFoundX(&self.kind.description()),
+                ErrorKind::ExpectedFunctionParameterFoundX(self.kind.description()),
                 self.span,
             )),
         }

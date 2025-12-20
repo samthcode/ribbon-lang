@@ -13,19 +13,10 @@ pub use unary_op::*;
 ///
 /// This contains a list of expressions which make up all of the functions, structs, enums, and
 /// constants at the top level of a program, as well as all of the expressions contained within those expressions.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct Program<'a> {
     pub body: Vec<Expr>,
     pub diagnostics: Vec<Diagnostic<'a>>,
-}
-
-impl<'a> Default for Program<'a> {
-    fn default() -> Self {
-        Self {
-            body: vec![],
-            diagnostics: vec![],
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -112,7 +103,7 @@ impl ExprKind {
             ExprKind::FunctionTypeLike(fn_ty_like) => fn_ty_like.sexpr(),
             ExprKind::FunctionParameter(fn_param) => fn_param.sexpr(),
             ExprKind::Block(exprs) => {
-                if exprs.len() == 0 {
+                if exprs.is_empty() {
                     return "(block)".to_string();
                 }
                 format!("(block\n    {}\n)", space_sexprs(exprs, "\n    "))
@@ -170,7 +161,7 @@ impl ExprKind {
     }
 }
 
-fn space_sexprs(exprs: &Vec<Expr>, sep: &str) -> String {
+fn space_sexprs(exprs: &[Expr], sep: &str) -> String {
     exprs
         .iter()
         .map(|e| e.sexpr())
@@ -308,10 +299,11 @@ impl FunctionDeclaration {
         }
     }
 
+    #[allow(clippy::format_in_format_args)]
     pub fn sexpr(&self) -> String {
         format!(
             "(fn {}(params{}) (ret {}) (body {}))",
-            if self.generic_parameters.len() > 0 {
+            if !self.generic_parameters.is_empty() {
                 format!(
                     "(generics {}) ",
                     space_sexprs(&self.generic_parameters, " ")
@@ -321,7 +313,7 @@ impl FunctionDeclaration {
             },
             format!(
                 "{}{}",
-                if self.parameters.len() > 0 { " " } else { "" },
+                if !self.parameters.is_empty() { " " } else { "" },
                 space_sexprs(&self.parameters, " ")
             ),
             match &self.return_type {
@@ -349,10 +341,11 @@ impl FunctionTypeLike {
         }
     }
 
+    #[allow(clippy::format_in_format_args)]
     pub fn sexpr(&self) -> String {
         format!(
             "(fn-type {}(params{}) (ret {}))",
-            if self.generic_parameters.len() > 0 {
+            if !self.generic_parameters.is_empty() {
                 format!(
                     "(generics {}) ",
                     space_sexprs(&self.generic_parameters, " ")
@@ -362,7 +355,7 @@ impl FunctionTypeLike {
             },
             format!(
                 "{}{}",
-                if self.parameters.len() > 0 { " " } else { "" },
+                if !self.parameters.is_empty() { " " } else { "" },
                 space_sexprs(&self.parameters, " ")
             ),
             self.return_type.sexpr()

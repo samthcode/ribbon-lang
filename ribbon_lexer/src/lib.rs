@@ -31,13 +31,13 @@ impl<'a> Lexer<'a> {
             match c {
                 // Whitespace
                 c if is_whitespace(&c) => {
-                    self.skip_while(|ch| is_whitespace(ch));
+                    self.skip_while(is_whitespace);
                     return self.next_token();
                 }
                 // Line comment
                 '/' if matches!(self.peek_char(), Some('/')) => {
                     self.skip_while(|c| !is_newline(c));
-                    self.skip_while(|c| is_newline(c));
+                    self.skip_while(is_newline);
                     return self.next_token();
                 }
                 // Block comment
@@ -100,7 +100,7 @@ impl<'a> Lexer<'a> {
     fn skip_block_comment(&mut self) {
         loop {
             self.skip_while(|c| *c != '*');
-            if let None = self.curr_char() {
+            if self.curr_char().is_none() {
                 todo!() // Unterminated block comment
             }
             if let '/' = self
@@ -162,7 +162,7 @@ impl<'a> Lexer<'a> {
                     return self.new_tok(TokKind::Lit(LitKind::UnprocessedStr), start);
                 }
                 '\\' => {
-                    if let None = self.next_char() {
+                    if self.next_char().is_none() {
                         return self.new_tok(
                             TokKind::Lit(LitKind::InvalidStr(InvalidStrKind::UnterminatedEscape)),
                             start,
@@ -205,7 +205,7 @@ impl<'a> Lexer<'a> {
             peek_chars.next();
             let two_ahead = peek_chars.peek();
             //  We have something like 1. followed by EOF which counts as the float 1.0
-            if let None = two_ahead {
+            if two_ahead.is_none() {
                 self.next_char();
                 return self.new_tok(TokKind::Lit(LitKind::Float), start);
             }
@@ -221,7 +221,7 @@ impl<'a> Lexer<'a> {
             return self.new_tok(TokKind::Lit(LitKind::Float), start);
         }
         // Not followed by a dot therefore is an integer
-        return self.new_tok(TokKind::Lit(LitKind::Int), start);
+        self.new_tok(TokKind::Lit(LitKind::Int), start)
     }
 
     /// Creates an operator
@@ -357,6 +357,8 @@ fn is_ident_tail(c: &char) -> bool {
     c.is_alphanumeric() || *c == '_'
 }
 
+// Allowed due to poor formatting of matches macro by rust-analyzer
+#[allow(clippy::match_like_matches_macro)]
 fn is_op_head(c: &char) -> bool {
     match c {
         '+' | '-' | '*' | '/' | '%' | '(' | ')' | '[' | ']' | '{' | '}' | ',' | '.' | ':' | ';'
