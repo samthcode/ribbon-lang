@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::lexer;
-use ribbon_lexer::OpKind;
+use ribbon_lexer::{OpKind, TokKind};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Fixity {
@@ -85,7 +85,16 @@ impl PartialOrd for Prec {
     }
 }
 
-pub fn binary_prec(kind: &OpKind) -> Prec {
+pub fn binary_prec(kind: TokKind) -> Option<Prec> {
+    match kind {
+        TokKind::Op(op_kind) => Some(binary_op_prec(op_kind)),
+        // A keyword may some day have need of a precedence, such as `as` or `if`
+        TokKind::Kw(_) | TokKind::Ident | TokKind::Lit(_) | TokKind::Eof => None,
+        TokKind::Dummy => panic!("internal: called `binary_prec` on dummy token"),
+    }
+}
+
+pub fn binary_op_prec(kind: OpKind) -> Prec {
     use Fixity::*;
     use lexer::OpKind::*;
     match kind {

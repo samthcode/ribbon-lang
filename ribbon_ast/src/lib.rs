@@ -57,7 +57,7 @@ pub enum ExprKind {
     /// A function type (or the start of a function definition) such as `(i32, i32) -> i32`
     /// This could also be `(a: i32, b: i32) -> i32` which is not a valid function type
     /// but could be a function declaration if followed by `=>`
-    FunctionTypeLike(Box<FunctionTypeLike>),
+    FunctionType(Box<FunctionType>),
     FunctionParameter(Box<FunctionParameter>),
     Block(Vec<Expr>),
     /// e.g. `a::b::c`
@@ -100,7 +100,7 @@ impl ExprKind {
                 )
             }
             ExprKind::FunctionDeclaration(fn_decl) => fn_decl.sexpr(),
-            ExprKind::FunctionTypeLike(fn_ty_like) => fn_ty_like.sexpr(),
+            ExprKind::FunctionType(fn_ty_like) => fn_ty_like.sexpr(),
             ExprKind::FunctionParameter(fn_param) => fn_param.sexpr(),
             ExprKind::Block(exprs) => {
                 if exprs.is_empty() {
@@ -126,7 +126,7 @@ impl ExprKind {
             ExprKind::ParenthesisedExpression(_) => "parenthesised expression",
             ExprKind::Tuple(_) => "tuple",
             ExprKind::FunctionDeclaration(_) => "function declaration",
-            ExprKind::FunctionTypeLike(_) => "function type or beginning of function declaration",
+            ExprKind::FunctionType(_) => "function type or beginning of function declaration",
             ExprKind::FunctionParameter(_) => "function parameter",
             ExprKind::Block(_) => "block",
             ExprKind::Path(_) => "path",
@@ -151,7 +151,7 @@ impl ExprKind {
             ExprKind::FunctionDeclaration(_) => {
                 matches!(other, ExprKind::FunctionDeclaration(_))
             }
-            ExprKind::FunctionTypeLike(_) => matches!(other, ExprKind::FunctionTypeLike(_)),
+            ExprKind::FunctionType(_) => matches!(other, ExprKind::FunctionType(_)),
             ExprKind::FunctionParameter(_) => matches!(other, ExprKind::FunctionParameter(_)),
             ExprKind::Block(_) => matches!(other, ExprKind::Block(_)),
             ExprKind::Path(_) => matches!(other, ExprKind::Path(_)),
@@ -326,13 +326,13 @@ impl FunctionDeclaration {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
-pub struct FunctionTypeLike {
+pub struct FunctionType {
     pub parameters: Vec<Expr>,
     pub generic_parameters: Vec<Expr>,
     pub return_type: Expr,
 }
 
-impl FunctionTypeLike {
+impl FunctionType {
     pub fn new(parameters: Vec<Expr>, generic_parameters: Vec<Expr>, return_type: Expr) -> Self {
         Self {
             parameters,

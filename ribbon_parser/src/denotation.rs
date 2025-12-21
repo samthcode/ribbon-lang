@@ -89,6 +89,85 @@ impl<'a> TryDenotation<'a> for Tok<'a> {
         parser: &mut Parser<'a>,
         lhs: Expr,
     ) -> Result<Expr, Diagnostic<'a>> {
-        todo!()
+        match self.kind {
+            ribbon_lexer::TokKind::Op(op_kind) => match op_kind {
+                // Standard binary operators
+                OpKind::Plus
+                | OpKind::Minus
+                | OpKind::Mul
+                | OpKind::Div
+                | OpKind::Mod
+                
+                // Note that this can only be assignment NOT a binding, which will have already been handled
+                | OpKind::Eq
+
+                | OpKind::Tilde
+                | OpKind::Amp
+                | OpKind::Caret
+                | OpKind::Pipe
+                | OpKind::Lt
+                | OpKind::Gt
+                | OpKind::Dot
+                | OpKind::EqEq
+                | OpKind::BangEq
+                | OpKind::LtEq
+                | OpKind::GtEq
+                | OpKind::AmpEq
+                | OpKind::CaretEq
+                | OpKind::PipeEq
+                | OpKind::PlusEq
+                | OpKind::MinusEq
+                | OpKind::MulEq
+                | OpKind::DivEq
+                | OpKind::ModEq
+                | OpKind::DotEq
+                | OpKind::And
+                | OpKind::Or
+                | OpKind::DotDot
+                | OpKind::ColonGt
+                | OpKind::TildeGt
+                | OpKind::TildeQuestion
+                | OpKind::ShiftL
+                | OpKind::ShiftR
+                | OpKind::AndEq
+                | OpKind::OrEq
+                | OpKind::ShiftLEq
+                | OpKind::ShiftREq
+                | OpKind::DotDotEq => parser.binary_op(op_kind, self.span, lhs),
+                // `path::to::something`
+                OpKind::Path => parser.path(lhs),
+                // Function type or function
+                OpKind::MinusGt | OpKind::EqGt => parser.function(lhs),
+                // Binding or method (which does not require parentheses)
+                OpKind::Colon => todo!(),
+
+                OpKind::LParen => todo!(),
+                OpKind::RParen => todo!(),
+                OpKind::LSquare => todo!(),
+                OpKind::RSquare => todo!(),
+                OpKind::LCurly => todo!(),
+                OpKind::RCurly => todo!(),
+                OpKind::At => todo!(),
+
+                // These should never occur as functions handling expressions using these handle them separately
+                OpKind::Semi | OpKind::Comma => {
+                    panic!("internal: unhandled semicolon or comma reached `try_left_denotation`")
+                }
+
+                kind @ (OpKind::Hash | OpKind::Bang | OpKind::Dollar) => Err(
+                    Diagnostic::new_error(ErrorKind::UnexpectedOperator(kind), self.span),
+                ),
+            },
+            ribbon_lexer::TokKind::Kw(_)
+            | ribbon_lexer::TokKind::Lit(_)
+            | ribbon_lexer::TokKind::Ident
+            | ribbon_lexer::TokKind::Eof => Err(Diagnostic::new_error(
+                ErrorKind::UnexpectedToken(self),
+                self.span,
+            )),
+            ribbon_lexer::TokKind::Dummy => {
+                panic!("internal: called `try_left_denotation` on dummy token")
+            }
+        }
     }
 }

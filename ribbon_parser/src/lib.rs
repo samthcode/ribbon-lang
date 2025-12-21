@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 
 use ribbon_ast::{
-    self as ast, BinOp, BinOpKind, Binding, Expr, ExprKind, FunctionDeclaration, FunctionTypeLike,
+    self as ast, BinOp, BinOpKind, Binding, Expr, ExprKind, FunctionDeclaration, FunctionType,
     Path, UnaryOp,
 };
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
@@ -20,7 +20,9 @@ mod test;
 
 use denotation::TryDenotation;
 use narrow::TryNarrow;
-use prec::{Prec, binary_prec, unary_prec};
+use prec::{Prec, binary_op_prec, unary_prec};
+
+use crate::prec::binary_prec;
 
 /// The parser for the Ribbon programming language.
 ///
@@ -62,7 +64,7 @@ impl<'a> Parser<'a> {
                 break;
             }
             let t_span = t.span;
-            let expr = match self.expr_prec(binary_prec(&OpKind::Semi)) {
+            let expr = match self.expr_prec(binary_op_prec(OpKind::Semi)) {
                 Ok(expr) => match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Eof]) {
                     Ok(_) => expr,
                     Err(e) => Expr::new(
@@ -82,25 +84,27 @@ impl<'a> Parser<'a> {
 
     pub(crate) fn expr_prec(&mut self, min_prec: Prec) -> Result<Expr, Diagnostic<'a>> {
         // Get the left-hand side of the current expression
-        let mut lhs = self.curr.try_null_denotation(self)?;
+        let lhs = self.curr.try_null_denotation(self);
+        // If the left-hand side contains an error, we still attempt to parse the rest
+        // This could potentially lead to some nonsensical errors further down the line since we (purposefully) don't recover
+        let mut lhs = self.report_and_invalidate_or_inner(lhs);
 
         loop {
             let n_tok = self.peek();
-            if n_tok.is_eof() {
+            if n_tok.is_eof()
+                || binary_prec(n_tok.kind).ok_or(Diagnostic::new_error(
+                    ErrorKind::UnexpectedToken(*n_tok),
+                    n_tok.span,
+                ))? <= min_prec
+            {
                 break;
             }
 
+            let n_tok = self.next();
             let op_span = n_tok.span;
             let TokKind::Op(op_kind) = n_tok.kind else {
-                return Err(Diagnostic::new_error(
-                    ErrorKind::UnexpectedToken(*n_tok),
-                    op_span,
-                ));
+                todo!()
             };
-            let prec = binary_prec(&op_kind);
-            if prec <= min_prec {
-                break;
-            }
 
             // There are a few special cases that we need to parse differently
 
@@ -129,11 +133,8 @@ impl<'a> Parser<'a> {
                     )]));
                 }
                 let ty = ty.try_narrow_to_type()?;
-                // Consume the `=`
                 self.next();
-                // Move onto the next token
-                self.next();
-                let rhs = self.expr_prec(binary_prec(&OpKind::Eq))?;
+                let rhs = self.expr_prec(binary_op_prec(OpKind::Eq))?;
                 let span = pat.span.to(rhs.span);
                 lhs = Expr::new(
                     ExprKind::Binding(Box::new(Binding::new(pat, Some(ty), rhs))),
@@ -149,15 +150,12 @@ impl<'a> Parser<'a> {
                         ExprKind::TupleOrParameterList(exprs) => exprs,
                         ExprKind::ParenthesisedExpression(expr) => vec![*expr],
                         _ => {
-                            let n_tok = *n_tok;
-                            self.next();
                             return Err(Diagnostic::new_error(
-                                ErrorKind::UnexpectedToken(n_tok),
+                                ErrorKind::UnexpectedToken(*n_tok),
                                 op_span,
                             ));
                         }
                     };
-                    self.next();
                     lhs = self.fn_type_like_expr(parameters, lhs.span)?;
                     continue;
                 }
@@ -167,20 +165,16 @@ impl<'a> Parser<'a> {
                         ExprKind::TupleOrParameterList(exprs) => exprs,
                         ExprKind::ParenthesisedExpression(expr) => vec![*expr],
                         _ => {
-                            let n_tok = *n_tok;
-                            self.next();
                             return Err(Diagnostic::new_error(
-                                ErrorKind::UnexpectedToken(n_tok),
+                                ErrorKind::UnexpectedToken(*n_tok),
                                 op_span,
                             ));
                         }
                     };
                     let parameters = self.validate_function_parameters(parameters);
-                    // Consume `=>`
-                    self.next();
                     // `expr_prec` works on the current token so we need to advance again
                     self.next();
-                    let body = self.expr_prec(binary_prec(&OpKind::MinusGt))?;
+                    let body = self.expr_prec(binary_op_prec(OpKind::MinusGt))?;
                     let span = lhs.span.to(body.span);
                     lhs = Expr::new(
                         ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
@@ -197,9 +191,7 @@ impl<'a> Parser<'a> {
                     lhs = self.path(lhs)?;
                     continue;
                 }
-                _ => {
-                    self.next();
-                }
+                _ => (),
             }
 
             match self.next().kind {
@@ -223,7 +215,7 @@ impl<'a> Parser<'a> {
                         )]));
                     }
                     self.next();
-                    let rhs = self.expr_prec(binary_prec(&OpKind::Eq))?;
+                    let rhs = self.expr_prec(binary_op_prec(OpKind::Eq))?;
                     let span = lhs.span.to(rhs.span);
                     lhs = Expr::new(
                         ExprKind::Binding(Box::new(Binding::new(lhs, None, rhs))),
@@ -233,7 +225,7 @@ impl<'a> Parser<'a> {
                 }
                 _ => (),
             }
-            let rhs = self.expr_prec(prec)?;
+            let rhs = self.expr_prec(binary_op_prec(op_kind))?;
             let span = lhs.span.to(rhs.span);
             lhs = Expr::new(
                 ExprKind::BinOp(Box::new(BinOp::try_from_op_kind(
@@ -245,12 +237,113 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
+    /// Parses a function declaration or function type
+    /// The current token is required to be one of two arrows:
+    /// `() => "hello!"`
+    ///     ^^ a fat arrow, like this
+    /// `(a: i32, b: i32) -> i32` or `(a: i32: b:i32) -> i32 => a+b`
+    ///                   ^^ a thin arrow, like these ^^
+    /// A function type is defined as such:
+    /// FN_TYPE <> (`[`(GENERIC_TY),*`]`)?`(`(TY),*`)` `->` TY
+    /// And a function declaration is defined as:
+    /// FN_DECL <> (`[`(GENERIC_TY),*`]`)?`(`(PARAM),*`)` (`->` TY)? (`=>` EXPR | BLOCK)
+    /// n.b. EXPR could be a block expression
+    pub(crate) fn function(&mut self, lhs: Expr) -> Result<Expr, Diagnostic<'a>> {
+        let arrow = self.curr;
+        debug_assert!(arrow.is_op_kind(OpKind::MinusGt) || arrow.is_op_kind(OpKind::EqGt));
+
+        // There is always a parenthesised expression before a function arrow
+        // `()` or `(PARAM|TY)` or `(PARAM_1, PARAM_2)` etc.
+        let parameters = match lhs.kind {
+            ExprKind::TupleOrParameterList(exprs) => exprs,
+            ExprKind::ParenthesisedExpression(expr) => vec![*expr],
+            _ => {
+                return Err(Diagnostic::new_error(
+                    ErrorKind::UnexpectedToken(self.curr),
+                    self.curr.span,
+                ));
+            }
+        };
+
+        let mut return_type = None;
+
+        if arrow.is_op_kind(OpKind::MinusGt) {
+            // We expect a type after the arrow
+            self.next();
+            let maybe_return_type = self
+                .expr_prec(binary_op_prec(OpKind::EqGt))?
+                .try_narrow_to_type();
+            return_type = Some(self.report_and_invalidate_or_inner(maybe_return_type));
+
+            let peeked_tok = self.peek();
+            if !(peeked_tok.is_op_kind(OpKind::EqGt) || peeked_tok.is_op_kind(OpKind::LCurly)) {
+                // We have a function type rather than a declaration
+                let return_type = return_type.unwrap();
+                let span = lhs.span.to(return_type.span);
+                let parameters = parameters
+                    .into_iter()
+                    .map(|p| self.report_and_invalidate_or_inner(p.try_narrow_to_type()))
+                    .collect();
+                return Ok(Expr::new(
+                    ExprKind::FunctionType(Box::new(FunctionType::new(
+                        parameters,
+                        vec![],
+                        return_type,
+                    ))),
+                    span,
+                ));
+            }
+        }
+
+        let body = if self.next().is_op_kind(OpKind::EqGt) {
+            self.expr_prec(binary_op_prec(OpKind::EqGt))?
+        } else {
+            self.next();
+            self.block_expr(self.curr.span)
+        };
+
+        let parameters = parameters
+            .into_iter()
+            .map(|p| self.report_and_invalidate_or_inner(p.try_narrow_to_param()))
+            .collect();
+
+        let span = lhs.span.to(body.span);
+
+        Ok(Expr::new(
+            ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
+                parameters,
+                vec![],
+                return_type,
+                body,
+            ))),
+            span,
+        ))
+    }
+
+    /// Parser a standard binary operator which has only a left-hand side, operator, and right-hand side
+    pub(crate) fn binary_op(
+        &mut self,
+        op_kind: OpKind,
+        op_span: Span,
+        lhs: Expr,
+    ) -> Result<Expr, Diagnostic<'a>> {
+        self.next();
+        let rhs = self.expr_prec(binary_op_prec(op_kind));
+        // This may or may not be the best choice as it could leave the parser in an unexpected position later down the line
+        let rhs = self.report_and_invalidate_or_inner(rhs);
+        let span = lhs.span.to(rhs.span);
+        Ok(Expr::new(
+            ExprKind::BinOp(Box::new(BinOp::try_from_op_kind(
+                op_kind, op_span, lhs, rhs,
+            )?)),
+            span,
+        ))
+    }
+
     /// Parses a path e.g. `a::b::c`
     /// n.b. This does not parse any following generic arguments since they are ambiguous at this stage
     pub(crate) fn path(&mut self, lhs: Expr) -> Result<Expr, Diagnostic<'a>> {
         if let ExprKind::Ident(_) = lhs.kind {
-            // Consume `::`
-            self.next();
             let mut span = lhs.span;
             let mut parts = vec![lhs];
             loop {
@@ -288,9 +381,9 @@ impl<'a> Parser<'a> {
 
         // Expect a type after the arrow
         let return_type = self
-            .expr_prec(binary_prec(&OpKind::EqGt))?
+            .expr_prec(binary_op_prec(OpKind::EqGt))?
             .try_narrow_to_type();
-        let return_type = self.report_and_invalidate_or_pass_through(return_type);
+        let return_type = self.report_and_invalidate_or_inner(return_type);
 
         let span = param_span.to(return_type.span);
 
@@ -300,7 +393,7 @@ impl<'a> Parser<'a> {
             self.next();
             // `expr_prec` works on the current token so we need to advance again
             self.next();
-            let body = self.expr_prec(binary_prec(&OpKind::MinusGt))?;
+            let body = self.expr_prec(binary_op_prec(OpKind::MinusGt))?;
             let span = param_span.to(body.span);
             let parameters = self.validate_function_parameters(parameters);
             Ok(Expr::new(
@@ -331,7 +424,7 @@ impl<'a> Parser<'a> {
             ))
         } else {
             Ok(Expr::new(
-                ExprKind::FunctionTypeLike(Box::new(FunctionTypeLike::new(
+                ExprKind::FunctionType(Box::new(FunctionType::new(
                     parameters,
                     vec![],
                     return_type,
@@ -344,7 +437,7 @@ impl<'a> Parser<'a> {
     pub(crate) fn validate_function_parameters(&mut self, parameters: Vec<Expr>) -> Vec<Expr> {
         parameters
             .into_iter()
-            .map(|p| self.report_and_invalidate_or_pass_through(p.try_narrow_to_param()))
+            .map(|p| self.report_and_invalidate_or_inner(p.try_narrow_to_param()))
             .collect()
     }
 
@@ -476,7 +569,7 @@ impl<'a> Parser<'a> {
             }
 
             let mut expr = self.expr_prec_or_invalid(
-                binary_prec(&OpKind::Comma),
+                binary_op_prec(OpKind::Comma),
                 ParseCtx::DelimitedList(closing_delim),
             );
             if expr.is(ExprKind::Invalid) {
@@ -510,7 +603,7 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn expr_or_invalid(&mut self, error_ctx: ParseCtx) -> Expr {
-        self.expr_prec_or_invalid(binary_prec(&OpKind::Semi), error_ctx)
+        self.expr_prec_or_invalid(binary_op_prec(OpKind::Semi), error_ctx)
     }
 
     /// Parses an expression or reports and recovers an error
@@ -546,7 +639,7 @@ impl<'a> Parser<'a> {
         span
     }
 
-    pub(crate) fn report_and_invalidate_or_pass_through(
+    pub(crate) fn report_and_invalidate_or_inner(
         &mut self,
         r: Result<Expr, Diagnostic<'a>>,
     ) -> Expr {
