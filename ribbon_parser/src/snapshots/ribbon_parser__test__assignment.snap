@@ -1,0 +1,27 @@
+---
+source: ribbon_parser/src/test.rs
+description: variable = value
+---
+body:
+  - kind:
+      BinOp:
+        lhs:
+          kind:
+            Ident: variable
+          span:
+            low: 0
+            hi: 7
+        rhs:
+          kind:
+            Ident: value
+          span:
+            low: 11
+            hi: 15
+        kind: Assign
+        op_span:
+          low: 9
+          hi: 9
+    span:
+      low: 0
+      hi: 15
+diagnostics: []

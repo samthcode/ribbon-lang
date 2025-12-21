@@ -64,14 +64,10 @@ impl<'a> Parser<'a> {
                 break;
             }
             let t_span = t.span;
-            let expr = match self.expr_prec(binary_op_prec(OpKind::Semi)) {
-                Ok(expr) => match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Eof]) {
-                    Ok(_) => expr,
-                    Err(e) => Expr::new(
-                        ExprKind::Invalid,
-                        t_span.to(self.report_and_recover_err(e, ParseCtx::Root)),
-                    ),
-                },
+            let expr =
+                self.expr_prec_or_invalid(binary_op_prec(OpKind::Semi), t_span, ParseCtx::Root);
+            let expr = match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Eof]) {
+                Ok(_) => expr,
                 Err(e) => Expr::new(
                     ExprKind::Invalid,
                     t_span.to(self.report_and_recover_err(e, ParseCtx::Root)),
@@ -295,78 +291,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Parses an expression such as `(a: i32, b: i32) -> i32`
-    ///                                                ^^ `self.curr` required to be here
-    pub(crate) fn fn_type_like_expr(
-        &mut self,
-        parameters: Vec<Expr>,
-        param_span: Span,
-    ) -> Result<Expr, Diagnostic<'a>> {
-        debug_assert!(self.curr.is_op_kind(OpKind::MinusGt));
-        self.next();
-
-        // Expect a type after the arrow
-        let return_type = self
-            .expr_prec(binary_op_prec(OpKind::EqGt))?
-            .try_narrow_to_type();
-        let return_type = self.report_and_invalidate_or_inner(return_type);
-
-        let span = param_span.to(return_type.span);
-
-        if self.peek().is_op_kind(OpKind::EqGt) {
-            // Parse either an expression or a block
-            // Consume `=>`
-            self.next();
-            // `expr_prec` works on the current token so we need to advance again
-            self.next();
-            let body = self.expr_prec(binary_op_prec(OpKind::MinusGt))?;
-            let span = param_span.to(body.span);
-            let parameters = self.validate_function_parameters(parameters);
-            Ok(Expr::new(
-                ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
-                    parameters,
-                    vec![],
-                    Some(return_type),
-                    body,
-                ))),
-                span,
-            ))
-        } else if self.peek().is_op_kind(OpKind::LCurly) {
-            // Consume `{`
-            let t = self.next();
-            let begin_span = t.span;
-            let body = self.block_expr(begin_span);
-            let span = param_span.to(body.span);
-            let parameters = self.validate_function_parameters(parameters);
-
-            Ok(Expr::new(
-                ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
-                    parameters,
-                    vec![],
-                    Some(return_type),
-                    body,
-                ))),
-                span,
-            ))
-        } else {
-            Ok(Expr::new(
-                ExprKind::FunctionType(Box::new(FunctionType::new(
-                    parameters,
-                    vec![],
-                    return_type,
-                ))),
-                span,
-            ))
-        }
-    }
-
-    pub(crate) fn validate_function_parameters(&mut self, parameters: Vec<Expr>) -> Vec<Expr> {
-        parameters
-            .into_iter()
-            .map(|p| self.report_and_invalidate_or_inner(p.try_narrow_to_param()))
-            .collect()
-    }
-
     pub(crate) fn unary_expr(&mut self, op: OpKind, op_span: Span) -> Result<Expr, Diagnostic<'a>> {
         if self.next().is_eof() {
             return Err(Diagnostic::new_error(
@@ -417,7 +341,8 @@ impl<'a> Parser<'a> {
             if t.kind.is_op_kind(OpKind::Semi) {
                 continue;
             }
-            let expr = self.expr_or_invalid(ParseCtx::Block);
+            let expr =
+                self.expr_prec_or_invalid(binary_op_prec(OpKind::Semi), end_span, ParseCtx::Block);
             if expr.is(ExprKind::Invalid) {
                 end_span = expr.span;
                 exprs.push(expr);
@@ -491,11 +416,12 @@ impl<'a> Parser<'a> {
             };
 
             if t.kind.is_op_kind(closing_delim) {
-                break t.span;
+                break t_span;
             }
 
             let mut expr = self.expr_prec_or_invalid(
                 binary_op_prec(OpKind::Comma),
+                t_span,
                 ParseCtx::DelimitedList(closing_delim),
             );
             if expr.is(ExprKind::Invalid) {
@@ -528,16 +454,22 @@ impl<'a> Parser<'a> {
         (exprs, begin_span.to(end_span), trailing_comma)
     }
 
-    pub(crate) fn expr_or_invalid(&mut self, error_ctx: ParseCtx) -> Expr {
-        self.expr_prec_or_invalid(binary_op_prec(OpKind::Semi), error_ctx)
-    }
-
-    /// Parses an expression or reports and recovers an error
-    /// Returns the valid expression or an ExprKind::Invalid with span equal to the error Span
-    pub(crate) fn expr_prec_or_invalid(&mut self, prec: Prec, error_ctx: ParseCtx) -> Expr {
+    /// Parses an expression with a given precedence
+    ///
+    /// Returns a valid expression or an ExprKind::Invalid starting at the given span if there is an error
+    /// n.b. This is mainly for use in the context of the root of a source or a block since it performs recovery
+    pub(crate) fn expr_prec_or_invalid(
+        &mut self,
+        prec: Prec,
+        begin_span: Span,
+        error_ctx: ParseCtx,
+    ) -> Expr {
         match self.expr_prec(prec) {
             Ok(expr) => expr,
-            Err(e) => Expr::new(ExprKind::Invalid, self.report_and_recover_err(e, error_ctx)),
+            Err(e) => Expr::new(
+                ExprKind::Invalid,
+                begin_span.to(self.report_and_recover_err(e, error_ctx)),
+            ),
         }
     }
 
@@ -569,10 +501,22 @@ impl<'a> Parser<'a> {
         &mut self,
         r: Result<Expr, Diagnostic<'a>>,
     ) -> Expr {
+        self.report_and_invalidate_spanned_or_inner(r, None)
+    }
+
+    pub(crate) fn report_and_invalidate_spanned_or_inner(
+        &mut self,
+        r: Result<Expr, Diagnostic<'a>>,
+        begin_span: Option<Span>,
+    ) -> Expr {
         match r {
             Ok(e) => e,
             Err(err) => {
-                let span = err.span;
+                let span = if let Some(s) = begin_span {
+                    s.to(err.span)
+                } else {
+                    err.span
+                };
                 self.program.diagnostics.push(err);
                 Expr::new(ExprKind::Invalid, span)
             }

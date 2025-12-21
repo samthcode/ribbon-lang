@@ -1,0 +1,39 @@
+---
+source: ribbon_parser/src/test.rs
+description: 1+
+---
+body:
+  - kind:
+      BinOp:
+        lhs:
+          kind:
+            Lit:
+              Int: 1
+          span:
+            low: 0
+            hi: 0
+        rhs:
+          kind: Invalid
+          span:
+            low: 1
+            hi: 1
+        kind: Add
+        op_span:
+          low: 1
+          hi: 1
+    span:
+      low: 0
+      hi: 1
+diagnostics:
+  - kind:
+      Error:
+        UnexpectedToken:
+          kind: Eof
+          source: ""
+          span:
+            low: 1
+            hi: 1
+    span:
+      low: 1
+      hi: 1
+    subdiagnostics: []

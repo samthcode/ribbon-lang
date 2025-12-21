@@ -29,6 +29,7 @@ create_tests! {
     subtraction: "3-10",
     multiplication: "3*3",
     division: "10/2",
+    eof_after_binary_operator: "1+",
     basic_precedence: "10+2/2-3*4",
     logical_operators: "a && b || !d",
     list: "[1,2,\"test\",ident]",
@@ -39,6 +40,7 @@ create_tests! {
     r#ref: "&ident",
     tuple: "(1,2)", // TODO: Or param list at the moment
     unclosed_tuple: "(1,2",
+    unclosed_tuple_and_eof_after_binary_operator: "(1, 2+",
     fn_decl_start_or_unit_type: "()",
     parenthesised_expression: "(10)",
     plain_function: "() => {}",
@@ -51,5 +53,7 @@ create_tests! {
     path_2: "hello::world",
     invalid_path: "hello::",
     binding_with_type_inference: "bound_variable:=value",
-    binding: "bound: type::path = value"
+    binding: "bound: type::path = value",
+    assignment: "variable = value",
+    other_assignments: "a += 1; b -= 1; c *= 2; d /= 2"
 }

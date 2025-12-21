@@ -1,0 +1,76 @@
+---
+source: ribbon_parser/src/test.rs
+description: "(1, 2+"
+---
+body:
+  - kind:
+      TupleOrParameterList:
+        - kind:
+            Lit:
+              Int: 1
+          span:
+            low: 1
+            hi: 1
+        - kind:
+            BinOp:
+              lhs:
+                kind:
+                  Lit:
+                    Int: 2
+                span:
+                  low: 4
+                  hi: 4
+              rhs:
+                kind: Invalid
+                span:
+                  low: 5
+                  hi: 5
+              kind: Add
+              op_span:
+                low: 5
+                hi: 5
+          span:
+            low: 4
+            hi: 5
+    span:
+      low: 0
+      hi: 5
+diagnostics:
+  - kind:
+      Error:
+        UnexpectedToken:
+          kind: Eof
+          source: ""
+          span:
+            low: 5
+            hi: 5
+    span:
+      low: 5
+      hi: 5
+    subdiagnostics: []
+  - kind:
+      Error:
+        ExpectedOneOfXFoundY:
+          - - Op: Comma
+            - Op: RParen
+          - kind: Eof
+            source: ""
+            span:
+              low: 5
+              hi: 5
+    span:
+      low: 5
+      hi: 5
+    subdiagnostics: []
+  - kind:
+      Error: UnclosedDelimitedExpression
+    span:
+      low: 0
+      hi: 5
+    subdiagnostics:
+      - kind:
+          Info: DelimitedExpressionBeginsHere
+        span:
+          low: 0
+          hi: 0
+        subdiagnostics: []

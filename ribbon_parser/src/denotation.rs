@@ -22,7 +22,7 @@ impl<'a> TryDenotation<'a> for Tok<'a> {
                 Ident(Box::new(self.source.to_string())),
                 self.span,
             )),
-            ribbon_lexer::TokKind::Kw(kw_kind) => todo!(),
+            ribbon_lexer::TokKind::Kw(_) => todo!(),
             ribbon_lexer::TokKind::Lit(lit_kind) => Ok(Expr::new(
                 match lit_kind {
                     // TODO: At some point, we need to find the true size of the integer
@@ -97,7 +97,7 @@ impl<'a> TryDenotation<'a> for Tok<'a> {
                 | OpKind::Mul
                 | OpKind::Div
                 | OpKind::Mod
-                
+
                 // Note that this can only be assignment NOT a binding, which will have already been handled
                 | OpKind::Eq
 

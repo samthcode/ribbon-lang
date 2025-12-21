@@ -1,0 +1,94 @@
+---
+source: ribbon_parser/src/test.rs
+description: a += 1; b -= 1; c *= 2; d /= 2
+---
+body:
+  - kind:
+      BinOp:
+        lhs:
+          kind:
+            Ident: a
+          span:
+            low: 0
+            hi: 0
+        rhs:
+          kind:
+            Lit:
+              Int: 1
+          span:
+            low: 5
+            hi: 5
+        kind: AddAssign
+        op_span:
+          low: 2
+          hi: 3
+    span:
+      low: 0
+      hi: 5
+  - kind:
+      BinOp:
+        lhs:
+          kind:
+            Ident: b
+          span:
+            low: 8
+            hi: 8
+        rhs:
+          kind:
+            Lit:
+              Int: 1
+          span:
+            low: 13
+            hi: 13
+        kind: SubAssign
+        op_span:
+          low: 10
+          hi: 11
+    span:
+      low: 8
+      hi: 13
+  - kind:
+      BinOp:
+        lhs:
+          kind:
+            Ident: c
+          span:
+            low: 16
+            hi: 16
+        rhs:
+          kind:
+            Lit:
+              Int: 2
+          span:
+            low: 21
+            hi: 21
+        kind: MulAssign
+        op_span:
+          low: 18
+          hi: 19
+    span:
+      low: 16
+      hi: 21
+  - kind:
+      BinOp:
+        lhs:
+          kind:
+            Ident: d
+          span:
+            low: 24
+            hi: 24
+        rhs:
+          kind:
+            Lit:
+              Int: 2
+          span:
+            low: 29
+            hi: 29
+        kind: DivAssign
+        op_span:
+          low: 26
+          hi: 27
+    span:
+      low: 24
+      hi: 29
+diagnostics: []
