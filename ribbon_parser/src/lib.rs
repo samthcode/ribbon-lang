@@ -120,8 +120,7 @@ impl<'a> Parser<'a> {
 
             if self.peek().is_op_kind(OpKind::Eq) {
                 self.next();
-                let res = rhs_or_type.try_narrow_to_type();
-                Some(self.report_and_invalidate_or_inner(res))
+                Some(self.report_and_invalidate_or_inner(rhs_or_type.try_narrow_to_type()))
             } else {
                 return Ok(Expr::new(
                     ExprKind::BinOp(Box::new(BinOp::new(
@@ -137,14 +136,8 @@ impl<'a> Parser<'a> {
 
         self.next();
 
-        // Check that the lhs is a valid pattern
-        // TODO: Proper pattern narrowing
-        if !matches!(lhs.kind, ExprKind::Ident(_)) {
-            return Err(Diagnostic::new_error(
-                ErrorKind::UnexpectedToken(colon),
-                colon.span,
-            ));
-        }
+        // Validate that the left-hand side is a valid pattern
+        let lhs = self.report_and_invalidate_or_inner(lhs.try_narrow_to_pattern());
 
         let rhs = self.expr_prec(binary_op_prec(OpKind::Eq));
         let rhs = self.report_and_invalidate_or_inner(rhs);

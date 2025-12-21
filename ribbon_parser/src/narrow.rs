@@ -1,20 +1,14 @@
-use ribbon_ast::{BinOpKind, Expr, ExprKind, FunctionParameter, Path, Type};
+use ribbon_ast::{BinOpKind, Expr, ExprKind, FunctionParameter, Path, Pattern, PatternKind, Type};
 use ribbon_error::{Diagnostic, ErrorKind};
 
-pub trait TryNarrow {
-    fn try_narrow_to_param<'a>(self) -> Result<Expr, Diagnostic<'a>>
-    where
-        Self: Sized;
-    fn try_narrow_to_type<'a>(self) -> Result<Expr, Diagnostic<'a>>
-    where
-        Self: Sized;
+pub trait TryNarrow: Sized {
+    fn try_narrow_to_param<'a>(self) -> Result<Expr, Diagnostic<'a>>;
+    fn try_narrow_to_type<'a>(self) -> Result<Expr, Diagnostic<'a>>;
+    fn try_narrow_to_pattern<'a>(self) -> Result<Expr, Diagnostic<'a>>;
 }
 
 impl TryNarrow for Expr {
-    fn try_narrow_to_param<'a>(self) -> Result<Expr, Diagnostic<'a>>
-    where
-        Self: Sized,
-    {
+    fn try_narrow_to_param<'a>(self) -> Result<Expr, Diagnostic<'a>> {
         let span = self.span;
 
         use BinOpKind::*;
@@ -51,15 +45,17 @@ impl TryNarrow for Expr {
                 // `a` could be any pattern such a destructuring e.g. `[c,d]`
                 // `B` is a type - an Ident or a list accessor (generic argument(s))
                 MethodNoParen => {
-                    // TODO: Support full patterns
-                    let ident = bin_op.lhs;
+                    let pat = bin_op
+                        .lhs
+                        .try_narrow_to_pattern()
+                        .map_err(|e| Diagnostic::new(e.kind, span))?;
                     let ty = bin_op
                         .rhs
                         .try_narrow_to_type()
                         .map_err(|e| Diagnostic::new(e.kind, span))?;
                     Ok(Expr::new(
                         ExprKind::FunctionParameter(Box::new(FunctionParameter::new(
-                            ident, ty, None,
+                            pat, ty, None,
                         ))),
                         span,
                     ))
@@ -77,6 +73,7 @@ impl TryNarrow for Expr {
             | ExprKind::Path(_)
             | ExprKind::Type(_)
             | ExprKind::Binding(_)
+            | ExprKind::Pattern(_)
             | ExprKind::Invalid => Err(Diagnostic::new_error(
                 ErrorKind::ExpectedFunctionParameterFoundX(self.kind.description()),
                 self.span,
@@ -84,23 +81,17 @@ impl TryNarrow for Expr {
         }
     }
 
-    fn try_narrow_to_type<'a>(self) -> Result<Expr, Diagnostic<'a>>
-    where
-        Self: Sized,
-    {
+    fn try_narrow_to_type<'a>(self) -> Result<Expr, Diagnostic<'a>> {
+        let span = self.span;
         match self.kind {
-            ExprKind::Ident(_) => {
-                let span = self.span;
-                return Ok(Self::new(
-                    ExprKind::Type(Type::new(Path::new(vec![self]), vec![])),
-                    span,
-                ));
-            }
-            ExprKind::Path(p) => {
-                let span = self.span;
-                return Ok(Self::new(ExprKind::Type(Type::new(p, vec![])), span));
-            }
-            ExprKind::Type(_) => return Ok(self),
+            ExprKind::Type(_) => Ok(self),
+
+            ExprKind::Ident(_) => Ok(Self::new(
+                ExprKind::Type(Type::new(Path::new(vec![self]), vec![])),
+                span,
+            )),
+            ExprKind::Path(p) => Ok(Self::new(ExprKind::Type(Type::new(p, vec![])), span)),
+
             ExprKind::BinOp(_)
             | ExprKind::UnaryOp(_)
             | ExprKind::Lit(_)
@@ -112,13 +103,43 @@ impl TryNarrow for Expr {
             | ExprKind::FunctionParameter(_)
             | ExprKind::Block(_)
             | ExprKind::Binding(_)
-            | ExprKind::Invalid => (),
+            | ExprKind::Pattern(_)
+            | ExprKind::Invalid => Err(Diagnostic::new_error(
+                ErrorKind::ExpectedTypeFoundX(self.kind.description()),
+                span,
+            )),
         }
+    }
 
-        let span = self.span;
-        Err(Diagnostic::new_error(
-            ErrorKind::ExpectedTypeFoundX(self.kind.description()),
-            span,
-        ))
+    fn try_narrow_to_pattern<'a>(self) -> Result<Expr, Diagnostic<'a>> {
+        match self.kind {
+            ExprKind::Pattern(_) => Ok(self),
+
+            ExprKind::Ident(ident) => Ok(Expr::new(
+                ExprKind::Pattern(Pattern::new(PatternKind::Identifier(*ident))),
+                self.span,
+            )),
+            ExprKind::List(_) => todo!(),
+            ExprKind::ParenthesisedExpression(_) => todo!(),
+            ExprKind::Tuple(_) => todo!(),
+            // TODO: Structs, wildcards, etc.
+
+            // `|`, `..`, `..=`, etc.
+            ExprKind::BinOp(_) => todo!(),
+
+            ExprKind::Binding(_)
+            | ExprKind::Block(_)
+            | ExprKind::Path(_)
+            | ExprKind::Invalid
+            | ExprKind::UnaryOp(_)
+            | ExprKind::Lit(_)
+            | ExprKind::FunctionDeclaration(_)
+            | ExprKind::FunctionType(_)
+            | ExprKind::FunctionParameter(_)
+            | ExprKind::Type(_) => Err(Diagnostic::new_error(
+                ErrorKind::ExpectedPatternFoundX(self.kind.description()),
+                self.span,
+            )),
+        }
     }
 }

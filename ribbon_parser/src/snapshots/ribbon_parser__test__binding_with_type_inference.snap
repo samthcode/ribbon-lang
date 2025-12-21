@@ -7,7 +7,9 @@ body:
       Binding:
         pat:
           kind:
-            Ident: bound_variable
+            Pattern:
+              kind:
+                Identifier: bound_variable
           span:
             low: 0
             hi: 13

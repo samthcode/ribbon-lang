@@ -66,7 +66,7 @@ fn functions() {
     sexpr_test!("() => {}", "(fn (params) (ret ()) (body (block)))");
     sexpr_test!(
         "(a:i32) -> i32 {a+10}",
-        "(fn (params (param (pat a) (type (path i32)))) (ret (type (path i32))) (body (block\n    (+ a 10)\n)))"
+        "(fn (params (param (pattern a) (type (path i32)))) (ret (type (path i32))) (body (block\n    (+ a 10)\n)))"
     );
     sexpr_test!(
         "() => {a+10;;};",

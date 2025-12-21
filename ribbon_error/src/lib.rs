@@ -103,6 +103,7 @@ pub enum ErrorKind<'a> {
     // TODO: Figure out the best solution.
     ExpectedFunctionParameterFoundX(&'static str),
     ExpectedTypeFoundX(&'static str),
+    ExpectedPatternFoundX(&'static str),
 }
 
 impl<'a> Display for ErrorKind<'a> {
@@ -148,6 +149,7 @@ impl<'a> Display for ErrorKind<'a> {
                 ErrorKind::ExpectedFunctionParameterFoundX(s) =>
                     format!("expected function parameter, found {s}"),
                 ErrorKind::ExpectedTypeFoundX(s) => format!("expected type, found {s}"),
+                ErrorKind::ExpectedPatternFoundX(s) => format!("expected pattern, found {s}"),
             }
         )
     }

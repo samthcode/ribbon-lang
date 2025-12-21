@@ -4,9 +4,11 @@ use ribbon_error::Diagnostic;
 use ribbon_lexer::span::Span;
 
 pub mod bin_op;
+pub mod pattern;
 pub mod unary_op;
 
 pub use bin_op::*;
+pub use pattern::*;
 pub use unary_op::*;
 
 /// The root AST node for a Ribbon program
@@ -63,6 +65,8 @@ pub enum ExprKind {
     Path(Path),
     /// e.g. `i32, String Vec[i32]`
     Type(Type),
+    /// Any valid pattern
+    Pattern(Pattern),
     /// Represents an invalid portion of code
     #[default]
     Invalid,
@@ -102,6 +106,7 @@ impl ExprKind {
             }
             ExprKind::Path(path) => path.sexpr(),
             ExprKind::Type(ty) => ty.sexpr(),
+            ExprKind::Pattern(pat) => pat.sexpr(),
             ExprKind::Invalid => "(<invalid>)".to_string(),
         }
     }
@@ -122,6 +127,7 @@ impl ExprKind {
             ExprKind::Block(_) => "block",
             ExprKind::Path(_) => "path",
             ExprKind::Type(_) => "type",
+            ExprKind::Pattern(_) => "pattern",
             ExprKind::Invalid => "<invalid>",
         }
     }
@@ -146,6 +152,7 @@ impl ExprKind {
             ExprKind::Block(_) => matches!(other, ExprKind::Block(_)),
             ExprKind::Path(_) => matches!(other, ExprKind::Path(_)),
             ExprKind::Type(_) => matches!(other, ExprKind::Type(_)),
+            ExprKind::Pattern(_) => matches!(other, ExprKind::Pattern(_)),
             ExprKind::Invalid => matches!(other, ExprKind::Invalid),
         }
     }
@@ -187,7 +194,6 @@ impl Binding {
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct FunctionParameter {
-    // TODO: Pattern should be its own struct
     pat: Expr,
     ty: Expr,
     default_value: Option<Expr>,
@@ -204,7 +210,7 @@ impl FunctionParameter {
 
     pub fn sexpr(&self) -> String {
         format!(
-            "(param (pat {}) {}{})",
+            "(param {} {}{})",
             self.pat.sexpr(),
             self.ty.sexpr(),
             if let Some(v) = &self.default_value {

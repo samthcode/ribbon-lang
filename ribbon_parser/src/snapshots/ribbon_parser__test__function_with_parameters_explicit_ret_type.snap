@@ -10,7 +10,9 @@ body:
               FunctionParameter:
                 pat:
                   kind:
-                    Ident: a
+                    Pattern:
+                      kind:
+                        Identifier: a
                   span:
                     low: 1
                     hi: 1
@@ -36,7 +38,9 @@ body:
               FunctionParameter:
                 pat:
                   kind:
-                    Ident: b
+                    Pattern:
+                      kind:
+                        Identifier: b
                   span:
                     low: 9
                     hi: 9
