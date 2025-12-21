@@ -45,9 +45,9 @@ fn unary_expressions() {
 
 #[test]
 fn expression_or_tuple_or_parameter_list() {
-    sexpr_test!("(1,2)", "(tuple-param-list 1 2)");
-    sexpr_test!("(1,2,3,hello)", "(tuple-param-list 1 2 3 hello)");
-    sexpr_test!("()", "(tuple-param-list)");
+    sexpr_test!("(1,2)", "(tuple 1 2)");
+    sexpr_test!("(1,2,3,hello)", "(tuple 1 2 3 hello)");
+    sexpr_test!("()", "(tuple)");
     sexpr_test!("(1)", "1");
     sexpr_test!("(hello+world)", "(+ hello world)");
 }

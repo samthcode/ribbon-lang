@@ -1,10 +1,10 @@
 ---
 source: ribbon_parser/src/test.rs
-expression: "& program"
+description: "(1,2"
 ---
 body:
   - kind:
-      TupleOrParameterList:
+      Tuple:
         - kind:
             Lit:
               Int: 1

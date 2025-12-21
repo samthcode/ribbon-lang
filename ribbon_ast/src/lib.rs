@@ -48,7 +48,6 @@ pub enum ExprKind {
     Ident(Box<String>),
     Lit(LitKind),
     List(Vec<Expr>),
-    TupleOrParameterList(Vec<Expr>),
     // This is only needed to correctly parse function declarations with a single parameter
     // (and no trailing comma inside the parameter list)
     ParenthesisedExpression(Box<Expr>),
@@ -84,13 +83,6 @@ impl ExprKind {
                     space_sexprs(elems, " ")
                 )
             }
-            ExprKind::TupleOrParameterList(exprs) => {
-                format!(
-                    "(tuple-param-list{}{})",
-                    if exprs.is_empty() { "" } else { " " },
-                    space_sexprs(exprs, " ")
-                )
-            }
             ExprKind::ParenthesisedExpression(expr) => expr.sexpr(),
             ExprKind::Tuple(exprs) => {
                 format!(
@@ -122,7 +114,6 @@ impl ExprKind {
             ExprKind::Ident(_) => "identifier",
             ExprKind::Lit(lit_kind) => lit_kind.description(),
             ExprKind::List(_) => "list",
-            ExprKind::TupleOrParameterList(_) => "expression delimited by `()`",
             ExprKind::ParenthesisedExpression(_) => "parenthesised expression",
             ExprKind::Tuple(_) => "tuple",
             ExprKind::FunctionDeclaration(_) => "function declaration",
@@ -143,7 +134,6 @@ impl ExprKind {
             ExprKind::Ident(_) => matches!(other, ExprKind::Ident(_)),
             ExprKind::Lit(_) => matches!(other, ExprKind::Lit(_)),
             ExprKind::List(_) => matches!(other, ExprKind::List(_)),
-            ExprKind::TupleOrParameterList(_) => matches!(other, ExprKind::TupleOrParameterList(_)),
             ExprKind::ParenthesisedExpression(_) => {
                 matches!(other, ExprKind::ParenthesisedExpression(_))
             }

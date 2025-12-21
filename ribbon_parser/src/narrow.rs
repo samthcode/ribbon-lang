@@ -69,7 +69,6 @@ impl TryNarrow for Expr {
             ExprKind::Ident(_) => todo!(),
             ExprKind::Lit(_)
             | ExprKind::List(_)
-            | ExprKind::TupleOrParameterList(_)
             | ExprKind::ParenthesisedExpression(_)
             | ExprKind::Tuple(_)
             | ExprKind::FunctionDeclaration(_)
@@ -106,7 +105,6 @@ impl TryNarrow for Expr {
             | ExprKind::UnaryOp(_)
             | ExprKind::Lit(_)
             | ExprKind::List(_)
-            | ExprKind::TupleOrParameterList(_)
             | ExprKind::ParenthesisedExpression(_)
             | ExprKind::Tuple(_)
             | ExprKind::FunctionDeclaration(_)

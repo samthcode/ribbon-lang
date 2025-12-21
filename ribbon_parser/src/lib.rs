@@ -176,7 +176,7 @@ impl<'a> Parser<'a> {
         // There is always a parenthesised expression before a function arrow
         // `()` or `(PARAM|TY)` or `(PARAM_1, PARAM_2)` etc.
         let parameters = match lhs.kind {
-            ExprKind::TupleOrParameterList(exprs) => exprs,
+            ExprKind::Tuple(exprs) => exprs,
             ExprKind::ParenthesisedExpression(expr) => vec![*expr],
             _ => {
                 return Err(Diagnostic::new_error(
@@ -315,7 +315,7 @@ impl<'a> Parser<'a> {
                 n_span,
             )
         } else {
-            Expr::new(ExprKind::TupleOrParameterList(exprs), n_span)
+            Expr::new(ExprKind::Tuple(exprs), n_span)
         }
     }
 

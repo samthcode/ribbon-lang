@@ -4,7 +4,7 @@ description: "(1, 2+"
 ---
 body:
   - kind:
-      TupleOrParameterList:
+      Tuple:
         - kind:
             Lit:
               Int: 1
