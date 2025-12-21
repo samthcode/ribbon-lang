@@ -57,7 +57,7 @@ fn function_types() {
     sexpr_test!("() -> i32", "(fn-type (params) (ret (type (path i32))))");
     sexpr_test!(
         "(i32) -> String;",
-        "(fn-type (params i32) (ret (type (path String))))"
+        "(fn-type (params (type (path i32))) (ret (type (path String))))"
     )
 }
 

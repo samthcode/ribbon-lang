@@ -139,7 +139,7 @@ impl<'a> TryDenotation<'a> for Tok<'a> {
                 // Function type or function
                 OpKind::MinusGt | OpKind::EqGt => parser.function(lhs),
                 // Binding or method (which does not require parentheses)
-                OpKind::Colon => todo!(),
+                OpKind::Colon => parser.colon(lhs),
 
                 OpKind::LParen => todo!(),
                 OpKind::RParen => todo!(),

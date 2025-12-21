@@ -90,154 +90,79 @@ impl<'a> Parser<'a> {
         let mut lhs = self.report_and_invalidate_or_inner(lhs);
 
         loop {
-            let n_tok = self.peek();
-            if n_tok.is_eof()
-                || binary_prec(n_tok.kind).ok_or(Diagnostic::new_error(
-                    ErrorKind::UnexpectedToken(*n_tok),
-                    n_tok.span,
+            let operator = self.peek();
+            if operator.is_eof()
+                || binary_prec(operator.kind).ok_or(Diagnostic::new_error(
+                    ErrorKind::UnexpectedToken(*operator),
+                    operator.span,
                 ))? <= min_prec
             {
                 break;
             }
 
-            let n_tok = self.next();
-            let op_span = n_tok.span;
-            let TokKind::Op(op_kind) = n_tok.kind else {
-                todo!()
-            };
-
-            // There are a few special cases that we need to parse differently
-
-            // Binding with an explicit type
-            if let ExprKind::BinOp(b) = &lhs.kind
-                && b.kind == BinOpKind::MethodNoParen
-                && op_kind == OpKind::Eq
-            {
-                // This avoids the borrow-checker/a very large nested if-statement
-                let ExprKind::BinOp(b) = lhs.kind else {
-                    unreachable!()
-                };
-                // Basically we have `(something):(something)` on the left and an `=` in the middle
-                let BinOp {
-                    lhs: pat, rhs: ty, ..
-                } = *b;
-                // TODO: Better pattern narrowing
-                if !matches!(pat.kind, ExprKind::Ident(_)) {
-                    return Err(Diagnostic::new_error(
-                        ErrorKind::UnexpectedBindingOperator,
-                        self.curr.span,
-                    )
-                    .with_subdiagnostics(vec![Diagnostic::new_info(
-                        InfoKind::TryModifyingThisPattern,
-                        lhs.span,
-                    )]));
-                }
-                let ty = ty.try_narrow_to_type()?;
-                self.next();
-                let rhs = self.expr_prec(binary_op_prec(OpKind::Eq))?;
-                let span = pat.span.to(rhs.span);
-                lhs = Expr::new(
-                    ExprKind::Binding(Box::new(Binding::new(pat, Some(ty), rhs))),
-                    span,
-                );
-                continue;
-            }
-
-            match op_kind {
-                // Thin-arrow function type or declaration (`->`)
-                OpKind::MinusGt => {
-                    let parameters = match lhs.kind {
-                        ExprKind::TupleOrParameterList(exprs) => exprs,
-                        ExprKind::ParenthesisedExpression(expr) => vec![*expr],
-                        _ => {
-                            return Err(Diagnostic::new_error(
-                                ErrorKind::UnexpectedToken(*n_tok),
-                                op_span,
-                            ));
-                        }
-                    };
-                    lhs = self.fn_type_like_expr(parameters, lhs.span)?;
-                    continue;
-                }
-                // Fat-arrow function declaration
-                OpKind::EqGt => {
-                    let parameters = match lhs.kind {
-                        ExprKind::TupleOrParameterList(exprs) => exprs,
-                        ExprKind::ParenthesisedExpression(expr) => vec![*expr],
-                        _ => {
-                            return Err(Diagnostic::new_error(
-                                ErrorKind::UnexpectedToken(*n_tok),
-                                op_span,
-                            ));
-                        }
-                    };
-                    let parameters = self.validate_function_parameters(parameters);
-                    // `expr_prec` works on the current token so we need to advance again
-                    self.next();
-                    let body = self.expr_prec(binary_op_prec(OpKind::MinusGt))?;
-                    let span = lhs.span.to(body.span);
-                    lhs = Expr::new(
-                        ExprKind::FunctionDeclaration(Box::new(FunctionDeclaration::new(
-                            parameters,
-                            vec![],
-                            None,
-                            body,
-                        ))),
-                        span,
-                    );
-                    continue;
-                }
-                OpKind::Path => {
-                    lhs = self.path(lhs)?;
-                    continue;
-                }
-                _ => (),
-            }
-
-            match self.next().kind {
-                TokKind::Eof => {
-                    return Err(Diagnostic::new_error(
-                        ErrorKind::UnexpectedEofAfterBinaryOperator,
-                        self.eof_span(),
-                    ));
-                }
-                // Another special case - a binding with `:=` (type is inferred)
-                TokKind::Op(OpKind::Eq) if op_kind == OpKind::Colon => {
-                    // TODO: Proper pattern narrowing
-                    if !matches!(lhs.kind, ExprKind::Ident(_)) {
-                        return Err(Diagnostic::new_error(
-                            ErrorKind::UnexpectedBindingOperator,
-                            self.curr.span,
-                        )
-                        .with_subdiagnostics(vec![Diagnostic::new_info(
-                            InfoKind::TryModifyingThisPattern,
-                            lhs.span,
-                        )]));
-                    }
-                    self.next();
-                    let rhs = self.expr_prec(binary_op_prec(OpKind::Eq))?;
-                    let span = lhs.span.to(rhs.span);
-                    lhs = Expr::new(
-                        ExprKind::Binding(Box::new(Binding::new(lhs, None, rhs))),
-                        span,
-                    );
-                    continue;
-                }
-                _ => (),
-            }
-            let rhs = self.expr_prec(binary_op_prec(op_kind))?;
-            let span = lhs.span.to(rhs.span);
-            lhs = Expr::new(
-                ExprKind::BinOp(Box::new(BinOp::try_from_op_kind(
-                    op_kind, op_span, lhs, rhs,
-                )?)),
-                span,
-            )
+            lhs = self.next().try_left_denotation(self, lhs)?;
         }
         Ok(lhs)
     }
 
+    /// Parses a method call with optional parentheses `struct:method` or a binding `:=`
+    ///
+    /// `pattern: Type = rhs;` or `pattern := rhs` or `a:method`
+    ///         ^ current token            ^            ^
+    pub(crate) fn colon(&mut self, lhs: Expr) -> Result<Expr, Diagnostic<'a>> {
+        debug_assert!(self.curr.is_op_kind(OpKind::Colon));
+        let colon = self.curr;
+
+        let ty = if self.next().is_op_kind(OpKind::Eq) {
+            None
+        } else {
+            let rhs_or_type = self.expr_prec(binary_op_prec(OpKind::Colon));
+            // It remains to be seen whether this could leave the parser in a state which raises more errors than needed
+            // since the error is (purposefully) not recovered
+            let rhs_or_type = self.report_and_invalidate_or_inner(rhs_or_type);
+            let span = lhs.span.to(rhs_or_type.span);
+
+            if self.peek().is_op_kind(OpKind::Eq) {
+                self.next();
+                let res = rhs_or_type.try_narrow_to_type();
+                Some(self.report_and_invalidate_or_inner(res))
+            } else {
+                return Ok(Expr::new(
+                    ExprKind::BinOp(Box::new(BinOp::new(
+                        lhs,
+                        rhs_or_type,
+                        BinOpKind::MethodNoParen,
+                        colon.span,
+                    ))),
+                    span,
+                ));
+            }
+        };
+
+        self.next();
+
+        // Check that the lhs is a valid pattern
+        // TODO: Proper pattern narrowing
+        if !matches!(lhs.kind, ExprKind::Ident(_)) {
+            return Err(Diagnostic::new_error(
+                ErrorKind::UnexpectedToken(colon),
+                colon.span,
+            ));
+        }
+
+        let rhs = self.expr_prec(binary_op_prec(OpKind::Eq));
+        let rhs = self.report_and_invalidate_or_inner(rhs);
+
+        let span = lhs.span.to(rhs.span);
+
+        Ok(Expr::new(
+            ExprKind::Binding(Box::new(Binding::new(lhs, ty, rhs))),
+            span,
+        ))
+    }
+
     /// Parses a function declaration or function type
+    ///
     /// The current token is required to be one of two arrows:
     /// `() => "hello!"`
     ///     ^^ a fat arrow, like this
@@ -293,12 +218,13 @@ impl<'a> Parser<'a> {
                     span,
                 ));
             }
+            self.next();
         }
 
-        let body = if self.next().is_op_kind(OpKind::EqGt) {
+        let body = if self.curr.is_op_kind(OpKind::EqGt) {
+            self.next();
             self.expr_prec(binary_op_prec(OpKind::EqGt))?
         } else {
-            self.next();
             self.block_expr(self.curr.span)
         };
 
