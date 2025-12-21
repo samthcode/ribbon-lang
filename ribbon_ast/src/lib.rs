@@ -1,7 +1,7 @@
 use serde::Serialize;
 
-use ribbon_error::{Diagnostic, ErrorKind};
-use ribbon_lexer::{Tok, TokKind, span::Span};
+use ribbon_error::Diagnostic;
+use ribbon_lexer::span::Span;
 
 pub mod bin_op;
 pub mod unary_op;
@@ -399,50 +399,6 @@ impl Default for LitKind {
     fn default() -> Self {
         Self::Int(0)
     }
-}
-
-pub fn tok_to_expr(tok: Tok) -> Result<Expr, Diagnostic> {
-    use ExprKind::*;
-    use ribbon_lexer::LitKind as LLK;
-    Ok(Expr::new(
-        match tok.kind {
-            TokKind::Ident => Ident(Box::new(tok.source.to_string())),
-            TokKind::Lit(kind) => match kind {
-                // TODO: At some point, we need to find the true size of the integer
-                LLK::Int => Lit(LitKind::Int(
-                    tok.source
-                        .replace("_", "")
-                        .parse()
-                        .expect("internal: failed to parse int literal"),
-                )),
-                LLK::UnprocessedStr => Lit(LitKind::Str(Box::new(process_str(tok.source)))),
-                LLK::InvalidStr(invalid_str_kind) => {
-                    return Err(Diagnostic::new_error(
-                        ErrorKind::InvalidStringLiteral(invalid_str_kind),
-                        tok.span,
-                    ));
-                }
-                LLK::Float => Lit(LitKind::Float(
-                    tok.source
-                        .replace("_", "")
-                        .parse()
-                        .expect("internal: failed to parse float literal"),
-                )),
-                LLK::Bool => Lit(LitKind::Bool(
-                    tok.source
-                        .parse()
-                        .expect("interal: failed to parse boolean literal"),
-                )),
-            },
-            _ => {
-                return Err(Diagnostic::new_error(
-                    ErrorKind::UnexpectedToken(tok),
-                    tok.span,
-                ));
-            }
-        },
-        tok.span,
-    ))
 }
 
 pub fn process_str(source: &str) -> String {

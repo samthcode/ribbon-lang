@@ -2,13 +2,14 @@ use std::iter::Peekable;
 
 use ribbon_ast::{
     self as ast, BinOp, BinOpKind, Binding, Expr, ExprKind, FunctionDeclaration, FunctionTypeLike,
-    Path, UnaryOp, tok_to_expr,
+    Path, UnaryOp,
 };
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
 use ribbon_lexer::{self as lexer, Lexer, OpKind, TokKind, TokStream, span::Span, tok::Tok};
 
 use ast::Program;
 
+mod denotation;
 mod narrow;
 mod prec;
 
@@ -17,6 +18,7 @@ mod sexpr_test;
 #[cfg(test)]
 mod test;
 
+use denotation::TryDenotation;
 use narrow::TryNarrow;
 use prec::{Prec, binary_prec, unary_prec};
 
@@ -78,9 +80,9 @@ impl<'a> Parser<'a> {
         self.program
     }
 
-    fn expr_prec(&mut self, min_prec: Prec) -> Result<Expr, Diagnostic<'a>> {
+    pub(crate) fn expr_prec(&mut self, min_prec: Prec) -> Result<Expr, Diagnostic<'a>> {
         // Get the left-hand side of the current expression
-        let mut lhs = self.expr_lhs()?;
+        let mut lhs = self.curr.try_null_denotation(self)?;
 
         loop {
             let n_tok = self.peek();
@@ -243,38 +245,9 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
-    fn expr_lhs(&mut self) -> Result<Expr, Diagnostic<'a>> {
-        let lhs = &self.curr;
-        if let TokKind::Op(kind) = &lhs.kind {
-            match kind {
-                // Block expression
-                OpKind::LCurly => Ok(self.block_expr(lhs.span)),
-                // List expression
-                OpKind::LSquare => Ok(self.list_expr(lhs.span)),
-                // Tuple/unit type/function parameter list
-                OpKind::LParen => Ok(self.tuple_like_expr(lhs.span)),
-                // Unary operator
-                op @ (OpKind::Minus | OpKind::Bang | OpKind::Mul | OpKind::Amp) => {
-                    self.unary_expr(*op, lhs.span)
-                }
-                // Unexpected (closing) delimiter
-                op if op.is_delim() => Err(Diagnostic::new_error(
-                    ErrorKind::UnexpectedDelimiter(*op),
-                    lhs.span,
-                )),
-                k => Err(Diagnostic::new_error(
-                    ErrorKind::UnexpectedOperator(*k),
-                    lhs.span,
-                )),
-            }
-        } else {
-            tok_to_expr(*lhs)
-        }
-    }
-
     /// Parses a path e.g. `a::b::c`
     /// n.b. This does not parse any following generic arguments since they are ambiguous at this stage
-    fn path(&mut self, lhs: Expr) -> Result<Expr, Diagnostic<'a>> {
+    pub(crate) fn path(&mut self, lhs: Expr) -> Result<Expr, Diagnostic<'a>> {
         if let ExprKind::Ident(_) = lhs.kind {
             // Consume `::`
             self.next();
@@ -283,7 +256,10 @@ impl<'a> Parser<'a> {
             loop {
                 // `a::b`
                 //     ^
-                let t = tok_to_expr(*self.expect(TokKind::Ident)?).unwrap();
+                let t = self
+                    .expect(TokKind::Ident)?
+                    .try_null_denotation(self)
+                    .unwrap();
                 span = span.to(t.span);
                 parts.push(t);
                 if !self.peek().is_op_kind(OpKind::Path) {
@@ -302,7 +278,7 @@ impl<'a> Parser<'a> {
 
     /// Parses an expression such as `(a: i32, b: i32) -> i32`
     ///                                                ^^ `self.curr` required to be here
-    fn fn_type_like_expr(
+    pub(crate) fn fn_type_like_expr(
         &mut self,
         parameters: Vec<Expr>,
         param_span: Span,
@@ -365,14 +341,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn validate_function_parameters(&mut self, parameters: Vec<Expr>) -> Vec<Expr> {
+    pub(crate) fn validate_function_parameters(&mut self, parameters: Vec<Expr>) -> Vec<Expr> {
         parameters
             .into_iter()
             .map(|p| self.report_and_invalidate_or_pass_through(p.try_narrow_to_param()))
             .collect()
     }
 
-    fn unary_expr(&mut self, op: OpKind, op_span: Span) -> Result<Expr, Diagnostic<'a>> {
+    pub(crate) fn unary_expr(&mut self, op: OpKind, op_span: Span) -> Result<Expr, Diagnostic<'a>> {
         if self.next().is_eof() {
             return Err(Diagnostic::new_error(
                 ErrorKind::UnexpectedEofAfterUnaryOperator,
@@ -387,7 +363,7 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn tuple_like_expr(&mut self, span: Span) -> Expr {
+    pub(crate) fn tuple_like_expr(&mut self, span: Span) -> Expr {
         let (exprs, n_span, trailing_comma) = self.delimited_list(span, OpKind::RParen);
         if exprs.len() == 1 && !trailing_comma {
             // We need the ParenthesisedExpression variant to ensure single-parameter functions are parsed correctly
@@ -400,12 +376,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn list_expr(&mut self, span: Span) -> Expr {
+    pub(crate) fn list_expr(&mut self, span: Span) -> Expr {
         let (exprs, span, _) = self.delimited_list(span, OpKind::RSquare);
         Expr::new(ExprKind::List(exprs), span)
     }
 
-    fn block_expr(&mut self, begin_span: Span) -> Expr {
+    pub(crate) fn block_expr(&mut self, begin_span: Span) -> Expr {
         let mut exprs = Vec::<Expr>::new();
         let mut end_span = begin_span;
         let mut unclosed = true;
@@ -468,7 +444,7 @@ impl<'a> Parser<'a> {
         Expr::new(ExprKind::Block(exprs), begin_span.to(end_span))
     }
 
-    fn delimited_list(
+    pub(crate) fn delimited_list(
         &mut self,
         begin_span: Span,
         closing_delim: OpKind,
@@ -533,13 +509,13 @@ impl<'a> Parser<'a> {
         (exprs, begin_span.to(end_span), trailing_comma)
     }
 
-    fn expr_or_invalid(&mut self, error_ctx: ParseCtx) -> Expr {
+    pub(crate) fn expr_or_invalid(&mut self, error_ctx: ParseCtx) -> Expr {
         self.expr_prec_or_invalid(binary_prec(&OpKind::Semi), error_ctx)
     }
 
     /// Parses an expression or reports and recovers an error
     /// Returns the valid expression or an ExprKind::Invalid with span equal to the error Span
-    fn expr_prec_or_invalid(&mut self, prec: Prec, error_ctx: ParseCtx) -> Expr {
+    pub(crate) fn expr_prec_or_invalid(&mut self, prec: Prec, error_ctx: ParseCtx) -> Expr {
         match self.expr_prec(prec) {
             Ok(expr) => expr,
             Err(e) => Expr::new(ExprKind::Invalid, self.report_and_recover_err(e, error_ctx)),
@@ -548,7 +524,7 @@ impl<'a> Parser<'a> {
 
     /// Reports an error and attempts to recover based on the current context
     /// Returns the Span of the recovered section, not including a closing delimiter
-    fn report_and_recover_err(&mut self, e: Diagnostic<'a>, ctx: ParseCtx) -> Span {
+    pub(crate) fn report_and_recover_err(&mut self, e: Diagnostic<'a>, ctx: ParseCtx) -> Span {
         let err_span = e.span;
         self.program.diagnostics.push(e);
         let ends = match ctx {
@@ -570,7 +546,10 @@ impl<'a> Parser<'a> {
         span
     }
 
-    fn report_and_invalidate_or_pass_through(&mut self, r: Result<Expr, Diagnostic<'a>>) -> Expr {
+    pub(crate) fn report_and_invalidate_or_pass_through(
+        &mut self,
+        r: Result<Expr, Diagnostic<'a>>,
+    ) -> Expr {
         match r {
             Ok(e) => e,
             Err(err) => {
@@ -584,7 +563,7 @@ impl<'a> Parser<'a> {
     /// Skip until the first token which matches the predicate is reached
     /// n.b. the first token matching the predicate is not consumed
     /// Returns an option which contains the Span of the skipped tokens, if any are skipped
-    fn skip_while(&mut self, pred: impl Fn(&Tok) -> bool) -> Option<Span> {
+    pub(crate) fn skip_while(&mut self, pred: impl Fn(&Tok) -> bool) -> Option<Span> {
         let mut m_start = None;
         loop {
             let t = self.peek();
@@ -601,7 +580,7 @@ impl<'a> Parser<'a> {
         m_start
     }
 
-    fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<&Tok<'a>, Diagnostic<'a>> {
+    pub(crate) fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<&Tok<'a>, Diagnostic<'a>> {
         let t = self.next();
         if toks.iter().any(|kind| kind == &t.kind) {
             Ok(t)
@@ -613,7 +592,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn eof_span(&self) -> Span {
+    pub(crate) fn eof_span(&self) -> Span {
         if self.source.is_empty() {
             Span::new(0, 0)
         } else {
@@ -621,7 +600,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expect(&mut self, kind: TokKind) -> Result<&Tok<'a>, Diagnostic<'a>> {
+    pub(crate) fn expect(&mut self, kind: TokKind) -> Result<&Tok<'a>, Diagnostic<'a>> {
         debug_assert!(!kind.is_eof());
         let t = self.next();
         if t.kind == kind {
@@ -635,7 +614,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Returns the next token in the token stream without consuming
-    fn peek(&mut self) -> &Tok<'a> {
+    pub(crate) fn peek(&mut self) -> &Tok<'a> {
         if self.curr.is_eof() {
             return &self.curr;
         }
@@ -644,7 +623,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Consumes the next token in the iterator, stalling once the Eof token is reached
-    fn next(&mut self) -> &Tok<'a> {
+    pub(crate) fn next(&mut self) -> &Tok<'a> {
         if !self.curr.is_eof() {
             self.curr = self.tok_stream.next().unwrap();
         }
