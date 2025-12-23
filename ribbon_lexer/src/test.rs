@@ -1,6 +1,9 @@
-use super::*;
+use crate::{
+    span::Span,
+    tok::{InvalidStrKind, LitKind, OpKind, Tok, TokKind::*},
+};
 
-use tok::{Tok, TokKind::*};
+use super::*;
 
 macro_rules! test {
     ($source:literal$(,($tok:expr, $low:expr, $hi:expr))*) => {

@@ -5,11 +5,7 @@ use ribbon_ast::{
     Path, UnaryOp,
 };
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
-use ribbon_lexer::{
-    self as lexer, Lexer, OpKind, TokKind, TokStream,
-    span::Span,
-    tok::{Tok, op},
-};
+use ribbon_lexer::{Lexer, OpKind, TokKind, TokStream, op, span::Span, tok::Tok};
 
 use ast::Program;
 
@@ -24,9 +20,7 @@ mod test;
 
 use denotation::TryDenotation;
 use narrow::TryNarrow;
-use prec::{Prec, binary_op_prec, unary_prec};
-
-use crate::prec::binary_prec;
+use prec::{Prec, binary_op_prec, binary_prec, unary_prec};
 
 /// The parser for the Ribbon programming language.
 ///

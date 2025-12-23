@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 
-use crate::lexer;
 use ribbon_lexer::{OpKind, TokKind};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -38,7 +37,7 @@ pub enum PrecOrd {
 }
 
 pub fn unary_prec(kind: &OpKind) -> Prec {
-    use lexer::OpKind::*;
+    use ribbon_lexer::OpKind::*;
     Prec::new(
         match kind {
             // Unary minus/not/deref/borrow
@@ -96,7 +95,7 @@ pub fn binary_prec(kind: TokKind) -> Option<Prec> {
 
 pub fn binary_op_prec(kind: OpKind) -> Prec {
     use Fixity::*;
-    use lexer::OpKind::*;
+    use ribbon_lexer::OpKind::*;
     match kind {
         Path => Prec::new(PrecOrd::Path, None),
         // Method call/field expression/no-parenthesis method call/(non-method) tilde call
