@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 
 use ribbon_ast::{
-    BinOp, BinOpKind, Binding, Expr, ExprKind, FunctionDeclaration, FunctionType, Path, Program,
+    BinOp, BinOpKind, Binding, Expr, ExprKind, FunctionDeclaration, FunctionType, Module, Path,
     UnaryOp,
 };
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
@@ -15,12 +15,11 @@ use crate::{
 
 /// The parser for the Ribbon programming language.
 ///
-/// This takes a source string (temporary) and first lexes it, and then turns
-/// the resulting stream of tokens into an AST with a root Prorgam node.
+/// This takes a source string or token stream and transforms it into a Ribbon module
 pub struct Parser<'a> {
     source: &'a str,
-    tok_stream: Peekable<TokStream<'a>>,
-    program: Program<'a>,
+    toks: Peekable<TokStream<'a>>,
+    module: Module<'a>,
     curr: Tok<'a>,
 }
 
@@ -28,8 +27,8 @@ impl<'a> Parser<'a> {
     pub fn new(source: &'a str) -> Self {
         Parser {
             source,
-            tok_stream: Lexer::new(source).into_iter().peekable(),
-            program: Default::default(),
+            toks: Lexer::new(source).into_iter().peekable(),
+            module: Module::default(),
             curr: Tok::dummy(),
         }
     }
@@ -37,8 +36,8 @@ impl<'a> Parser<'a> {
     pub fn from_tok_stream(source: &'a str, tok_stream: TokStream<'a>) -> Self {
         Self {
             source,
-            tok_stream: tok_stream.peekable(),
-            program: Program::default(),
+            toks: tok_stream.peekable(),
+            module: Module::default(),
             curr: Tok::dummy(),
         }
     }
@@ -46,7 +45,7 @@ impl<'a> Parser<'a> {
     /// The method that turns the tok_stream into a root Program node
     ///
     /// This will need its own error struct/trait & result type
-    pub fn parse(mut self) -> Program<'a> {
+    pub fn parse(mut self) -> Module<'a> {
         loop {
             let t = self.next();
             if t.is_eof() {
@@ -61,9 +60,9 @@ impl<'a> Parser<'a> {
                     t_span.to(self.report_and_recover_err(e, ParseCtx::Root)),
                 ),
             };
-            self.program.body.push(expr)
+            self.module.push_expr(expr);
         }
-        self.program
+        self.module
     }
 
     pub(crate) fn expr_prec(&mut self, min_prec: Prec) -> Result<Expr, Diagnostic<'a>> {
@@ -354,7 +353,7 @@ impl<'a> Parser<'a> {
             }
         }
         if unclosed {
-            self.program.diagnostics.push(
+            self.module.diagnostics.push(
                 Diagnostic::new_error(
                     ErrorKind::UnclosedDelimitedExpression,
                     begin_span.to(end_span),
@@ -382,7 +381,7 @@ impl<'a> Parser<'a> {
             if t.kind.is_eof() {
                 // We don't want to simply return the error as we want to keep as much valid code as possible
                 // We also don't need to perform error recovery as we are at Eof - there is nothing to recover to
-                self.program.diagnostics.push(
+                self.module.diagnostics.push(
                     Diagnostic::new_error(
                         ErrorKind::UnclosedDelimitedExpression,
                         begin_span.to(t_span),
@@ -456,7 +455,7 @@ impl<'a> Parser<'a> {
     /// Returns the Span of the recovered section, not including a closing delimiter
     pub(crate) fn report_and_recover_err(&mut self, e: Diagnostic<'a>, ctx: ParseCtx) -> Span {
         let err_span = e.span;
-        self.program.diagnostics.push(e);
+        self.module.diagnostics.push(e);
         let ends = match ctx {
             ParseCtx::DelimitedList(delim) => &[TokKind::Op(op![,]), TokKind::Op(delim)],
             ParseCtx::Block => &[TokKind::Op(op![;]), TokKind::Op(op!["}"])],
@@ -471,7 +470,7 @@ impl<'a> Parser<'a> {
             return span;
         }
         if let Err(err) = self.expect_one_of(ends) {
-            self.program.diagnostics.push(err);
+            self.module.diagnostics.push(err);
         }
         span
     }
@@ -496,7 +495,7 @@ impl<'a> Parser<'a> {
                 } else {
                     err.span
                 };
-                self.program.diagnostics.push(err);
+                self.module.diagnostics.push(err);
                 Expr::new(ExprKind::Invalid, span)
             }
         }
@@ -561,13 +560,13 @@ impl<'a> Parser<'a> {
             return &self.curr;
         }
         // curr must be Eof for the iterator to be empty so this is safe
-        self.tok_stream.peek().unwrap()
+        self.toks.peek().unwrap()
     }
 
     /// Consumes the next token in the iterator, stalling once the Eof token is reached
     pub(crate) fn next(&mut self) -> &Tok<'a> {
         if !self.curr.is_eof() {
-            self.curr = self.tok_stream.next().unwrap();
+            self.curr = self.toks.next().unwrap();
         }
         &self.curr
     }

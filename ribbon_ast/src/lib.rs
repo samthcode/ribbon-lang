@@ -11,14 +11,23 @@ pub use bin_op::*;
 pub use pattern::*;
 pub use unary_op::*;
 
-/// The root AST node for a Ribbon program
+/// Structure containing a Ribbon module
 ///
-/// This contains a list of expressions which make up all of the functions, structs, enums, and
-/// constants at the top level of a program, as well as all of the expressions contained within those expressions.
+/// This also contains all of the diagnostics associated with the module, if any exist
 #[derive(Debug, Serialize, Default)]
-pub struct Program<'a> {
+pub struct Module<'a> {
     pub body: Vec<Expr>,
     pub diagnostics: Vec<Diagnostic<'a>>,
+}
+
+impl<'a> Module<'a> {
+    pub fn push_expr(&mut self, expr: Expr) {
+        self.body.push(expr);
+    }
+
+    pub fn push_diagnostic(&mut self, diag: Diagnostic<'a>) {
+        self.diagnostics.push(diag);
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
