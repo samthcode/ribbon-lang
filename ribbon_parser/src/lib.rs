@@ -5,7 +5,11 @@ use ribbon_ast::{
     Path, UnaryOp,
 };
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
-use ribbon_lexer::{self as lexer, Lexer, OpKind, TokKind, TokStream, span::Span, tok::Tok};
+use ribbon_lexer::{
+    self as lexer, Lexer, OpKind, TokKind, TokStream,
+    span::Span,
+    tok::{Tok, op},
+};
 
 use ast::Program;
 
@@ -64,9 +68,8 @@ impl<'a> Parser<'a> {
                 break;
             }
             let t_span = t.span;
-            let expr =
-                self.expr_prec_or_invalid(binary_op_prec(OpKind::Semi), t_span, ParseCtx::Root);
-            let expr = match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Eof]) {
+            let expr = self.expr_prec_or_invalid(binary_op_prec(op![;]), t_span, ParseCtx::Root);
+            let expr = match self.expect_one_of(&[TokKind::Op(op![;]), TokKind::Eof]) {
                 Ok(_) => expr,
                 Err(e) => Expr::new(
                     ExprKind::Invalid,
@@ -106,19 +109,19 @@ impl<'a> Parser<'a> {
     /// `pattern: Type = rhs;` or `pattern := rhs` or `a:method`
     ///         ^ current token            ^            ^
     pub(crate) fn colon(&mut self, lhs: Expr) -> Result<Expr, Diagnostic<'a>> {
-        debug_assert!(self.curr.is_op_kind(OpKind::Colon));
+        debug_assert!(self.curr.is_op_kind(op![:]));
         let colon = self.curr;
 
-        let ty = if self.next().is_op_kind(OpKind::Eq) {
+        let ty = if self.next().is_op_kind(op![=]) {
             None
         } else {
-            let rhs_or_type = self.expr_prec(binary_op_prec(OpKind::Colon));
+            let rhs_or_type = self.expr_prec(binary_op_prec(op![:]));
             // It remains to be seen whether this could leave the parser in a state which raises more errors than needed
             // since the error is (purposefully) not recovered
             let rhs_or_type = self.report_and_invalidate_or_inner(rhs_or_type);
             let span = lhs.span.to(rhs_or_type.span);
 
-            if self.peek().is_op_kind(OpKind::Eq) {
+            if self.peek().is_op_kind(op![=]) {
                 self.next();
                 Some(self.report_and_invalidate_or_inner(rhs_or_type.try_narrow_to_type()))
             } else {
@@ -139,7 +142,7 @@ impl<'a> Parser<'a> {
         // Validate that the left-hand side is a valid pattern
         let lhs = self.report_and_invalidate_or_inner(lhs.try_narrow_to_pattern());
 
-        let rhs = self.expr_prec(binary_op_prec(OpKind::Eq));
+        let rhs = self.expr_prec(binary_op_prec(op![=]));
         let rhs = self.report_and_invalidate_or_inner(rhs);
 
         let span = lhs.span.to(rhs.span);
@@ -164,7 +167,7 @@ impl<'a> Parser<'a> {
     /// n.b. EXPR could be a block expression
     pub(crate) fn function(&mut self, lhs: Expr) -> Result<Expr, Diagnostic<'a>> {
         let arrow = self.curr;
-        debug_assert!(arrow.is_op_kind(OpKind::MinusGt) || arrow.is_op_kind(OpKind::EqGt));
+        debug_assert!(arrow.is_op_kind(op![->]) || arrow.is_op_kind(op![=>]));
 
         // There is always a parenthesised expression before a function arrow
         // `()` or `(PARAM|TY)` or `(PARAM_1, PARAM_2)` etc.
@@ -181,16 +184,16 @@ impl<'a> Parser<'a> {
 
         let mut return_type = None;
 
-        if arrow.is_op_kind(OpKind::MinusGt) {
+        if arrow.is_op_kind(op![->]) {
             // We expect a type after the arrow
             self.next();
             let maybe_return_type = self
-                .expr_prec(binary_op_prec(OpKind::EqGt))?
+                .expr_prec(binary_op_prec(op![=>]))?
                 .try_narrow_to_type();
             return_type = Some(self.report_and_invalidate_or_inner(maybe_return_type));
 
             let peeked_tok = self.peek();
-            if !(peeked_tok.is_op_kind(OpKind::EqGt) || peeked_tok.is_op_kind(OpKind::LCurly)) {
+            if !(peeked_tok.is_op_kind(op![=>]) || peeked_tok.is_op_kind(op!["{"])) {
                 // We have a function type rather than a declaration
                 let return_type = return_type.unwrap();
                 let span = lhs.span.to(return_type.span);
@@ -210,9 +213,9 @@ impl<'a> Parser<'a> {
             self.next();
         }
 
-        let body = if self.curr.is_op_kind(OpKind::EqGt) {
+        let body = if self.curr.is_op_kind(op![=>]) {
             self.next();
-            self.expr_prec(binary_op_prec(OpKind::EqGt))?
+            self.expr_prec(binary_op_prec(op![=>]))?
         } else {
             self.block_expr(self.curr.span)
         };
@@ -270,7 +273,7 @@ impl<'a> Parser<'a> {
                     .unwrap();
                 span = span.to(t.span);
                 parts.push(t);
-                if !self.peek().is_op_kind(OpKind::Path) {
+                if !self.peek().is_op_kind(op![::]) {
                     return Ok(Expr::new(ExprKind::Path(Path::new(parts)), span));
                 }
                 // Consume `::`
@@ -300,7 +303,7 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn tuple_like_expr(&mut self, span: Span) -> Expr {
-        let (exprs, n_span, trailing_comma) = self.delimited_list(span, OpKind::RParen);
+        let (exprs, n_span, trailing_comma) = self.delimited_list(span, op![")"]);
         if exprs.len() == 1 && !trailing_comma {
             // We need the ParenthesisedExpression variant to ensure single-parameter functions are parsed correctly
             Expr::new(
@@ -313,7 +316,7 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn list_expr(&mut self, span: Span) -> Expr {
-        let (exprs, span, _) = self.delimited_list(span, OpKind::RSquare);
+        let (exprs, span, _) = self.delimited_list(span, op!["]"]);
         Expr::new(ExprKind::List(exprs), span)
     }
 
@@ -327,22 +330,21 @@ impl<'a> Parser<'a> {
                 break;
             }
             end_span = t.span;
-            if t.kind.is_op_kind(OpKind::RCurly) {
+            if t.kind.is_op_kind(op!["}"]) {
                 unclosed = false;
                 break;
             }
-            if t.kind.is_op_kind(OpKind::Semi) {
+            if t.kind.is_op_kind(op![;]) {
                 continue;
             }
-            let expr =
-                self.expr_prec_or_invalid(binary_op_prec(OpKind::Semi), end_span, ParseCtx::Block);
+            let expr = self.expr_prec_or_invalid(binary_op_prec(op![;]), end_span, ParseCtx::Block);
             if expr.is(ExprKind::Invalid) {
                 end_span = expr.span;
                 exprs.push(expr);
                 continue;
             }
             let eof = self.peek().is_eof();
-            match self.expect_one_of(&[TokKind::Op(OpKind::Semi), TokKind::Op(OpKind::RCurly)]) {
+            match self.expect_one_of(&[TokKind::Op(op![;]), TokKind::Op(op!["}"])]) {
                 Ok(Tok {
                     span,
                     kind,
@@ -350,7 +352,7 @@ impl<'a> Parser<'a> {
                 }) => {
                     end_span = *span;
                     exprs.push(expr);
-                    if kind.is_op_kind(OpKind::RCurly) {
+                    if kind.is_op_kind(op!["}"]) {
                         unclosed = false;
                         break;
                     }
@@ -413,7 +415,7 @@ impl<'a> Parser<'a> {
             }
 
             let mut expr = self.expr_prec_or_invalid(
-                binary_op_prec(OpKind::Comma),
+                binary_op_prec(op![,]),
                 t_span,
                 ParseCtx::DelimitedList(closing_delim),
             );
@@ -425,8 +427,7 @@ impl<'a> Parser<'a> {
                 kind,
                 span,
                 source: _,
-            } = match self.expect_one_of(&[TokKind::Op(OpKind::Comma), TokKind::Op(closing_delim)])
-            {
+            } = match self.expect_one_of(&[TokKind::Op(op![,]), TokKind::Op(closing_delim)]) {
                 Ok(t) => {
                     exprs.push(expr);
                     t
@@ -472,9 +473,9 @@ impl<'a> Parser<'a> {
         let err_span = e.span;
         self.program.diagnostics.push(e);
         let ends = match ctx {
-            ParseCtx::DelimitedList(delim) => &[TokKind::Op(OpKind::Comma), TokKind::Op(delim)],
-            ParseCtx::Block => &[TokKind::Op(OpKind::Semi), TokKind::Op(OpKind::RCurly)],
-            ParseCtx::Root => &[TokKind::Op(OpKind::Semi), TokKind::Eof],
+            ParseCtx::DelimitedList(delim) => &[TokKind::Op(op![,]), TokKind::Op(delim)],
+            ParseCtx::Block => &[TokKind::Op(op![;]), TokKind::Op(op!["}"])],
+            ParseCtx::Root => &[TokKind::Op(op![;]), TokKind::Eof],
         };
         let span = match self.skip_while(|t| !ends.contains(&t.kind)) {
             Some(s) => err_span.to(s),
