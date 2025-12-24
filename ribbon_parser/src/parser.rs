@@ -201,7 +201,7 @@ impl<'a> Parser<'a> {
             self.next();
             self.expr_prec(binary_op_prec(op![=>]))?
         } else {
-            self.block_expr(self.curr.span)
+            self.block_expr()
         };
 
         let parameters = parameters
@@ -304,67 +304,57 @@ impl<'a> Parser<'a> {
         Expr::new(ExprKind::List(exprs), span)
     }
 
-    pub(crate) fn block_expr(&mut self, begin_span: Span) -> Expr {
-        let mut exprs = Vec::<Expr>::new();
-        let mut end_span = begin_span;
-        let mut unclosed = true;
+    /// Parses a block expression
+    ///
+    /// A block expression is roughly defined as `{` (EXPR `;`)* EXPR? (`;`)? `}`
+    /// i.e a list of expressions separated by semicolons, with an optional trailing semicolon
+    /// FIXME: This trailing semicolon is significant as it determines if the block has a return value
+    ///
+    /// TODO: Add ability to parse struct literals
+    ///       (although this may instead be handled by another function)
+    pub(crate) fn block_expr(&mut self) -> Expr {
+        debug_assert!(self.curr.is_op_kind(op!["{"]));
+        let begin_span = self.curr.span;
+        let mut exprs: Vec<Expr> = Vec::new();
+
+        let mut should_expect = false;
         loop {
-            let t = self.next();
-            if t.is_eof() {
-                break;
-            }
-            end_span = t.span;
-            if t.kind.is_op_kind(op!["}"]) {
-                unclosed = false;
-                break;
-            }
-            if t.kind.is_op_kind(op![;]) {
+            let next = self.next();
+            if next.kind.is_op_kind(op!["}"]) {
+                return Expr::new(ExprKind::Block(exprs), begin_span.to(next.span));
+            } else if next.kind.is_op_kind(op![;]) {
+                // self.next();
+                should_expect = false;
                 continue;
+            } else if should_expect {
+                self.module.push_diagnostic(Diagnostic::new_error(
+                    ErrorKind::ExpectedOneOfXFoundY(
+                        vec![TokKind::Op(op![;]), TokKind::Op(op!["}"])],
+                        self.curr,
+                    ),
+                    self.curr.span,
+                ));
             }
-            let expr = self.expr_prec_or_invalid(binary_op_prec(op![;]), end_span, ParseCtx::Block);
-            if expr.is(ExprKind::Invalid) {
-                end_span = expr.span;
-                exprs.push(expr);
-                continue;
+
+            if self.curr.is_eof() {
+                self.module.push_diagnostic(
+                    Diagnostic::new_error(
+                        ErrorKind::UnclosedDelimitedExpression,
+                        begin_span.to(self.curr.span),
+                    )
+                    .with_subdiagnostics(vec![Diagnostic::new_info(
+                        InfoKind::DelimitedExpressionBeginsHere,
+                        begin_span,
+                    )]),
+                );
+                return Expr::new(ExprKind::Block(exprs), begin_span.to(self.curr.span));
             }
-            let eof = self.peek().is_eof();
-            match self.expect_one_of(&[TokKind::Op(op![;]), TokKind::Op(op!["}"])]) {
-                Ok(Tok {
-                    span,
-                    kind,
-                    source: _,
-                }) => {
-                    end_span = *span;
-                    exprs.push(expr);
-                    if kind.is_op_kind(op!["}"]) {
-                        unclosed = false;
-                        break;
-                    }
-                }
-                Err(e) => {
-                    end_span = e.span;
-                    exprs.push(Expr::new(
-                        ExprKind::Invalid,
-                        expr.span
-                            .to(self.report_and_recover_err(e, ParseCtx::Block)),
-                    ));
-                    unclosed = eof
-                }
-            }
+
+            let expr =
+                self.expr_prec_or_invalid(binary_op_prec(op![;]), begin_span, ParseCtx::Block);
+            exprs.push(expr);
+            should_expect = true;
         }
-        if unclosed {
-            self.module.diagnostics.push(
-                Diagnostic::new_error(
-                    ErrorKind::UnclosedDelimitedExpression,
-                    begin_span.to(end_span),
-                )
-                .with_subdiagnostics(vec![Diagnostic::new_info(
-                    InfoKind::DelimitedExpressionBeginsHere,
-                    begin_span,
-                )]),
-            );
-        }
-        Expr::new(ExprKind::Block(exprs), begin_span.to(end_span))
     }
 
     pub(crate) fn delimited_list(

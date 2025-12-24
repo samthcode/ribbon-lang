@@ -55,7 +55,7 @@ impl<'a> TryDenotation<'a> for Tok<'a> {
             )),
             ribbon_lexer::TokKind::Op(op_kind) => match op_kind {
                 // Block expression
-                OpKind::LCurly => Ok(parser.block_expr(self.span)),
+                OpKind::LCurly => Ok(parser.block_expr()),
                 // List expression
                 OpKind::LSquare => Ok(parser.list_expr(self.span)),
                 // Tuple/unit type/function parameter list

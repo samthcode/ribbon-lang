@@ -128,7 +128,7 @@ impl<'a> Display for ErrorKind<'a> {
                 }
                 ErrorKind::UnclosedDelimitedExpression =>
                     "unclosed delimited expression".to_string(),
-                ErrorKind::UnexpectedToken(tok) => format!("unexpected token `{}`", tok.source),
+                ErrorKind::UnexpectedToken(tok) => format!("unexpected token `{}`", tok),
                 ErrorKind::UnexpectedOperator(op) => format!("unexpected operator `{}`", op.str()),
                 ErrorKind::UnexpectedBindingOperator => "unexpected binding operator".to_string(),
                 ErrorKind::InvalidBinaryOperator(op) =>
