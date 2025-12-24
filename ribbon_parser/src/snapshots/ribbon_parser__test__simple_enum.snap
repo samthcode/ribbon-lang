@@ -1,0 +1,22 @@
+---
+source: ribbon_parser/src/test.rs
+description: "enum { Variant1, Variant2 }"
+---
+body:
+  - kind:
+      Enum:
+        variants:
+          - kind:
+              Ident: Variant1
+            span:
+              low: 7
+              hi: 14
+          - kind:
+              Ident: Variant2
+            span:
+              low: 17
+              hi: 24
+    span:
+      low: 0
+      hi: 26
+diagnostics: []

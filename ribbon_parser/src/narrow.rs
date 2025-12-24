@@ -74,6 +74,7 @@ impl TryNarrow for Expr {
             | ExprKind::Type(_)
             | ExprKind::Binding(_)
             | ExprKind::Pattern(_)
+            | ExprKind::Enum(_)
             | ExprKind::Invalid => Err(Diagnostic::new_error(
                 ErrorKind::ExpectedFunctionParameterFoundX(self.kind.description()),
                 self.span,
@@ -104,6 +105,7 @@ impl TryNarrow for Expr {
             | ExprKind::Block(_)
             | ExprKind::Binding(_)
             | ExprKind::Pattern(_)
+            | ExprKind::Enum(_)
             | ExprKind::Invalid => Err(Diagnostic::new_error(
                 ErrorKind::ExpectedTypeFoundX(self.kind.description()),
                 span,
@@ -136,6 +138,7 @@ impl TryNarrow for Expr {
             | ExprKind::FunctionDeclaration(_)
             | ExprKind::FunctionType(_)
             | ExprKind::FunctionParameter(_)
+            | ExprKind::Enum(_)
             | ExprKind::Type(_) => Err(Diagnostic::new_error(
                 ErrorKind::ExpectedPatternFoundX(self.kind.description()),
                 self.span,

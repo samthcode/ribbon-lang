@@ -181,27 +181,27 @@ macro_rules! op {
 #[macro_export]
 macro_rules! kw {
     (const) => {
-        TokKind::Kw(ribbon_lexer::tok::KwKind::Const)
+        ribbon_lexer::tok::KwKind::Const
     };
     (struct) => {
-        TokKind::Kw(ribbon_lexer::tok::KwKind::Struct)
+        ribbon_lexer::tok::KwKind::Struct
     };
     (trait) => {
-        TokKind::Kw(ribbon_lexer::tok::KwKind::Trait)
+        ribbon_lexer::tok::KwKind::Trait
     };
     (enum) => {
-        TokKind::Kw(ribbon_lexer::tok::KwKind::Enum)
+        ribbon_lexer::tok::KwKind::Enum
     };
     (return) => {
-        TokKind::Kw(ribbon_lexer::tok::KwKind::Return)
+        ribbon_lexer::tok::KwKind::Return
     };
     (use) => {
-        TokKind::Kw(ribbon_lexer::tok::KwKind::Use)
+        ribbon_lexer::tok::KwKind::Use
     };
     (for) => {
-        TokKind::Kw(ribbon_lexer::tok::KwKind::For)
+        ribbon_lexer::tok::KwKind::For
     };
     (while) => {
-        TokKind::Kw(ribbon_lexer::tok::KwKind::While)
+        ribbon_lexer::tok::KwKind::While
     };
 }

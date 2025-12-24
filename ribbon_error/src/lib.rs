@@ -114,7 +114,7 @@ impl<'a> Display for ErrorKind<'a> {
             match self {
                 // FIXME: Replace use of Debug
                 ErrorKind::ExpectedXFoundY(expected, found) =>
-                    format!("expected {}, found {}", expected, found.source),
+                    format!("expected {}, found {}", expected, found),
                 ErrorKind::ExpectedOneOfXFoundY(expected, found) => {
                     format!(
                         "expected one of {}, found {}",

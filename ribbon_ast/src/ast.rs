@@ -14,8 +14,12 @@ impl Expr {
         Expr { kind, span }
     }
 
-    pub fn is(&self, other: ExprKind) -> bool {
-        self.kind.is(other)
+    // pub fn is(&self, other: ExprKind) -> bool {
+    //     self.kind.is(other)
+    // }
+
+    pub fn is_invalid(&self) -> bool {
+        matches!(self.kind, ExprKind::Invalid)
     }
 
     pub fn sexpr(&self) -> String {
@@ -49,6 +53,8 @@ pub enum ExprKind {
     Type(Type),
     /// Any valid pattern
     Pattern(Pattern),
+    /// An enumeration (enum)
+    Enum(Enum),
     /// Represents an invalid portion of code
     #[default]
     Invalid,
@@ -89,6 +95,7 @@ impl ExprKind {
             ExprKind::Path(path) => path.sexpr(),
             ExprKind::Type(ty) => ty.sexpr(),
             ExprKind::Pattern(pat) => pat.sexpr(),
+            ExprKind::Enum(e) => e.sexpr(),
             ExprKind::Invalid => "(<invalid>)".to_string(),
         }
     }
@@ -110,34 +117,36 @@ impl ExprKind {
             ExprKind::Path(_) => "path",
             ExprKind::Type(_) => "type",
             ExprKind::Pattern(_) => "pattern",
+            ExprKind::Enum(_) => "enum",
             ExprKind::Invalid => "<invalid>",
         }
     }
 
-    pub fn is(&self, other: Self) -> bool {
-        match self {
-            ExprKind::Binding(_) => matches!(other, ExprKind::Binding(_)),
-            ExprKind::BinOp { .. } => matches!(other, ExprKind::BinOp { .. }),
-            ExprKind::UnaryOp { .. } => matches!(other, ExprKind::UnaryOp { .. }),
-            ExprKind::Ident(_) => matches!(other, ExprKind::Ident(_)),
-            ExprKind::Lit(_) => matches!(other, ExprKind::Lit(_)),
-            ExprKind::List(_) => matches!(other, ExprKind::List(_)),
-            ExprKind::ParenthesisedExpression(_) => {
-                matches!(other, ExprKind::ParenthesisedExpression(_))
-            }
-            ExprKind::Tuple(_) => matches!(other, ExprKind::Tuple(_)),
-            ExprKind::FunctionDeclaration(_) => {
-                matches!(other, ExprKind::FunctionDeclaration(_))
-            }
-            ExprKind::FunctionType(_) => matches!(other, ExprKind::FunctionType(_)),
-            ExprKind::FunctionParameter(_) => matches!(other, ExprKind::FunctionParameter(_)),
-            ExprKind::Block(_) => matches!(other, ExprKind::Block(_)),
-            ExprKind::Path(_) => matches!(other, ExprKind::Path(_)),
-            ExprKind::Type(_) => matches!(other, ExprKind::Type(_)),
-            ExprKind::Pattern(_) => matches!(other, ExprKind::Pattern(_)),
-            ExprKind::Invalid => matches!(other, ExprKind::Invalid),
-        }
-    }
+    // pub fn is(&self, other: Self) -> bool {
+    //     match self {
+    //         ExprKind::Binding(_) => matches!(other, ExprKind::Binding(_)),
+    //         ExprKind::BinOp { .. } => matches!(other, ExprKind::BinOp { .. }),
+    //         ExprKind::UnaryOp { .. } => matches!(other, ExprKind::UnaryOp { .. }),
+    //         ExprKind::Ident(_) => matches!(other, ExprKind::Ident(_)),
+    //         ExprKind::Lit(_) => matches!(other, ExprKind::Lit(_)),
+    //         ExprKind::List(_) => matches!(other, ExprKind::List(_)),
+    //         ExprKind::ParenthesisedExpression(_) => {
+    //             matches!(other, ExprKind::ParenthesisedExpression(_))
+    //         }
+    //         ExprKind::Tuple(_) => matches!(other, ExprKind::Tuple(_)),
+    //         ExprKind::FunctionDeclaration(_) => {
+    //             matches!(other, ExprKind::FunctionDeclaration(_))
+    //         }
+    //         ExprKind::FunctionType(_) => matches!(other, ExprKind::FunctionType(_)),
+    //         ExprKind::FunctionParameter(_) => matches!(other, ExprKind::FunctionParameter(_)),
+    //         ExprKind::Block(_) => matches!(other, ExprKind::Block(_)),
+    //         ExprKind::Path(_) => matches!(other, ExprKind::Path(_)),
+    //         ExprKind::Type(_) => matches!(other, ExprKind::Type(_)),
+    //         ExprKind::Pattern(_) => matches!(other, ExprKind::Pattern(_)),
+    //         ExprKind::Invalid => matches!(other, ExprKind::Invalid),
+    //         ExprKind::Enum(_) => todo!(),
+    //     }
+    // }
 }
 
 fn space_sexprs(exprs: &[Expr], sep: &str) -> String {
@@ -146,6 +155,20 @@ fn space_sexprs(exprs: &[Expr], sep: &str) -> String {
         .map(|e| e.sexpr())
         .collect::<Vec<String>>()
         .join(sep)
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct Enum {
+    pub variants: Vec<Expr>,
+}
+
+impl Enum {
+    pub fn sexpr(&self) -> String {
+        format!(
+            "(enum (variants {}))",
+            space_sexprs(self.variants.as_slice(), " ")
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

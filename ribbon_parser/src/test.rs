@@ -57,5 +57,7 @@ create_tests! {
     binding_with_type_inference: "bound_variable:=value",
     binding: "bound: type::path = value",
     assignment: "variable = value",
-    other_assignments: "a += 1; b -= 1; c *= 2; d /= 2"
+    other_assignments: "a += 1; b -= 1; c *= 2; d /= 2",
+    simple_enum: "enum { Variant1, Variant2 }",
+    enum_without_block: "enum"
 }

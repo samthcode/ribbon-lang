@@ -1,11 +1,11 @@
 use std::iter::Peekable;
 
 use ribbon_ast::{
-    BinOp, BinOpKind, Binding, Expr, ExprKind, FunctionDeclaration, FunctionType, Module, Path,
-    UnaryOp,
+    BinOp, BinOpKind, Binding, Enum, Expr, ExprKind, FunctionDeclaration, FunctionType, Module,
+    Path, UnaryOp,
 };
 use ribbon_error::{Diagnostic, ErrorKind, InfoKind};
-use ribbon_lexer::{Lexer, OpKind, Tok, TokKind, TokStream, op, span::Span};
+use ribbon_lexer::{Lexer, OpKind, Tok, TokKind, TokStream, kw, op, span::Span};
 
 use crate::{
     denotation::TryDenotation,
@@ -67,10 +67,11 @@ impl<'a> Parser<'a> {
 
     pub(crate) fn expr_prec(&mut self, min_prec: Prec) -> Result<Expr, Diagnostic<'a>> {
         // Get the left-hand side of the current expression
+        let begin_span = self.curr.span;
         let lhs = self.curr.try_null_denotation(self);
         // If the left-hand side contains an error, we still attempt to parse the rest
         // This could potentially lead to some nonsensical errors further down the line since we (purposefully) don't recover
-        let mut lhs = self.report_and_invalidate_or_inner(lhs);
+        let mut lhs = self.report_and_invalidate_spanned_or_inner(lhs, Some(begin_span));
 
         loop {
             let operator = self.peek();
@@ -86,6 +87,19 @@ impl<'a> Parser<'a> {
             lhs = self.next().try_left_denotation(self, lhs)?;
         }
         Ok(lhs)
+    }
+
+    /// Parses an enumeration (enum)
+    ///
+    /// An enum is roughly defined as: `enum` `{` (VARIANT `,`)* VARIANT? (`,`)? `}`
+    pub(crate) fn enumeration(&mut self) -> Result<Expr, Diagnostic<'a>> {
+        debug_assert!(self.curr.is_kw_kind(kw![enum]));
+        let begin_span = self.curr.span;
+        self.expect(TokKind::Op(op!["{"]))?;
+        let (variants, span, _) = self.delimited_list(self.curr.span, op!["}"]);
+        let span = begin_span.to(span);
+        // TODO: Validate variants
+        Ok(Expr::new(ExprKind::Enum(Enum { variants }), span))
     }
 
     /// Parses a method call with optional parentheses `struct:method` or a binding `:=`
@@ -393,7 +407,7 @@ impl<'a> Parser<'a> {
                 t_span,
                 ParseCtx::DelimitedList(closing_delim),
             );
-            if expr.is(ExprKind::Invalid) {
+            if expr.is_invalid() {
                 exprs.push(expr);
                 continue;
             }

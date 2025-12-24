@@ -1,0 +1,23 @@
+---
+source: ribbon_parser/src/test.rs
+description: enum
+---
+body:
+  - kind: Invalid
+    span:
+      low: 0
+      hi: 3
+diagnostics:
+  - kind:
+      Error:
+        ExpectedXFoundY:
+          - Op: LCurly
+          - kind: Eof
+            source: ""
+            span:
+              low: 3
+              hi: 3
+    span:
+      low: 3
+      hi: 3
+    subdiagnostics: []

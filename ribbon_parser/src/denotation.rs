@@ -1,6 +1,6 @@
 use ribbon_ast::{Expr, ExprKind::*, LitKind, process_str};
 use ribbon_error::{Diagnostic, ErrorKind};
-use ribbon_lexer::{OpKind, Tok};
+use ribbon_lexer::{KwKind, OpKind, Tok};
 
 use crate::Parser;
 
@@ -22,7 +22,16 @@ impl<'a> TryDenotation<'a> for Tok<'a> {
                 Ident(Box::new(self.source.to_string())),
                 self.span,
             )),
-            ribbon_lexer::TokKind::Kw(_) => todo!(),
+            ribbon_lexer::TokKind::Kw(kw_kind) => match kw_kind {
+                KwKind::Const => todo!(),
+                KwKind::Struct => todo!(),
+                KwKind::Trait => todo!(),
+                KwKind::Enum => parser.enumeration(),
+                KwKind::Return => todo!(),
+                KwKind::Use => todo!(),
+                KwKind::For => todo!(),
+                KwKind::While => todo!(),
+            },
             ribbon_lexer::TokKind::Lit(lit_kind) => Ok(Expr::new(
                 match lit_kind {
                     // TODO: At some point, we need to find the true size of the integer
