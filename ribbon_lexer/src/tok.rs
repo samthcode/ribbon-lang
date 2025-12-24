@@ -89,6 +89,7 @@ impl<'a> Display for Tok<'a> {
     }
 }
 
+// If adding a new keyword, please consider updating the `kw!` macro in `ribbon_lexer/lib.rs`
 #[derive(Debug, Copy, Clone, PartialEq, Serialize)]
 pub enum KwKind {
     /// `const`
