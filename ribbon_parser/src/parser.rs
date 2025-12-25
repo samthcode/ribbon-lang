@@ -68,10 +68,12 @@ impl<'a> Parser<'a> {
     pub(crate) fn expr_prec(&mut self, min_prec: Prec) -> Result<Expr, Diagnostic<'a>> {
         // Get the left-hand side of the current expression
         let begin_span = self.curr.span;
-        let lhs = self.curr.try_null_denotation(self);
-        // If the left-hand side contains an error, we still attempt to parse the rest
-        // This could potentially lead to some nonsensical errors further down the line since we (purposefully) don't recover
-        let mut lhs = self.report_and_invalidate_spanned_or_inner(lhs, Some(begin_span));
+        let mut lhs = {
+            let res = self.curr.try_null_denotation(self);
+            // If the left-hand side contains an error, we still attempt to parse the rest
+            // This could potentially lead to some nonsensical errors further down the line since we (purposefully) don't recover
+            self.report_and_invalidate_spanned_or_inner(res, Some(begin_span))
+        };
 
         loop {
             let operator = self.peek();
@@ -113,10 +115,12 @@ impl<'a> Parser<'a> {
         let ty = if self.next().is_op_kind(op![=]) {
             None
         } else {
-            let rhs_or_type = self.expr_prec(binary_op_prec(op![:]));
-            // It remains to be seen whether this could leave the parser in a state which raises more errors than needed
-            // since the error is (purposefully) not recovered
-            let rhs_or_type = self.report_and_invalidate_or_inner(rhs_or_type);
+            let rhs_or_type = {
+                let res = self.expr_prec(binary_op_prec(op![:]));
+                // It remains to be seen whether this could leave the parser in a state which raises more errors than needed
+                // since the error is (purposefully) not recovered
+                self.report_and_invalidate_or_inner(res)
+            };
             let span = lhs.span.to(rhs_or_type.span);
 
             if self.peek().is_op_kind(op![=]) {
@@ -140,8 +144,10 @@ impl<'a> Parser<'a> {
         // Validate that the left-hand side is a valid pattern
         let lhs = self.report_and_invalidate_or_inner(lhs.try_narrow_to_pattern());
 
-        let rhs = self.expr_prec(binary_op_prec(op![=]));
-        let rhs = self.report_and_invalidate_or_inner(rhs);
+        let rhs = {
+            let res = self.expr_prec(binary_op_prec(op![=]));
+            self.report_and_invalidate_or_inner(res)
+        };
 
         let span = lhs.span.to(rhs.span);
 
@@ -244,9 +250,11 @@ impl<'a> Parser<'a> {
         lhs: Expr,
     ) -> Result<Expr, Diagnostic<'a>> {
         self.next();
-        let rhs = self.expr_prec(binary_op_prec(op_kind));
-        // This may or may not be the best choice as it could leave the parser in an unexpected position later down the line
-        let rhs = self.report_and_invalidate_or_inner(rhs);
+        let rhs = {
+            let res = self.expr_prec(binary_op_prec(op_kind));
+            // This may or may not be the best choice as it could leave the parser in an unexpected position later down the line
+            self.report_and_invalidate_or_inner(res)
+        };
         let span = lhs.span.to(rhs.span);
         Ok(Expr::new(
             ExprKind::BinOp(Box::new(BinOp::try_from_op_kind(
