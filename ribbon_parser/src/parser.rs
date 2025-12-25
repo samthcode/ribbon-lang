@@ -98,7 +98,7 @@ impl<'a> Parser<'a> {
         debug_assert!(self.curr.is_kw_kind(kw![enum]));
         let begin_span = self.curr.span;
         self.expect(TokKind::Op(op!["{"]))?;
-        let (variants, span, _) = self.delimited_list(self.curr.span, op!["}"]);
+        let (variants, span, _) = self.generic_delimited_separated_exprs(op!["}"], op![,]);
         let span = begin_span.to(span);
         // TODO: Validate variants
         Ok(Expr::new(ExprKind::Enum(Enum { variants }), span))
@@ -221,7 +221,7 @@ impl<'a> Parser<'a> {
             self.next();
             self.expr_prec(binary_op_prec(op![=>]))?
         } else {
-            self.block_expr()
+            self.block()
         };
 
         let parameters = parameters
@@ -293,7 +293,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn unary_expr(&mut self, op: OpKind, op_span: Span) -> Result<Expr, Diagnostic<'a>> {
+    pub(crate) fn unary_op(&mut self, op: OpKind, op_span: Span) -> Result<Expr, Diagnostic<'a>> {
         if self.next().is_eof() {
             return Err(Diagnostic::new_error(
                 ErrorKind::UnexpectedEofAfterUnaryOperator,
@@ -308,8 +308,10 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    pub(crate) fn tuple_like_expr(&mut self, span: Span) -> Expr {
-        let (exprs, n_span, trailing_comma) = self.delimited_list(span, op![")"]);
+    pub(crate) fn tuple_like(&mut self) -> Expr {
+        debug_assert!(self.curr.is_op_kind(op!["("]));
+        let (exprs, n_span, trailing_comma) =
+            self.generic_delimited_separated_exprs(op![")"], op![,]);
         if exprs.len() == 1 && !trailing_comma {
             // We need the ParenthesisedExpression variant to ensure single-parameter functions are parsed correctly
             Expr::new(
@@ -321,8 +323,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn list_expr(&mut self, span: Span) -> Expr {
-        let (exprs, span, _) = self.delimited_list(span, op!["]"]);
+    pub(crate) fn list(&mut self) -> Expr {
+        debug_assert!(self.curr.is_op_kind(op!["["]));
+        let (exprs, span, _) = self.generic_delimited_separated_exprs(op!["]"], op![,]);
         Expr::new(ExprKind::List(exprs), span)
     }
 
@@ -334,24 +337,46 @@ impl<'a> Parser<'a> {
     ///
     /// TODO: Add ability to parse struct literals
     ///       (although this may instead be handled by another function)
-    pub(crate) fn block_expr(&mut self) -> Expr {
+    pub(crate) fn block(&mut self) -> Expr {
         debug_assert!(self.curr.is_op_kind(op!["{"]));
+        // TODO: Make use of trailing_separator
+        let (exprs, span, _) = self.generic_delimited_separated_exprs(op!["}"], op![;]);
+        Expr::new(ExprKind::Block(exprs), span)
+    }
+
+    /// Parses any group of expressions which are inclosed by delimiters and separated by either `;` or `,`
+    ///
+    /// The current token should be the opening delimiter (although the nature of this delimiter is not checked)
+    /// Note that when separator is `,`, multiple are not allowed in a row without expressions between them
+    ///
+    /// Returns: (vec of expressions, span from opening to closing delimiter, trailing separator present?)
+    fn generic_delimited_separated_exprs(
+        &mut self,
+        closing_delimiter: OpKind,
+        separator: OpKind,
+    ) -> (Vec<Expr>, Span, bool /* trailing separator present? */) {
+        debug_assert!(closing_delimiter.is_delim());
+        debug_assert!(separator == op![;] || separator == op![,]);
         let begin_span = self.curr.span;
+        let allow_seps_together = separator == op![;];
+        let mut trailing_separator = false;
         let mut exprs: Vec<Expr> = Vec::new();
 
         let mut should_expect = false;
         loop {
             let next = self.next();
-            if next.kind.is_op_kind(op!["}"]) {
-                return Expr::new(ExprKind::Block(exprs), begin_span.to(next.span));
-            } else if next.kind.is_op_kind(op![;]) {
-                // self.next();
-                should_expect = false;
-                continue;
+            if next.kind.is_op_kind(closing_delimiter) {
+                return (exprs, begin_span.to(next.span), trailing_separator);
+            } else if next.kind.is_op_kind(op![;]) || next.kind.is_op_kind(op![,]) {
+                if allow_seps_together || !trailing_separator {
+                    trailing_separator = true;
+                    should_expect = false;
+                    continue;
+                }
             } else if should_expect {
                 self.module.push_diagnostic(Diagnostic::new_error(
                     ErrorKind::ExpectedOneOfXFoundY(
-                        vec![TokKind::Op(op![;]), TokKind::Op(op!["}"])],
+                        vec![TokKind::Op(separator), TokKind::Op(closing_delimiter)],
                         self.curr,
                     ),
                     self.curr.span,
@@ -369,79 +394,15 @@ impl<'a> Parser<'a> {
                         begin_span,
                     )]),
                 );
-                return Expr::new(ExprKind::Block(exprs), begin_span.to(self.curr.span));
+                return (exprs, begin_span.to(self.curr.span), trailing_separator);
             }
 
             let expr =
-                self.expr_prec_or_invalid(binary_op_prec(op![;]), begin_span, ParseCtx::Block);
+                self.expr_prec_or_invalid(binary_op_prec(separator), begin_span, ParseCtx::Block);
             exprs.push(expr);
             should_expect = true;
+            trailing_separator = false;
         }
-    }
-
-    pub(crate) fn delimited_list(
-        &mut self,
-        begin_span: Span,
-        closing_delim: OpKind,
-    ) -> (Vec<Expr>, Span, bool) {
-        let mut exprs: Vec<Expr> = vec![];
-        // This is necessary for the differentiation of parenthesised expressions and tuples
-        let mut trailing_comma = false;
-        let end_span = loop {
-            let t = self.next();
-            let t_span = t.span;
-            if t.kind.is_eof() {
-                // We don't want to simply return the error as we want to keep as much valid code as possible
-                // We also don't need to perform error recovery as we are at Eof - there is nothing to recover to
-                self.module.diagnostics.push(
-                    Diagnostic::new_error(
-                        ErrorKind::UnclosedDelimitedExpression,
-                        begin_span.to(t_span),
-                    )
-                    .with_subdiagnostics(vec![Diagnostic::new_info(
-                        InfoKind::DelimitedExpressionBeginsHere,
-                        begin_span,
-                    )]),
-                );
-                break t_span;
-            };
-
-            if t.kind.is_op_kind(closing_delim) {
-                break t_span;
-            }
-
-            let mut expr = self.expr_prec_or_invalid(
-                binary_op_prec(op![,]),
-                t_span,
-                ParseCtx::DelimitedList(closing_delim),
-            );
-            if expr.is_invalid() {
-                exprs.push(expr);
-                continue;
-            }
-            let Tok {
-                kind,
-                span,
-                source: _,
-            } = match self.expect_one_of(&[TokKind::Op(op![,]), TokKind::Op(closing_delim)]) {
-                Ok(t) => {
-                    exprs.push(expr);
-                    t
-                }
-                Err(e) => {
-                    expr.span = expr.span.to(e.span);
-                    exprs.push(expr);
-                    self.report_and_recover_err(e, ParseCtx::DelimitedList(closing_delim));
-                    continue;
-                }
-            };
-            if kind.is_op_kind(closing_delim) {
-                trailing_comma = false;
-                break *span;
-            }
-            trailing_comma = true
-        };
-        (exprs, begin_span.to(end_span), trailing_comma)
     }
 
     /// Parses an expression with a given precedence
@@ -533,6 +494,19 @@ impl<'a> Parser<'a> {
         m_start
     }
 
+    pub(crate) fn expect(&mut self, kind: TokKind) -> Result<&Tok<'a>, Diagnostic<'a>> {
+        debug_assert!(!kind.is_eof());
+        let t = self.next();
+        if t.kind == kind {
+            Ok(t)
+        } else {
+            Err(Diagnostic::new_error(
+                ErrorKind::ExpectedXFoundY(kind, *t),
+                t.span,
+            ))
+        }
+    }
+
     pub(crate) fn expect_one_of(&mut self, toks: &[TokKind]) -> Result<&Tok<'a>, Diagnostic<'a>> {
         let t = self.next();
         if toks.iter().any(|kind| kind == &t.kind) {
@@ -550,19 +524,6 @@ impl<'a> Parser<'a> {
             Span::new(0, 0)
         } else {
             (self.source.len() - 1).into()
-        }
-    }
-
-    pub(crate) fn expect(&mut self, kind: TokKind) -> Result<&Tok<'a>, Diagnostic<'a>> {
-        debug_assert!(!kind.is_eof());
-        let t = self.next();
-        if t.kind == kind {
-            Ok(t)
-        } else {
-            Err(Diagnostic::new_error(
-                ErrorKind::ExpectedXFoundY(kind, *t),
-                t.span,
-            ))
         }
     }
 

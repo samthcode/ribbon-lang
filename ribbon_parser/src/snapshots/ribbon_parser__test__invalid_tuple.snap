@@ -1,0 +1,22 @@
+---
+source: ribbon_parser/src/test.rs
+description: "(,,)"
+---
+body:
+  - kind:
+      ParenthesisedExpression:
+        kind: Invalid
+        span:
+          low: 2
+          hi: 2
+    span:
+      low: 0
+      hi: 3
+diagnostics:
+  - kind:
+      Error:
+        UnexpectedOperator: Comma
+    span:
+      low: 2
+      hi: 2
+    subdiagnostics: []

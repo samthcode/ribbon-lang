@@ -64,14 +64,14 @@ impl<'a> TryDenotation<'a> for Tok<'a> {
             )),
             ribbon_lexer::TokKind::Op(op_kind) => match op_kind {
                 // Block expression
-                OpKind::LCurly => Ok(parser.block_expr()),
+                OpKind::LCurly => Ok(parser.block()),
                 // List expression
-                OpKind::LSquare => Ok(parser.list_expr(self.span)),
+                OpKind::LSquare => Ok(parser.list()),
                 // Tuple/unit type/function parameter list
-                OpKind::LParen => Ok(parser.tuple_like_expr(self.span)),
+                OpKind::LParen => Ok(parser.tuple_like()),
                 // Unary operator
                 op @ (OpKind::Minus | OpKind::Bang | OpKind::Mul | OpKind::Amp) => {
-                    parser.unary_expr(op, self.span)
+                    parser.unary_op(op, self.span)
                 }
                 // Unexpected (closing) delimiter
                 op if op.is_delim() => Err(Diagnostic::new_error(

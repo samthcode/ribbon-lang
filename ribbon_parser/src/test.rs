@@ -42,6 +42,7 @@ create_tests! {
     single_element_tuple: "()",
     single_element_tuple_trailing_comma: "(1,)",
     unclosed_tuple: "(1,2",
+    invalid_tuple: "(,,)",
     unclosed_tuple_and_eof_after_binary_operator: "(1, 2+",
     fn_decl_start_or_unit_type: "()",
     parenthesised_expression: "(10)",
