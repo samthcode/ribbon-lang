@@ -49,7 +49,7 @@ pub enum ExprKind {
     Block(Vec<Expr>),
     /// e.g. `a::b::c`
     Path(Path),
-    /// e.g. `i32, String Vec[i32]`
+    /// e.g. `i32`, `String`, `Vec[i32]`
     Type(Type),
     /// Any valid pattern
     Pattern(Pattern),

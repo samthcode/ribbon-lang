@@ -236,7 +236,7 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    /// Parser a standard binary operator which has only a left-hand side, operator, and right-hand side
+    /// Parse a standard binary operator which has only a left-hand side, operator, and right-hand side
     pub(crate) fn binary_op(
         &mut self,
         op_kind: OpKind,
