@@ -214,7 +214,7 @@ pub enum OpKind {
 
     /// `<`
     Lt,
-    // `>`
+    /// `>`
     Gt,
 
     // Two-Character Operators
@@ -235,7 +235,7 @@ pub enum OpKind {
     PipeEq,
     /// `+=`
     PlusEq,
-    /// -=
+    /// `-=`
     MinusEq,
     /// `*=`
     MulEq,
